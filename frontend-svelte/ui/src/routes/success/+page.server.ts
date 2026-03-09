@@ -22,7 +22,15 @@ export const actions: Actions = {
 		}
 
 		try {
-			const response = await fetch(`${BACKEND_URL}/agent?prompt=${encodeURIComponent(question.toString())}`, {
+			const scoresRes = await fetch(`${BACKEND_URL}/scores`, {
+				headers: {
+					Authorization: `Bearer ${token}`
+				}
+			});
+			const scores = scoresRes.ok ? await scoresRes.json() : [];
+			const deps = JSON.stringify({ scores });
+
+			const response = await fetch(`${BACKEND_URL}/agent?prompt=${encodeURIComponent(question.toString())}&deps=${encodeURIComponent(deps)}`, {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${token}`
