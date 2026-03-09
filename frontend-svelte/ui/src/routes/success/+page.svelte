@@ -42,16 +42,9 @@
 				if (result.type === 'success' && result.data) {
 					const data = result.data as any;
 					if (data.success) {
-						let answerText = data.answer?.response;
-						if (typeof answerText === 'object') {
-							answerText = JSON.stringify(answerText, null, 2);
-						} else if (!answerText) {
-							answerText = typeof data.answer === 'object' ? JSON.stringify(data.answer, null, 2) : String(data.answer);
-						}
-						
 						history.push({
 							question: data.question,
-							answer: answerText,
+							answer: data.answer?.response || 'No response',
 							score_id: data.answer?.score_id
 						});
 					}
