@@ -6,19 +6,26 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { ModeWatcher } from 'mode-watcher';
 
-	const { children } = $props();
+	let { children, data } = $props();
 </script>
 
 <ModeWatcher />
-<Sidebar.Provider>
-	<AppSidebar />
-	<Sidebar.Inset class="w-full flex-1 bg-background text-foreground">
-		<main class="w-full h-full overflow-y-auto p-8">
-			<Sidebar.Trigger class="mb-4" />
-			{@render children()}
-		</main>
-	</Sidebar.Inset>
-</Sidebar.Provider>
+
+{#if data.loggedIn}
+	<Sidebar.Provider>
+		<AppSidebar />
+		<Sidebar.Inset class="w-full flex-1 bg-background text-foreground">
+			<main class="w-full h-full overflow-y-auto p-8">
+				<Sidebar.Trigger class="mb-4" />
+				{@render children()}
+			</main>
+		</Sidebar.Inset>
+	</Sidebar.Provider>
+{#else}
+	<main class="w-full min-h-screen bg-background text-foreground overflow-y-auto">
+		{@render children()}
+	</main>
+{/if}
 
 <div style="display:none">
 	{#each locales as locale}
