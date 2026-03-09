@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import DarkModeToggle from './DarkModeToggle.svelte';
 </script>
 
 <Sidebar.Root>
@@ -35,4 +36,7 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
+	<Sidebar.Footer class="p-4">
+		<DarkModeToggle />
+	</Sidebar.Footer>
 </Sidebar.Root>

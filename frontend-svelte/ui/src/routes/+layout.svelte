@@ -4,10 +4,12 @@
 	import '../app.css';
 	import AppSidebar from '$lib/components/Sidebar.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import { ModeWatcher } from 'mode-watcher';
 
 	const { children } = $props();
 </script>
 
+<ModeWatcher />
 <Sidebar.Provider>
 	<AppSidebar />
 	<Sidebar.Inset class="w-full flex-1 bg-gray-50">
