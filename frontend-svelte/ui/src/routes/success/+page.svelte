@@ -43,7 +43,9 @@
 				{/if}
 				{#if msg.score_id}
 					<div class="mt-4">
-						<Button variant="secondary" size="sm">Open PDF (Score ID: {msg.score_id})</Button>
+						<Button variant="secondary" size="sm" href="/reader/{msg.score_id}">
+							Open PDF (Score ID: {msg.score_id})
+						</Button>
 					</div>
 				{/if}
 			</div>
