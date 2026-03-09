@@ -2,20 +2,21 @@
 	import { page } from '$app/state';
 	import { locales, localizeHref } from '$lib/paraglide/runtime';
 	import '../app.css';
-	import Sidebar from '$lib/components/Sidebar.svelte';
+	import AppSidebar from '$lib/components/Sidebar.svelte';
+	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 
 	const { children } = $props();
 </script>
 
-<div class="flex h-screen bg-gray-50">
+<Sidebar.Provider>
 	<!-- Sidebar -->
-	<Sidebar />
+	<AppSidebar />
 
 	<!-- Main Content -->
-	<main class="flex-1 overflow-y-auto">
+	<main class="flex-1 overflow-y-auto w-full bg-gray-50">
 		{@render children()}
 	</main>
-</div>
+</Sidebar.Provider>
 
 <div style="display:none">
 	{#each locales as locale}
