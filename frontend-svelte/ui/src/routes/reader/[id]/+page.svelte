@@ -4,12 +4,12 @@
 	let { data }: PageProps = $props();
 
 	// Fallback to title or ID if filename isn't directly on the score model
-	const filename = data.score?.filename || data.score?.title || data.score?.id;
+	let filename = $derived(data.score?.filename || data.score?.title || data.score?.id || '');
 	
 	// PDF.js viewer is hosted at /pdfjs/web/viewer.html on the backend
-	// We pass the actual PDF endpoint (/pdf/{filename}) with the token as the ?file= parameter
-	const pdfUrl = `${data.backendUrl}/pdf/${filename}?token=${data.token}`;
-	const viewerUrl = `${data.backendUrl}/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}`;
+	// We pass a relative URL to the PDF endpoint to prevent PDF.js from blocking absolute URLs
+	let pdfUrl = $derived(`/pdf/${encodeURIComponent(filename)}?token=${data.token}`);
+	let viewerUrl = $derived(`${data.backendUrl}/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}`);
 </script>
 
 <div class="h-full w-full p-4">
