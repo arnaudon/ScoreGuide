@@ -42,11 +42,17 @@
 				if (result.type === 'success' && result.data) {
 					const data = result.data as any;
 					if (data.success) {
-						let ans = data.answer?.response;
+						let textAns = data.answer?.response;
+						if (typeof textAns === 'object' && textAns !== null && 'response' in textAns) {
+							textAns = textAns.response;
+						}
+						
+						let scoreId = data.answer?.score_id || data.answer?.response?.score_id;
+
 						history.push({
 							question: data.question,
-							answer: typeof ans === 'object' ? JSON.stringify(ans, null, 2) : (ans || 'No response'),
-							score_id: data.answer?.score_id
+							answer: typeof textAns === 'string' ? textAns : JSON.stringify(textAns, null, 2),
+							score_id: scoreId
 						});
 					}
 				}
