@@ -10,10 +10,12 @@
 
 <Sidebar.Provider>
 	<AppSidebar />
-	<main class="w-full flex-1 overflow-y-auto bg-gray-50 p-8">
-		<Sidebar.Trigger />
-		{@render children()}
-	</main>
+	<Sidebar.Inset class="w-full flex-1 bg-gray-50">
+		<main class="w-full h-full overflow-y-auto p-8">
+			<Sidebar.Trigger class="mb-4" />
+			{@render children()}
+		</main>
+	</Sidebar.Inset>
 </Sidebar.Provider>
 
 <div style="display:none">
