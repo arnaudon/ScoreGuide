@@ -1,23 +1,24 @@
 """Tests for IMSLP integration."""
 
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
 from sqlmodel import Session, select
 
+from app import db
 from app.imslp import (
-    get_pdfs,
-    get_page,
-    fix_entry,
     add_entry,
+    fix_entry,
+    get_metadata,
+    get_page,
+    get_pdfs,
     get_works,
     progress_tracker,
-    get_metadata,
 )
 from app.main import app
 from app.users import get_admin_user
-from app import db
 from shared.scores import IMSLP, ScoreBase
 
 client = TestClient(app)
@@ -49,6 +50,13 @@ def apply_test_db_override(session):
 def mock_requests_get():
     """Mock requests.get."""
     with patch("app.imslp.requests.get") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_httpx_get():
+    """Mock httpx.AsyncClient.get."""
+    with patch("app.imslp.httpx.AsyncClient.get", new_callable=AsyncMock) as mock:
         yield mock
 
 
@@ -149,13 +157,17 @@ def test_get_pdfs(mock_requests_session):  # pylint: disable=redefined-outer-nam
     assert not pdfs
 
 
-def test_get_page(mock_requests_get):  # pylint: disable=redefined-outer-name
+@pytest.mark.asyncio
+async def test_get_page(mock_httpx_get):  # pylint: disable=redefined-outer-name
     """Test get_page API call."""
     mock_response = MagicMock()
-    mock_response.json.return_value = {"metadata": {"some": "meta"}, "1": {"title": "Work 1"}}
-    mock_requests_get.return_value = mock_response
+    mock_response.json.return_value = {
+        "metadata": {"some": "meta"},
+        "1": {"title": "Work 1"},
+    }
+    mock_httpx_get.return_value = mock_response
 
-    data = get_page(0)
+    data = await get_page(0)
     assert "metadata" not in data
     assert "1" in data
 
@@ -176,8 +188,60 @@ async def test_fix_entry(mock_agent):  # pylint: disable=redefined-outer-name
 
 
 @pytest.mark.asyncio
+async def test_fix_entry_retry_on_http_error(mock_agent):
+    """Test fix_entry retries on ModelHTTPError 503."""
+    mock_agent_instance = mock_agent.return_value
+    mock_agent_instance.run = AsyncMock()
+    mock_run_result = MagicMock()
+    mock_run_result.output = ScoreBase(title="Fixed Title", composer="Fixed Composer")
+    mock_agent_instance.run.side_effect = [
+        ModelHTTPError(model_name="test", status_code=503),
+        mock_run_result,
+    ]
+
+    entry = IMSLP(title="Old Title", permlink="http://example.com")
+    with patch("app.imslp.time.sleep"):
+        await fix_entry(entry)
+
+    assert entry.title == "Fixed Title"
+    assert mock_agent_instance.run.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_fix_entry_retry_on_unexpected_behavior(mock_agent):
+    """Test fix_entry retries on UnexpectedModelBehavior."""
+    mock_agent_instance = mock_agent.return_value
+    mock_agent_instance.run = AsyncMock()
+    mock_run_result = MagicMock()
+    mock_run_result.output = ScoreBase(title="Fixed Title", composer="Fixed Composer")
+    mock_agent_instance.run.side_effect = [
+        UnexpectedModelBehavior("Unexpected behavior"),
+        mock_run_result,
+    ]
+
+    entry = IMSLP(title="Old Title", permlink="http://example.com")
+    with patch("app.imslp.time.sleep"):
+        await fix_entry(entry)
+
+    assert entry.title == "Fixed Title"
+    assert mock_agent_instance.run.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_fix_entry_raises_error(mock_agent):
+    """Test fix_entry raises non-retryable error."""
+    mock_agent_instance = mock_agent.return_value
+    mock_agent_instance.run.side_effect = ModelHTTPError(model_name="test", status_code=400)
+
+    entry = IMSLP(title="Old Title", permlink="http://example.com")
+    with pytest.raises(ModelHTTPError):
+        await fix_entry(entry)
+    assert mock_agent_instance.run.call_count == 1
+
+
+@pytest.mark.asyncio
 async def test_add_entry(
-    session, mock_requests_get, mock_agent
+    session, mock_httpx_get, mock_agent
 ):  # pylint: disable=redefined-outer-name
     """Test adding entry."""
     # Mock fix_entry dependencies
@@ -197,7 +261,7 @@ async def test_add_entry(
     """
     mock_response = MagicMock()
     mock_response.text = html
-    mock_requests_get.return_value = mock_response
+    mock_httpx_get.return_value = mock_response
 
     item = {
         "permlink": "http://imslp.org/wiki/...",
@@ -213,8 +277,30 @@ async def test_add_entry(
 
 
 @pytest.mark.asyncio
+async def test_add_entry_exists(session, mock_httpx_get):  # pylint: disable=redefined-outer-name
+    """Test add_entry when entry already exists."""
+    # Add an entry to the DB first
+    existing_entry = IMSLP(
+        id=1,
+        title="T",
+        composer="C",
+        score_metadata="{}",
+        permlink="http://example.com/1",
+    )
+    session.add(existing_entry)
+    session.commit()
+
+    item = {
+        "permlink": "http://imslp.org/wiki/...",
+        "intvals": {"worktitle": "Sym 5", "composer": "Beethoven"},
+    }
+    await add_entry(1, item, session)
+    mock_httpx_get.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_get_works(
-    session, mock_requests_get, mock_agent
+    session, mock_httpx_get, mock_agent
 ):  # pylint: disable=redefined-outer-name
     """Test getting works."""
     # Mock fix_entry dependencies
@@ -245,7 +331,7 @@ async def test_get_works(
             return MagicMock(json=lambda: {"metadata": {}})
         return mock_response_metadata
 
-    mock_requests_get.side_effect = side_effect
+    mock_httpx_get.side_effect = side_effect
 
     progress_tracker["total"] = 2
     progress_tracker["cancel_requested"] = False
@@ -261,7 +347,7 @@ async def test_get_works(
 
 
 @pytest.mark.asyncio
-async def test_get_works_cancel(session, mock_requests_get):  # pylint: disable=redefined-outer-name
+async def test_get_works_cancel(session, mock_httpx_get):  # pylint: disable=redefined-outer-name
     """Test cancelling get_works."""
     progress_tracker["total"] = 10
     progress_tracker["cancel_requested"] = True
@@ -272,7 +358,7 @@ async def test_get_works_cancel(session, mock_requests_get):  # pylint: disable=
         "metadata": {},
         "0": {"permlink": "url1", "intvals": {"worktitle": "T1", "composer": "C1"}},
     }
-    mock_requests_get.return_value = mock_response
+    mock_httpx_get.return_value = mock_response
 
     # Mock add_entry to do nothing or pass
     with patch("app.imslp.add_entry", new_callable=AsyncMock):
@@ -285,8 +371,12 @@ async def test_get_works_cancel(session, mock_requests_get):  # pylint: disable=
 # --- Tests for Endpoints ---
 
 
-def test_start_endpoint(mock_requests_get):  # pylint: disable=redefined-outer-name,unused-argument
+def test_start_endpoint(mock_httpx_get):  # pylint: disable=redefined-outer-name,unused-argument
     """Test start endpoint."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"metadata": {}}  # To stop the loop
+    mock_httpx_get.return_value = mock_response
+
     response = client.post("/imslp/start/10")
     assert response.status_code == 200
     assert response.json() == {"message": "Task started successfully!"}
@@ -312,7 +402,11 @@ def test_stats_endpoint(session):
     """Test stats endpoint."""
     # Add dummy data
     entry = IMSLP(
-        id=1, title="T", composer="C", score_metadata="{}", permlink="http://example.com/1"
+        id=1,
+        title="T",
+        composer="C",
+        score_metadata="{}",
+        permlink="http://example.com/1",
     )
     session.add(entry)
     session.commit()
@@ -325,7 +419,11 @@ def test_stats_endpoint(session):
 def test_empty_endpoint(session):
     """Test empty endpoint."""
     entry = IMSLP(
-        id=1, title="T", composer="C", score_metadata="{}", permlink="http://example.com/1"
+        id=1,
+        title="T",
+        composer="C",
+        score_metadata="{}",
+        permlink="http://example.com/1",
     )
     session.add(entry)
     session.commit()
@@ -341,10 +439,18 @@ def test_empty_endpoint(session):
 def test_get_by_ids(session):
     """Test get_by_ids endpoint."""
     entry1 = IMSLP(
-        id=1, title="T1", composer="C1", score_metadata="{}", permlink="http://example.com/1"
+        id=1,
+        title="T1",
+        composer="C1",
+        score_metadata="{}",
+        permlink="http://example.com/1",
     )
     entry2 = IMSLP(
-        id=2, title="T2", composer="C2", score_metadata="{}", permlink="http://example.com/2"
+        id=2,
+        title="T2",
+        composer="C2",
+        score_metadata="{}",
+        permlink="http://example.com/2",
     )
     session.add(entry1)
     session.add(entry2)

@@ -22,7 +22,7 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("Update IMSLP database"):
         try:
-            response = api.start_imslp_update(max_pages=10)
+            response = api.start_imslp_update(max_pages=300)
             if response.status_code == 200:
                 st.success("Task started successfully!")
                 st.session_state.monitoring = True
@@ -47,6 +47,12 @@ with col2:
             if st.button("Cancel", key="cancel", type="secondary", use_container_width=True):
                 st.toast("Deletion cancelled.", icon="🚫")
 
+
+# Check if a task is already running in the backend
+current_status = api.get_imslp_progress()
+if current_status.get("status") == "processing":
+    st.session_state.monitoring = True
+
 if st.session_state.get("monitoring"):
     status_container = st.empty()
     progress_bar = st.progress(0)
@@ -65,7 +71,9 @@ if st.session_state.get("monitoring"):
             p_status = res.get("status", "idle")
 
             progress_bar.progress(p_page / p_total)
-            status_container.info(f"Current Status: **{p_status.upper()}** ({p_page}/{p_total})")
+            status_container.info(
+                f"Current Status: **{p_status.upper()} PAGE** ({p_page}/{p_total})"
+            )
 
             if p_status in ["completed", "cancelled", "idle"]:
                 if p_status == "completed":

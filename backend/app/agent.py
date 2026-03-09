@@ -4,7 +4,6 @@ import os
 import random
 from typing import Any
 
-import logfire
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
@@ -16,8 +15,11 @@ from shared.responses import FullResponse, ImslpFullResponse, ImslpResponse, Res
 from shared.scores import Difficulty, Score, Scores
 from shared.user import User
 
-logfire.configure()
-logfire.instrument_pydantic_ai()
+if os.getenv("USE_LOGFIRE"):
+    import logfire
+
+    logfire.configure()
+    logfire.instrument_pydantic_ai()
 
 load_dotenv()
 

@@ -1,17 +1,19 @@
 """Imslp scrapping module."""
 
+import asyncio
 import json
 import logging
 import os
 import time
 from typing import Any
 
-import numpy as np
+import httpx
 import requests
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, BackgroundTasks, Depends
 from pydantic_ai import Agent
 from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
+from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, func, select, text
 
@@ -77,13 +79,14 @@ def get_pdfs(response):
     return pdf_urls
 
 
-def get_page(start):
+async def get_page(start):
     """Get a page of works from IMSLP."""
     url = (
         "https://imslp.org/imslpscripts/API.ISCR.php?account=worklist/"
         f"disclaimer=accepted/sort=id/type=2/start={start}"
     )
-    response = requests.get(url, timeout=60)
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, timeout=60)
     data = response.json()
     data.pop("metadata")
     return data
@@ -99,14 +102,39 @@ async def fix_entry(entry):
     )
     prompt = f"""Find the information about music piece {entry.model_dump_json()},
     use score_metadata or internet search if the information is missing."""
-    res = await agent.run(prompt)
-    for key, value in res.output.model_dump().items():
-        setattr(entry, key, value)
+
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            res = await agent.run(prompt)
+            for key, value in res.output.model_dump().items():
+                setattr(entry, key, value)
+            break
+        except (ModelHTTPError, UnexpectedModelBehavior) as e:
+            if (
+                isinstance(e, ModelHTTPError) and e.status_code == 503 and attempt < max_retries - 1
+            ) or (isinstance(e, UnexpectedModelBehavior) and attempt < max_retries - 1):
+                wait_time = 2**attempt * 5  # Exponential backoff
+                logger.warning(
+                    "Model error %s , retrying in %s s (attempt %s / %s)",
+                    e,
+                    wait_time,
+                    attempt + 1,
+                    max_retries,
+                )
+                time.sleep(wait_time)
+            else:
+                raise e
 
 
-async def add_entry(i, item, session):
+async def add_entry(i, item, session, overwrite=False):
     """Add an entry to the database."""
-    response = requests.get(item["permlink"], timeout=60)
+    entry_exists = await asyncio.to_thread(session.get, IMSLP, int(i))
+    if not overwrite and entry_exists:
+        return
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(item["permlink"], timeout=60)
     metadata = get_metadata(response)
     entry = IMSLP(
         id=int(i),
@@ -128,8 +156,8 @@ async def add_entry(i, item, session):
         if col.name != "id"
     }
     stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_columns)
-    session.exec(stmt)
-    session.commit()
+    await asyncio.to_thread(session.exec, stmt)
+    await asyncio.to_thread(session.commit)
 
 
 async def get_works():
@@ -140,9 +168,7 @@ async def get_works():
             progress_tracker["page"] = i
             start = int(i * 1000)
 
-            # random sleep time to avoid being blocked
-            time.sleep(np.random.uniform(1, 10))
-            data = get_page(start)
+            data = await get_page(start)
 
             # last page, we stop
             if not data:
