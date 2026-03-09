@@ -22,14 +22,11 @@ export const actions: Actions = {
 		}
 
 		try {
-			// Sending prompt as both query param and body to handle different backend expectations.
 			const response = await fetch(`${BACKEND_URL}/agent?prompt=${encodeURIComponent(question.toString())}`, {
 				method: 'POST',
 				headers: {
-					'Content-Type': 'application/json',
 					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({ prompt: question.toString() })
+				}
 			});
 
 			if (response.ok) {
