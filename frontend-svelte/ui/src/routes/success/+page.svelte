@@ -2,9 +2,10 @@
 	import { enhance } from '$app/forms';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Table from '$lib/components/ui/table/index.js';
 
 	let { form } = $props();
-	let history = $state<{question: string, answer: string, score_id?: number}[]>([]);
+	let history = $state<{question: string, answer: string, score_id?: number, scoreDetails?: any}[]>([]);
 	let loading = $state(false);
 
 	function clearHistory() {
@@ -20,6 +21,26 @@
 			<div class="bg-muted p-4 rounded-lg">
 				<p class="font-bold text-foreground">Q: {msg.question}</p>
 				<p class="mt-2 text-muted-foreground whitespace-pre-wrap">{msg.answer}</p>
+				{#if msg.scoreDetails}
+					<div class="mt-4 rounded-md border bg-card text-card-foreground">
+						<Table.Root>
+							<Table.Header>
+								<Table.Row>
+									<Table.Head>ID</Table.Head>
+									<Table.Head>Title</Table.Head>
+									<Table.Head>Composer</Table.Head>
+								</Table.Row>
+							</Table.Header>
+							<Table.Body>
+								<Table.Row>
+									<Table.Cell>{msg.scoreDetails.id}</Table.Cell>
+									<Table.Cell>{msg.scoreDetails.title}</Table.Cell>
+									<Table.Cell>{msg.scoreDetails.composer}</Table.Cell>
+								</Table.Row>
+							</Table.Body>
+						</Table.Root>
+					</div>
+				{/if}
 				{#if msg.score_id}
 					<div class="mt-4">
 						<Button variant="secondary" size="sm">Open PDF (Score ID: {msg.score_id})</Button>
@@ -52,7 +73,8 @@
 						history.push({
 							question: data.question,
 							answer: typeof textAns === 'string' ? textAns : JSON.stringify(textAns, null, 2),
-							score_id: scoreId
+							score_id: scoreId,
+							scoreDetails: data.scoreDetails
 						});
 					}
 				}

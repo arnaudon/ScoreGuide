@@ -39,7 +39,12 @@ export const actions: Actions = {
 
 			if (response.ok) {
 				const result = await response.json();
-				return { success: true, answer: result, question: question.toString() };
+				let scoreDetails = null;
+				const scoreId = result?.score_id || result?.response?.score_id;
+				if (scoreId) {
+					scoreDetails = scores.find((s: any) => s.id === scoreId) || null;
+				}
+				return { success: true, answer: result, question: question.toString(), scoreDetails };
 			} else {
 				return fail(response.status, { error: `Failed to get response (${response.status})` });
 			}
