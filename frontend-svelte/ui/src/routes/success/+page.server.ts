@@ -1,7 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { env } from '$env/dynamic/private';
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = env.BACKEND_URL || 'http://localhost:8000';
 
 export const load: PageServerLoad = async ({ cookies }) => {
 	const token = cookies.get('access_token');

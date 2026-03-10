@@ -1,8 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { dev } from '$app/environment';
+import { env } from '$env/dynamic/private';
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = env.BACKEND_URL || 'http://localhost:8000';
 
 export const actions: Actions = {
 	default: async ({ request, cookies, fetch }) => {
