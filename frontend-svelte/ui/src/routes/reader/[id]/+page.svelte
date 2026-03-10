@@ -12,7 +12,9 @@
 	// We use relative URLs so that the request goes through the Vite proxy (or same-origin in production).
 	// This makes the iframe same-origin, allowing us to interact with the PDF.js API inside it safely!
 	let pdfUrl = $derived(filename ? `/pdf/${encodeURIComponent(filename)}?token=${data.token}` : '');
-	let viewerUrl = $derived(pdfUrl ? `/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}` : '');
+	// We do NOT URL-encode the pdfUrl here. Encoding the ? and = causes PDF.js 
+	// to request the literal encoded string from the backend, failing authentication.
+	let viewerUrl = $derived(pdfUrl ? `/pdfjs/web/viewer.html?file=${pdfUrl}` : '');
 
 	let iframeEl: HTMLIFrameElement | undefined = $state();
 	let isFullscreen = $state(false);
