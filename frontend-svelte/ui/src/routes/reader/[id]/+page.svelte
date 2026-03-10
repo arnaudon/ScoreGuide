@@ -27,6 +27,19 @@
 
 	function toggleFullscreen() {
 		if (!document.fullscreenElement) {
+			try {
+				// Try to enter PDF.js presentation mode (hides toolbar, fits page to screen)
+				// Note: this will only work if the iframe and host are same-origin.
+				const pdfApp = (iframeEl?.contentWindow as any)?.PDFViewerApplication;
+				if (pdfApp && typeof pdfApp.requestPresentationMode === 'function') {
+					pdfApp.requestPresentationMode();
+					return;
+				}
+			} catch (e) {
+				// Ignore CORS errors and fall back to standard iframe fullscreen
+				console.warn('Cross-origin frame: falling back to standard fullscreen');
+			}
+
 			iframeEl?.requestFullscreen().catch((err) => {
 				console.error(`Error attempting to enable fullscreen: ${err.message}`);
 			});
