@@ -2,12 +2,15 @@
 	import type { PageProps } from './$types';
 	import { enhance } from '$app/forms';
 	import * as Table from '$lib/components/ui/table/index.js';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);
 	let uploading = $state(false);
+	let sheetOpen = $state(false);
+	let selectedScore = $derived(data.scores.find((s: any) => s.id === selectedScoreId));
 </script>
 
 <div class="p-8">
@@ -79,7 +82,7 @@
 				{#each data.scores as score}
 					<Table.Row 
 						class="cursor-pointer transition-colors hover:bg-muted/50 {selectedScoreId === score.id ? 'bg-muted' : ''}"
-						onclick={() => selectedScoreId = score.id}
+						onclick={() => { selectedScoreId = score.id; sheetOpen = true; }}
 					>
 						<Table.Cell>{score.title}</Table.Cell>
 						<Table.Cell>{score.composer}</Table.Cell>
@@ -98,3 +101,48 @@
 		</Table.Root>
 	</div>
 </div>
+
+<Sheet.Root bind:open={sheetOpen}>
+	<Sheet.Content class="w-full overflow-y-auto sm:max-w-md">
+		<Sheet.Header>
+			<Sheet.Title>Score Details</Sheet.Title>
+			<Sheet.Description>Full metadata for the selected score.</Sheet.Description>
+		</Sheet.Header>
+		{#if selectedScore}
+			<div class="mt-6 flex flex-col gap-3">
+				{#each Object.entries(selectedScore) as [key, value]}
+					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
+						<span class="text-sm font-semibold capitalize text-foreground">
+							{key.replace(/_/g, ' ')}
+						</span>
+						<span class="col-span-2 text-sm text-muted-foreground break-words">
+							{#if key === 'youtube_url' && value}
+								<a href={value} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">
+									Watch on YouTube
+								</a>
+							{:else}
+								{value !== null && value !== '' ? value : '-'}
+							{/if}
+						</span>
+					</div>
+				{/each}
+			</div>
+			
+			<div class="mt-8 flex flex-col gap-2">
+				<Button href="/reader/{selectedScore.id}" class="w-full">View PDF</Button>
+				<form method="POST" action="?/delete" use:enhance={() => {
+					return async ({ update, result }) => {
+						if (result.type === 'success') {
+							sheetOpen = false;
+							selectedScoreId = null;
+						}
+						update();
+					};
+				}}>
+					<input type="hidden" name="id" value={selectedScore.id} />
+					<Button type="submit" variant="destructive" class="w-full">Delete Score</Button>
+				</form>
+			</div>
+		{/if}
+	</Sheet.Content>
+</Sheet.Root>

@@ -1,6 +1,7 @@
 """Backend main entry point."""
 
 import json
+import uuid
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
@@ -142,8 +143,9 @@ def upload_pdf(file: UploadFile = File(...)):
     if file.content_type != "application/pdf":  # pragma: no cover
         raise HTTPException(status_code=400, detail="Only PDFs allowed")
     try:
-        file_helper.upload_pdf(file.filename, file.file)
-        return {"message": "Upload successful", "file_id": file.filename}
+        file_id = f"{uuid.uuid4().hex}.pdf"
+        file_helper.upload_pdf(file_id, file.file)
+        return {"message": "Upload successful", "file_id": file_id}
 
     except Exception as e:  # pragma: no cover
         raise HTTPException(status_code=500, detail=str(e)) from e

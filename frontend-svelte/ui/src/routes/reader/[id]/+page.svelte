@@ -3,13 +3,13 @@
 
 	let { data }: PageProps = $props();
 
-	// Fallback to title or ID if filename isn't directly on the score model
-	let filename = $derived(data.score?.pdf_path || data.score?.title || data.score?.id || '');
+	// Use the saved pdf_path from the database
+	let filename = $derived(data.score?.pdf_path || '');
 	
 	// PDF.js viewer is hosted at /pdfjs/web/viewer.html on the backend
 	// We pass the absolute URL to ensure PDF.js correctly parses the query parameters instead of URL-encoding them into the filename
-	let pdfUrl = $derived(`${data.backendUrl}/pdf/${encodeURIComponent(filename)}?token=${data.token}`);
-	let viewerUrl = $derived(`${data.backendUrl}/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}`);
+	let pdfUrl = $derived(filename ? `${data.backendUrl}/pdf/${encodeURIComponent(filename)}?token=${data.token}` : '');
+	let viewerUrl = $derived(pdfUrl ? `${data.backendUrl}/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}` : '');
 </script>
 
 <div class="h-full w-full p-4">
@@ -20,11 +20,17 @@
 		</div>
 		
 		<div class="rounded-md border bg-card shadow-sm h-[calc(100vh-8rem)]">
-			<iframe 
-				src={viewerUrl} 
-				class="w-full h-full border-0 rounded-md" 
-				title="PDF Viewer"
-			></iframe>
+			{#if viewerUrl}
+				<iframe 
+					src={viewerUrl} 
+					class="w-full h-full border-0 rounded-md" 
+					title="PDF Viewer"
+				></iframe>
+			{:else}
+				<div class="flex h-full items-center justify-center text-muted-foreground">
+					No PDF available for this score.
+				</div>
+			{/if}
 		</div>
 	{:else}
 		<div class="p-8 text-center text-muted-foreground">

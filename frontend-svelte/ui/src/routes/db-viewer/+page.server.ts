@@ -68,20 +68,58 @@ export const actions: Actions = {
 			const uploadData = await uploadRes.json();
 			const filename = uploadData.file_id || uploadFilename;
 
-			// 2. Add Score to DB
-			const scoreData = {
+			// 2. Complete Score Data using the Agent
+			const initialScoreData = {
 				title: title.toString(),
 				composer: composer.toString(),
 				pdf_path: filename
 			};
 
+			const completeRes = await fetch(`${BACKEND_URL}/complete_score`, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(initialScoreData)
+			});
+
+			if (!completeRes.ok) {
+				return fail(completeRes.status, { error: 'Failed to complete score data with agent' });
+			}
+
+			let scoreData = await completeRes.json();
+			
+			// Handle case where agent returns a JSON string instead of an object
+			if (typeof scoreData === 'string') {
+				try {
+					scoreData = JSON.parse(scoreData);
+				} catch (e) {
+					console.error('Could not parse scoreData string');
+				}
+			}
+			
+			// Handle case where agent wraps the score in a response object
+			if (scoreData && typeof scoreData === 'object' && !scoreData.title) {
+				if (scoreData.score) scoreData = scoreData.score;
+				else if (scoreData.response) scoreData = scoreData.response;
+			}
+			
+			// Create the final payload, ensuring pdf_path and source are explicitly set
+			const finalScoreData = {
+				...scoreData,
+				pdf_path: filename,
+				source: 'manual'
+			};
+
+			// 3. Add Score to DB
 			const scoreRes = await fetch(`${BACKEND_URL}/scores`, {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${token}`,
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify(scoreData)
+				body: JSON.stringify(finalScoreData)
 			});
 
 			if (!scoreRes.ok) {
