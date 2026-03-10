@@ -5,8 +5,18 @@
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import { type ColumnDef, getCoreRowModel } from '@tanstack/table-core';
-	import { FlexRender, createSvelteTable } from '$lib/components/ui/data-table/index.js';
+	import {
+		type ColumnDef,
+		type PaginationState,
+		type SortingState,
+		type ColumnFiltersState,
+		getCoreRowModel,
+		getPaginationRowModel,
+		getSortedRowModel,
+		getFilteredRowModel
+	} from '@tanstack/table-core';
+	import { FlexRender, createSvelteTable, renderComponent } from '$lib/components/ui/data-table/index.js';
+	import DataTableSortButton from './data-table-sort-button.svelte';
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);
@@ -14,10 +24,30 @@
 	let sheetOpen = $state(false);
 	let selectedScore = $derived(data.scores.find((s: any) => s.id === selectedScoreId));
 
+	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	let sorting = $state<SortingState>([]);
+	let columnFilters = $state<ColumnFiltersState>([]);
+
 	const columns: ColumnDef<any>[] = [
-		{ accessorKey: 'title', header: 'Title' },
-		{ accessorKey: 'composer', header: 'Composer' },
-		{ accessorKey: 'year', header: 'Year' },
+		{ 
+			accessorKey: 'title', 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Title', onclick: column.getToggleSortingHandler() }) 
+		},
+		{ 
+			accessorKey: 'composer', 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Composer', onclick: column.getToggleSortingHandler() }) 
+		},
+		{ 
+			accessorKey: 'year', 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Year', onclick: column.getToggleSortingHandler() }),
+			filterFn: (row, columnId, filterValue) => {
+				const val = row.getValue(columnId) as number;
+				const [min, max] = (filterValue as [number | undefined, number | undefined]) || [undefined, undefined];
+				if (min !== undefined && !isNaN(min) && val < min) return false;
+				if (max !== undefined && !isNaN(max) && val > max) return false;
+				return true;
+			}
+		},
 		{ accessorKey: 'period', header: 'Period' },
 		{ accessorKey: 'genre', header: 'Genre' }
 	];
@@ -27,7 +57,42 @@
 			return data.scores;
 		},
 		columns,
-		getCoreRowModel: getCoreRowModel()
+		state: {
+			get pagination() {
+				return pagination;
+			},
+			get sorting() {
+				return sorting;
+			},
+			get columnFilters() {
+				return columnFilters;
+			}
+		},
+		onPaginationChange: (updater) => {
+			if (typeof updater === 'function') {
+				pagination = updater(pagination);
+			} else {
+				pagination = updater;
+			}
+		},
+		onSortingChange: (updater) => {
+			if (typeof updater === 'function') {
+				sorting = updater(sorting);
+			} else {
+				sorting = updater;
+			}
+		},
+		onColumnFiltersChange: (updater) => {
+			if (typeof updater === 'function') {
+				columnFilters = updater(columnFilters);
+			} else {
+				columnFilters = updater;
+			}
+		},
+		getCoreRowModel: getCoreRowModel(),
+		getPaginationRowModel: getPaginationRowModel(),
+		getSortedRowModel: getSortedRowModel(),
+		getFilteredRowModel: getFilteredRowModel()
 	});
 </script>
 
@@ -85,6 +150,47 @@
 		{/if}
 	</div>
 	
+	<div class="flex flex-wrap items-center gap-4 py-4">
+		<Input
+			placeholder="Filter titles..."
+			value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
+			oninput={(e) => table.getColumn("title")?.setFilterValue(e.currentTarget.value)}
+			class="max-w-xs"
+		/>
+		<Input
+			placeholder="Filter composers..."
+			value={(table.getColumn("composer")?.getFilterValue() as string) ?? ""}
+			oninput={(e) => table.getColumn("composer")?.setFilterValue(e.currentTarget.value)}
+			class="max-w-xs"
+		/>
+		<div class="flex items-center gap-2">
+			<span class="text-sm font-medium">Year:</span>
+			<Input
+				type="number"
+				placeholder="Min"
+				value={((table.getColumn("year")?.getFilterValue() as [number, number])?.[0]) ?? ""}
+				oninput={(e) => {
+					const current = (table.getColumn("year")?.getFilterValue() as [number | undefined, number | undefined]) || [undefined, undefined];
+					const val = e.currentTarget.value ? parseInt(e.currentTarget.value, 10) : undefined;
+					table.getColumn("year")?.setFilterValue([val, current[1]]);
+				}}
+				class="w-20"
+			/>
+			<span>-</span>
+			<Input
+				type="number"
+				placeholder="Max"
+				value={((table.getColumn("year")?.getFilterValue() as [number, number])?.[1]) ?? ""}
+				oninput={(e) => {
+					const current = (table.getColumn("year")?.getFilterValue() as [number | undefined, number | undefined]) || [undefined, undefined];
+					const val = e.currentTarget.value ? parseInt(e.currentTarget.value, 10) : undefined;
+					table.getColumn("year")?.setFilterValue([current[0], val]);
+				}}
+				class="w-20"
+			/>
+		</div>
+	</div>
+
 	<div class="rounded-md border bg-card text-card-foreground">
 		<Table.Root>
 			<Table.Header>
@@ -127,6 +233,28 @@
 				{/each}
 			</Table.Body>
 		</Table.Root>
+	</div>
+
+	<div class="flex items-center justify-end space-x-2 py-4">
+		<div class="flex-1 text-sm text-muted-foreground">
+			Showing {table.getRowModel().rows.length} of {table.getFilteredRowModel().rows.length} results.
+		</div>
+		<Button
+			variant="outline"
+			size="sm"
+			onclick={() => table.previousPage()}
+			disabled={!table.getCanPreviousPage()}
+		>
+			Previous
+		</Button>
+		<Button
+			variant="outline"
+			size="sm"
+			onclick={() => table.nextPage()}
+			disabled={!table.getCanNextPage()}
+		>
+			Next
+		</Button>
 	</div>
 </div>
 
