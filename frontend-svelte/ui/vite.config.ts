@@ -10,6 +10,18 @@ export default defineConfig({
 		sveltekit(),
 		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide' })
 	],
+	server: {
+		proxy: {
+			'/pdfjs': {
+				target: 'http://localhost:8000',
+				changeOrigin: true
+			},
+			'/pdf': {
+				target: 'http://localhost:8000',
+				changeOrigin: true
+			}
+		}
+	},
 	test: {
 		expect: { requireAssertions: true },
 		projects: [

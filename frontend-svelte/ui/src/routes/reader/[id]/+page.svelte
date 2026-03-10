@@ -9,10 +9,10 @@
 	// Use the saved pdf_path from the database
 	let filename = $derived(data.score?.pdf_path || '');
 	
-	// PDF.js viewer is hosted at /pdfjs/web/viewer.html on the backend
-	// We pass the absolute URL to ensure PDF.js correctly parses the query parameters instead of URL-encoding them into the filename
-	let pdfUrl = $derived(filename ? `${data.backendUrl}/pdf/${encodeURIComponent(filename)}?token=${data.token}` : '');
-	let viewerUrl = $derived(pdfUrl ? `${data.backendUrl}/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}` : '');
+	// We use relative URLs so that the request goes through the Vite proxy (or same-origin in production).
+	// This makes the iframe same-origin, allowing us to interact with the PDF.js API inside it safely!
+	let pdfUrl = $derived(filename ? `/pdf/${encodeURIComponent(filename)}?token=${data.token}` : '');
+	let viewerUrl = $derived(pdfUrl ? `/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}` : '');
 
 	let iframeEl: HTMLIFrameElement | undefined = $state();
 	let isFullscreen = $state(false);
