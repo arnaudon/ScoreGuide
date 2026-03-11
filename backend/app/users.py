@@ -53,15 +53,14 @@ def get_password_hash(password):
     return password_hash.hash(password)
 
 
-def get_user(username: str):
+def get_user(username: str, session: Session):
     """Get user by username."""
-    session = next(get_session())
     return session.exec(select(User).where(User.username == username)).first()
 
 
-def authenticate_user(username: str, password: str):
+def authenticate_user(username: str, password: str, session: Session):
     """Authenticate user."""
-    user = get_user(username)
+    user = get_user(username, session)
     if not user:
         return False
     if not verify_password(password, user.password):
@@ -84,9 +83,10 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 @router.post("/token")
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    session: Session = Depends(get_session),
 ) -> Token:
     """Login for access token."""
-    user = authenticate_user(form_data.username, form_data.password)
+    user = authenticate_user(form_data.username, form_data.password, session)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -101,12 +101,15 @@ async def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: Session = Depends(get_session),
+):
     """Get current user."""
-    return get_current_user_from_token(token)
+    return get_current_user_from_token(token, session)
 
 
-def get_current_user_from_token(token: str):
+def get_current_user_from_token(token: str, session: Session):
     """Validate a token and return the corresponding user."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -120,7 +123,7 @@ def get_current_user_from_token(token: str):
             raise credentials_exception
     except InvalidTokenError as exc:
         raise credentials_exception from exc
-    user = get_user(username=username)
+    user = get_user(username=username, session=session)
     if user is None:
         raise credentials_exception
     return user

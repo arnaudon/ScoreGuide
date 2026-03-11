@@ -121,9 +121,9 @@ async def run_main_agent(
     )
 
 
-def get_pdf_user(token: str = ""):  # pragma: no cover
+def get_pdf_user(token: str = "", session: Session = Depends(get_session)):  # pragma: no cover
     """Dependency for PDF endpoints - accepts token as query param."""
-    return get_current_user_from_token(token)
+    return get_current_user_from_token(token, session)
 
 
 @app.get("/pdf/{filename}")
