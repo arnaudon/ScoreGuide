@@ -12,6 +12,14 @@ services:
     environment:
       - DATA_PATH=/app/data
 
+  frontend-streamlit:
+    volumes:
+      - ./frontend:/app/frontend
+      - ./shared:/app/shared
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - PUBLIC_BACKEND_URL=http://localhost:8000 # Use localhost for dev access if needed outside docker network
+
   frontend:
     ports:
       - '5173:5173'
