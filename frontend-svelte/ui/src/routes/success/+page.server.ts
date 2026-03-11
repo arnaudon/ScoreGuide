@@ -1,0 +1,57 @@
+import { fail, redirect } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
+import { env } from '$env/dynamic/private';
+
+const BACKEND_URL = env.BACKEND_URL || 'http://localhost:8000';
+
+export const load: PageServerLoad = async ({ cookies }) => {
+	const token = cookies.get('access_token');
+	if (!token) {
+		redirect(303, '/login');
+	}
+	return {};
+};
+
+export const actions: Actions = {
+	ask: async ({ request, cookies, fetch }) => {
+		const token = cookies.get('access_token');
+		const data = await request.formData();
+		const question = data.get('question');
+
+		if (!question) {
+			return fail(400, { error: 'Missing question' });
+		}
+
+		try {
+			const scoresRes = await fetch(`${BACKEND_URL}/scores`, {
+				headers: {
+					Authorization: `Bearer ${token}`
+				}
+			});
+			const scores = scoresRes.ok ? await scoresRes.json() : [];
+			const deps = JSON.stringify({ scores });
+
+			const response = await fetch(`${BACKEND_URL}/agent?prompt=${encodeURIComponent(question.toString())}&deps=${encodeURIComponent(deps)}`, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${token}`
+				}
+			});
+
+			if (response.ok) {
+				const result = await response.json();
+				let scoreDetails = null;
+				const scoreId = result?.score_id || result?.response?.score_id;
+				if (scoreId) {
+					scoreDetails = scores.find((s: any) => s.id === scoreId) || null;
+				}
+				return { success: true, answer: result, question: question.toString(), scoreDetails };
+			} else {
+				return fail(response.status, { error: `Failed to get response (${response.status})` });
+			}
+		} catch (error) {
+			console.error('Agent error:', error);
+			return fail(500, { error: 'Server error when contacting backend' });
+		}
+	}
+};

@@ -15,6 +15,9 @@ class DummyExc(Exception):
     """Dummy exception for testing."""
 
 
+# pylint: disable=non-parent-init-called,super-init-not-called
+
+
 @pytest.mark.anyio
 async def test_run_agent_model_http_error(monkeypatch, test_scores, test_user):
     """

@@ -1,6 +1,7 @@
 """Backend main entry point."""
 
 import json
+import uuid
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
@@ -120,16 +121,20 @@ async def run_main_agent(
     )
 
 
-def get_pdf_user(token: str = ""):  # pragma: no cover
+def get_pdf_user(token: str = "", session: Session = Depends(get_session)):  # pragma: no cover
     """Dependency for PDF endpoints - accepts token as query param."""
-    return get_current_user_from_token(token)
+    return get_current_user_from_token(token, session)
 
 
 @app.get("/pdf/{filename}")
 def get_pdf(filename: str, _user=Depends(get_pdf_user)):
     """Get the url of a pdf file."""
     obj = file_helper.download_pdf(filename)
-    return StreamingResponse(obj["Body"], media_type="application/pdf")
+    return StreamingResponse(
+        obj["Body"],
+        media_type="application/pdf",
+        headers={"Cache-Control": "public, max-age=86400, immutable"},
+    )
 
 
 @app.post("/pdf", dependencies=[Depends(get_current_user)])
@@ -138,8 +143,9 @@ def upload_pdf(file: UploadFile = File(...)):
     if file.content_type != "application/pdf":  # pragma: no cover
         raise HTTPException(status_code=400, detail="Only PDFs allowed")
     try:
-        file_helper.upload_pdf(file.filename, file.file)
-        return {"message": "Upload successful", "file_id": file.filename}
+        file_id = f"{uuid.uuid4().hex}.pdf"
+        file_helper.upload_pdf(file_id, file.file)
+        return {"message": "Upload successful", "file_id": file_id}
 
     except Exception as e:  # pragma: no cover
         raise HTTPException(status_code=500, detail=str(e)) from e
