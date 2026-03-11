@@ -164,32 +164,52 @@
 						{uploading ? 'Thinking...' : 'Ask Agent'}
 					</Button>
 				</form>
+				<form id="agentAddForm" method="POST" action="?/add_imslp" use:enhance={() => {
+					uploading = true;
+					return async ({ update }) => {
+						uploading = false;
+						update();
+					};
+				}}>
+					<input type="hidden" name="imslp_id" id="agentAddImslpId" />
+				</form>
 				{#if form?.agent_results}
 					<div class="mt-4 p-4 border rounded-md bg-muted/50">
 						{#if form.agent_results.response}
 							<p class="mb-4 text-sm whitespace-pre-wrap">{form.agent_results.response}</p>
 						{/if}
 						{#if form.agent_results.scores && form.agent_results.scores.length > 0}
-							<ul class="space-y-2">
-								{#each form.agent_results.scores as score}
-									<li class="flex items-center justify-between bg-background p-3 rounded-md border shadow-sm">
-										<div class="flex flex-col">
-											<span class="text-sm font-bold">{score.composer} - {score.title}</span>
-											<span class="text-xs text-muted-foreground">ID: {score.id} {#if score.instrumentation} • {score.instrumentation}{/if}</span>
-										</div>
-										<form method="POST" action="?/add_imslp" use:enhance={() => {
-											uploading = true;
-											return async ({ update }) => {
-												uploading = false;
-												update();
-											};
-										}}>
-											<input type="hidden" name="imslp_id" value={score.id} />
-											<Button type="submit" size="sm" variant="secondary" disabled={uploading}>Add</Button>
-										</form>
-									</li>
-								{/each}
-							</ul>
+							<div class="rounded-md border bg-card text-card-foreground overflow-hidden">
+								<Table.Root>
+									<Table.Header>
+										<Table.Row>
+											<Table.Head>Composer</Table.Head>
+											<Table.Head>Title</Table.Head>
+											<Table.Head>Instrumentation</Table.Head>
+											<Table.Head>Year</Table.Head>
+										</Table.Row>
+									</Table.Header>
+									<Table.Body>
+										{#each form.agent_results.scores as score}
+											<Table.Row class="cursor-pointer hover:bg-muted/50" onclick={() => {
+												if (!uploading) {
+													const input = document.getElementById('agentAddImslpId');
+													const formEl = document.getElementById('agentAddForm');
+													if (input && formEl) {
+														(input as HTMLInputElement).value = score.id.toString();
+														(formEl as HTMLFormElement).requestSubmit();
+													}
+												}
+											}}>
+												<Table.Cell class="font-medium">{score.composer}</Table.Cell>
+												<Table.Cell>{score.title}</Table.Cell>
+												<Table.Cell>{score.instrumentation || '-'}</Table.Cell>
+												<Table.Cell>{score.year || '-'}</Table.Cell>
+											</Table.Row>
+										{/each}
+									</Table.Body>
+								</Table.Root>
+							</div>
 						{:else if form.agent_results.response}
 							<p class="text-sm text-muted-foreground mt-2 text-center">No matching scores found.</p>
 						{/if}

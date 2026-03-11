@@ -147,25 +147,23 @@ export const actions: Actions = {
 		}
 
 		try {
-			const res = await fetch(`${BACKEND_URL}/agent/imslp`, {
+			const promptParam = encodeURIComponent(prompt.toString());
+			const res = await fetch(`${BACKEND_URL}/imslp_agent?prompt=${promptParam}`, {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ prompt: prompt.toString() })
+				headers: { Authorization: `Bearer ${token}` }
 			});
 
 			if (!res.ok) {
 				return fail(res.status, { error: 'Failed to query agent' });
 			}
 
-			const agent_results = await res.json();
-			let scores = agent_results.scores || [];
+			const json = await res.json();
+			let scores = [];
+			const score_ids = json.response?.score_ids || [];
+			const agent_response_text = json.response?.response || '';
 			
-			// If the agent returned score_ids but no detailed score objects, fetch the details
-			if (agent_results.score_ids && agent_results.score_ids.length > 0 && scores.length === 0) {
-				const idsParam = encodeURIComponent(JSON.stringify(agent_results.score_ids));
+			if (score_ids.length > 0) {
+				const idsParam = encodeURIComponent(JSON.stringify(score_ids));
 				const scoresRes = await fetch(`${BACKEND_URL}/imslp/scores_by_ids?score_ids=${idsParam}`, {
 					headers: { Authorization: `Bearer ${token}` }
 				});
@@ -173,10 +171,8 @@ export const actions: Actions = {
 					scores = await scoresRes.json();
 				}
 			}
-			
-			agent_results.scores = scores;
 
-			return { success: true, agent_results };
+			return { success: true, agent_results: { response: agent_response_text, scores } };
 		} catch (error) {
 			console.error('Ask agent error:', error);
 			return fail(500, { error: 'Server error when contacting backend' });
@@ -196,17 +192,44 @@ export const actions: Actions = {
 		}
 
 		try {
-			// Assuming backend has a specific endpoint to pull from IMSLP. 
-			// Adjust the URL as needed if your backend route differs.
-			const res = await fetch(`${BACKEND_URL}/scores/imslp/${imslp_id}`, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`
-				}
+			const idsParam = encodeURIComponent(JSON.stringify([Number(imslp_id)]));
+			const imslpRes = await fetch(`${BACKEND_URL}/imslp/scores_by_ids?score_ids=${idsParam}`, {
+				headers: { Authorization: `Bearer ${token}` }
 			});
 
-			if (!res.ok) {
-				return fail(res.status, { error: 'Failed to add score from IMSLP' });
+			if (!imslpRes.ok) {
+				return fail(imslpRes.status, { error: 'Failed to fetch IMSLP score' });
+			}
+
+			const imslpScores = await imslpRes.json();
+			if (!imslpScores || imslpScores.length === 0) {
+				return fail(404, { error: 'IMSLP score not found' });
+			}
+
+			const imslpScore = imslpScores[0];
+
+			const newScore = {
+				title: imslpScore.title,
+				composer: imslpScore.composer,
+				pdf_path: imslpScore.permlink,
+				instrumentation: imslpScore.instrumentation || '',
+				style: imslpScore.style || '',
+				period: imslpScore.period || '',
+				year: imslpScore.year && !isNaN(Number(imslpScore.year)) ? Number(imslpScore.year) : null,
+				key: imslpScore.key || ''
+			};
+
+			const scoreRes = await fetch(`${BACKEND_URL}/scores`, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(newScore)
+			});
+
+			if (!scoreRes.ok) {
+				return fail(scoreRes.status, { error: 'Failed to add score to database' });
 			}
 
 			return { success: true };
