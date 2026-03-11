@@ -4,8 +4,22 @@ import { env } from '$env/dynamic/private';
 const BACKEND_URL = env.BACKEND_URL || 'http://localhost:8000';
 
 export const GET: RequestHandler = async ({ params, url, fetch }) => {
-	const filename = params.filepath;
-	const token = url.searchParams.get('token');
+	const pathWithQuery = params.filepath;
+	let filename = pathWithQuery;
+	let token: string | null = null;
+
+	// The `file` parameter passed to PDF.js viewer is a URL that gets encoded.
+	// This means our query parameter `?token=...` becomes part of the path.
+	// SvelteKit decodes it, so we can parse it from the `filepath` parameter.
+	const tokenMarker = '?token=';
+	const tokenIndex = pathWithQuery.indexOf(tokenMarker);
+
+	if (tokenIndex !== -1) {
+		filename = pathWithQuery.substring(0, tokenIndex);
+		token = pathWithQuery.substring(tokenIndex + tokenMarker.length);
+	} else {
+		token = url.searchParams.get('token');
+	}
 
 	if (!filename || !token) {
 		return new Response('Not found', { status: 404 });
