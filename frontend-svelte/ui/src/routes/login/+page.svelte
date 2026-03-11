@@ -2,6 +2,7 @@
 	import type { PageProps } from './$types';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { enhance } from '$app/forms';
 
 	let { form }: PageProps = $props();
@@ -35,6 +36,18 @@
 				<label for="password" class="text-sm leading-none font-medium">Password</label>
 				<Input id="password" name="password" type="password" />
 			</div>
+
+			{#if !isRegister}
+				<div class="flex items-center space-x-2 pt-2">
+					<Checkbox id="remember" name="remember" />
+					<label
+						for="remember"
+						class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+					>
+						Keep me logged in
+					</label>
+				</div>
+			{/if}
 
 			{#if form?.error}
 				<p class="text-destructive text-sm font-medium">{form.error}</p>

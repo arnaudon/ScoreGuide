@@ -9,6 +9,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const username = data.get('username');
 		const password = data.get('password');
+		const remember = data.get('remember');
 
 		if (!username || !password) {
 			return fail(400, { username: username?.toString(), error: 'Missing username or password' });
@@ -33,12 +34,14 @@ export const actions: Actions = {
 
 		const tokenData = await response.json();
 
+		const maxAge = remember === 'on' ? 60 * 60 * 24 * 30 : 60 * 60 * 24; // 30 days or 1 day
+
 		cookies.set('access_token', tokenData.access_token, {
 			path: '/',
 			httpOnly: true,
 			secure: false,
 			sameSite: 'strict',
-			maxAge: 60 * 60 * 24 // 1 day
+			maxAge
 		});
 
 		redirect(303, '/success');
