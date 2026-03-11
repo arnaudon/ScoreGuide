@@ -133,6 +133,39 @@ export const actions: Actions = {
 			return fail(500, { error: 'Server error when contacting backend' });
 		}
 	},
+	add_imslp: async ({ request, cookies, fetch }) => {
+		const token = cookies.get('access_token');
+		if (!token) {
+			return fail(401, { error: 'Unauthorized' });
+		}
+
+		const data = await request.formData();
+		const imslp_id = data.get('imslp_id');
+
+		if (!imslp_id) {
+			return fail(400, { error: 'Missing IMSLP ID' });
+		}
+
+		try {
+			// Assuming backend has a specific endpoint to pull from IMSLP. 
+			// Adjust the URL as needed if your backend route differs.
+			const res = await fetch(`${BACKEND_URL}/scores/imslp/${imslp_id}`, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${token}`
+				}
+			});
+
+			if (!res.ok) {
+				return fail(res.status, { error: 'Failed to add score from IMSLP' });
+			}
+
+			return { success: true };
+		} catch (error) {
+			console.error('Add IMSLP error:', error);
+			return fail(500, { error: 'Server error when contacting backend' });
+		}
+	},
 	delete: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {

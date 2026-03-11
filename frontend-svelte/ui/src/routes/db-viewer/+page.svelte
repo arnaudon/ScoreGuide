@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import {
@@ -99,29 +100,54 @@
 <div class="p-8">
 	<div class="mb-8 rounded-md border bg-card p-4 shadow-sm text-card-foreground">
 		<h2 class="mb-4 text-lg font-semibold">Add New Score</h2>
-		<form method="POST" action="?/upload" enctype="multipart/form-data" use:enhance={() => {
-			uploading = true;
-			return async ({ update }) => {
-				uploading = false;
-				update();
-			};
-		}} class="flex flex-col gap-4 md:flex-row md:items-end">
-			<div class="flex-1 space-y-2">
-				<label for="title" class="text-sm font-medium leading-none">Title</label>
-				<Input id="title" name="title" required />
-			</div>
-			<div class="flex-1 space-y-2">
-				<label for="composer" class="text-sm font-medium leading-none">Composer</label>
-				<Input id="composer" name="composer" required />
-			</div>
-			<div class="flex-1 space-y-2">
-				<label for="file" class="text-sm font-medium leading-none">PDF File</label>
-				<Input id="file" name="file" type="file" accept="application/pdf" required />
-			</div>
-			<Button type="submit" disabled={uploading}>
-				{uploading ? 'Uploading...' : 'Upload & Save'}
-			</Button>
-		</form>
+		<Tabs.Root value="manual" class="w-full">
+			<Tabs.List class="mb-4">
+				<Tabs.Trigger value="manual">Manual Upload</Tabs.Trigger>
+				<Tabs.Trigger value="imslp">From IMSLP</Tabs.Trigger>
+			</Tabs.List>
+			<Tabs.Content value="manual">
+				<form method="POST" action="?/upload" enctype="multipart/form-data" use:enhance={() => {
+					uploading = true;
+					return async ({ update }) => {
+						uploading = false;
+						update();
+					};
+				}} class="flex flex-col gap-4 md:flex-row md:items-end">
+					<div class="flex-1 space-y-2">
+						<label for="title" class="text-sm font-medium leading-none">Title</label>
+						<Input id="title" name="title" required />
+					</div>
+					<div class="flex-1 space-y-2">
+						<label for="composer" class="text-sm font-medium leading-none">Composer</label>
+						<Input id="composer" name="composer" required />
+					</div>
+					<div class="flex-1 space-y-2">
+						<label for="file" class="text-sm font-medium leading-none">PDF File</label>
+						<Input id="file" name="file" type="file" accept="application/pdf" required />
+					</div>
+					<Button type="submit" disabled={uploading}>
+						{uploading ? 'Uploading...' : 'Upload & Save'}
+					</Button>
+				</form>
+			</Tabs.Content>
+			<Tabs.Content value="imslp">
+				<form method="POST" action="?/add_imslp" use:enhance={() => {
+					uploading = true;
+					return async ({ update }) => {
+						uploading = false;
+						update();
+					};
+				}} class="flex flex-col gap-4 md:flex-row md:items-end">
+					<div class="flex-1 space-y-2">
+						<label for="imslp_id" class="text-sm font-medium leading-none">IMSLP ID</label>
+						<Input id="imslp_id" name="imslp_id" type="number" placeholder="e.g. 12345" required />
+					</div>
+					<Button type="submit" disabled={uploading}>
+						{uploading ? 'Adding...' : 'Add from IMSLP'}
+					</Button>
+				</form>
+			</Tabs.Content>
+		</Tabs.Root>
 		{#if form?.error}
 			<p class="mt-4 text-sm font-medium text-destructive">{form.error}</p>
 		{/if}
