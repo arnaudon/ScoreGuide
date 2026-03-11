@@ -39,6 +39,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 
 		let progress = { status: 'idle', page: 0, total: 0 };
 		const progressResponse = await fetch(`${BACKEND_URL}/imslp/progress`, {
+			method: 'POST',
 			headers: { Authorization: `Bearer ${token}` }
 		});
 		if (progressResponse.ok) {
