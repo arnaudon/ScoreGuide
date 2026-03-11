@@ -105,7 +105,6 @@
 			<Tabs.List class="mb-4">
 				<Tabs.Trigger value="manual">Manual Upload</Tabs.Trigger>
 				<Tabs.Trigger value="imslp">From IMSLP</Tabs.Trigger>
-				<Tabs.Trigger value="agent">Ask Agent</Tabs.Trigger>
 			</Tabs.List>
 			<Tabs.Content value="manual">
 				<form method="POST" action="?/upload" enctype="multipart/form-data" use:enhance={() => {
@@ -133,27 +132,6 @@
 				</form>
 			</Tabs.Content>
 			<Tabs.Content value="imslp">
-				<form method="POST" action="?/add_imslp" enctype="multipart/form-data" use:enhance={() => {
-					uploading = true;
-					return async ({ update }) => {
-						uploading = false;
-						update();
-					};
-				}} class="flex flex-col gap-4 md:flex-row md:items-end">
-					<div class="flex-1 space-y-2">
-						<label for="imslp_id" class="text-sm font-medium leading-none">IMSLP ID</label>
-						<Input id="imslp_id" name="imslp_id" type="number" placeholder="e.g. 12345" required />
-					</div>
-					<div class="flex-1 space-y-2">
-						<label for="imslp_file" class="text-sm font-medium leading-none">PDF File</label>
-						<Input id="imslp_file" name="file" type="file" accept="application/pdf" required />
-					</div>
-					<Button type="submit" disabled={uploading}>
-						{uploading ? 'Adding...' : 'Add from IMSLP'}
-					</Button>
-				</form>
-			</Tabs.Content>
-			<Tabs.Content value="agent">
 				<form method="POST" action="?/ask_agent" use:enhance={() => {
 					uploading = true;
 					return async ({ update }) => {
