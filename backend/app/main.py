@@ -133,7 +133,7 @@ def get_pdf(filename: str, _user=Depends(get_pdf_user)):
     return StreamingResponse(
         obj["Body"],
         media_type="application/pdf",
-        headers={"Cache-Control": "public, max-age=86400, immutable"}
+        headers={"Cache-Control": "public, max-age=86400, immutable"},
     )
 
 

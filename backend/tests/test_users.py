@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app import users
+from app.main import app
 from shared.user import User
 
 
@@ -56,7 +57,9 @@ def test_create_access_token_default_expiry():
 
 
 @pytest.mark.asyncio
-async def test_create_access_token_and_get_current_user(user_in_db: User, session: Session):
+async def test_create_access_token_and_get_current_user(
+    user_in_db: User, session: Session
+):
     """create_access_token embeds username and get_current_user resolves it."""
 
     # shorter expiry to exercise explicit expiry branch
@@ -70,7 +73,9 @@ async def test_create_access_token_and_get_current_user(user_in_db: User, sessio
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_valid_invalid_and_missing_sub(user_in_db: User, session: Session):
+async def test_get_current_user_valid_invalid_and_missing_sub(
+    user_in_db: User, session: Session
+):
     """get_current_user returns user for valid token and raises for bad tokens."""
 
     # valid token
@@ -195,7 +200,7 @@ def test_update_password(user_in_db: User, client: TestClient):
 
 def test_delete_account(user_in_db: User, client: TestClient):
     """DELETE /user deletes the account."""
-    from app.main import app
+
     app.dependency_overrides.pop(users.get_current_user, None)
 
     token = users.create_access_token(data={"sub": user_in_db.username})

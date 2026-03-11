@@ -67,8 +67,8 @@ def mock_requests_session():
         yield mock
 
 
-@pytest.fixture
-def mock_agent():
+@pytest.fixture(name="mock_agent")
+def mock_agent_fixture():
     """Mock Agent."""
     with patch("app.imslp.Agent") as mock:
         yield mock
@@ -180,7 +180,7 @@ async def test_fix_entry(mock_agent):  # pylint: disable=redefined-outer-name
     mock_run_result.output = ScoreBase(title="Fixed Title", composer="Fixed Composer")
     mock_agent_instance.run = AsyncMock(return_value=mock_run_result)
 
-    entry = IMSLP(title="Old Title", permlink="http://example.com")
+    entry = IMSLP(title="Old Title", permlink="http://example.com", composer="Old Composer")
     await fix_entry(entry)
 
     assert entry.title == "Fixed Title"
@@ -199,7 +199,7 @@ async def test_fix_entry_retry_on_http_error(mock_agent):
         mock_run_result,
     ]
 
-    entry = IMSLP(title="Old Title", permlink="http://example.com")
+    entry = IMSLP(title="Old Title", permlink="http://example.com", composer="Old Composer")
     with patch("app.imslp.time.sleep"):
         await fix_entry(entry)
 
@@ -219,7 +219,7 @@ async def test_fix_entry_retry_on_unexpected_behavior(mock_agent):
         mock_run_result,
     ]
 
-    entry = IMSLP(title="Old Title", permlink="http://example.com")
+    entry = IMSLP(title="Old Title", permlink="http://example.com", composer="Old Composer")
     with patch("app.imslp.time.sleep"):
         await fix_entry(entry)
 
@@ -233,7 +233,7 @@ async def test_fix_entry_raises_error(mock_agent):
     mock_agent_instance = mock_agent.return_value
     mock_agent_instance.run.side_effect = ModelHTTPError(model_name="test", status_code=400)
 
-    entry = IMSLP(title="Old Title", permlink="http://example.com")
+    entry = IMSLP(title="Old Title", permlink="http://example.com", composer="Old Composer")
     with pytest.raises(ModelHTTPError):
         await fix_entry(entry)
     assert mock_agent_instance.run.call_count == 1
