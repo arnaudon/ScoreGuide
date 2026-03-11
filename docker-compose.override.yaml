@@ -14,12 +14,13 @@ services:
 
   frontend:
     ports:
-      - '8501:8501'
+      - '5173:5173'
     volumes:
-      - ./frontend:/app/frontend
+      - ./frontend-svelte:/app/frontend-svelte
       - ./shared:/app/shared
     environment:
-      - API_URL=http://backend:8000
+      - BACKEND_URL=http://backend:8000
+      - PUBLIC_BACKEND_URL=http://localhost:8000
 
 volumes:
   postgres_data:
