@@ -40,6 +40,11 @@
 			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Composer', onclick: column.getToggleSortingHandler() }) 
 		},
 		{ 
+			accessorKey: 'instrumentation', 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Instrumentation', onclick: column.getToggleSortingHandler() }),
+			cell: ({ row }) => row.original.instrumentation || '-'
+		},
+		{ 
 			accessorKey: 'year', 
 			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Year', onclick: column.getToggleSortingHandler() }),
 			filterFn: (row, columnId, filterValue) => {
@@ -350,6 +355,12 @@
 			placeholder="Filter composers..."
 			value={(table.getColumn("composer")?.getFilterValue() as string) ?? ""}
 			oninput={(e) => table.getColumn("composer")?.setFilterValue(e.currentTarget.value)}
+			class="max-w-xs"
+		/>
+		<Input
+			placeholder="Filter instrumentation..."
+			value={(table.getColumn("instrumentation")?.getFilterValue() as string) ?? ""}
+			oninput={(e) => table.getColumn("instrumentation")?.setFilterValue(e.currentTarget.value)}
 			class="max-w-xs"
 		/>
 		<div class="flex items-center gap-2">
