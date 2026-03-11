@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 
+import jwt
 import pytest
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
@@ -55,6 +56,13 @@ def test_get_user_and_authenticate_user(user_in_db: User, session: Session):
     # and fails with wrong password or unknown user
     assert users.authenticate_user(user_in_db.username, "wrong", session) is False
     assert users.authenticate_user("unknown", "secret", session) is False
+
+
+def test_create_access_token_default_expiry():
+    """create_access_token uses default 15 minutes if expires_delta is None."""
+    token = users.create_access_token(data={"sub": "test"})
+    decoded = jwt.decode(token, users.SECRET_KEY, algorithms=[users.ALGORITHM])
+    assert "exp" in decoded
 
 
 @pytest.mark.asyncio
@@ -168,3 +176,49 @@ def test_get_current_user_route(client: TestClient):
     """GET /user returns current user (covers get_current_user)."""
     resp = client.get("/user")
     assert resp.status_code == 200
+
+
+def test_update_password(user_in_db: User, client: TestClient):
+    """PUT /user/password updates the password."""
+    token = users.create_access_token(data={"sub": user_in_db.username})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Incorrect current password
+    resp = client.put(
+        "/user/password",
+        json={"current_password": "wrong", "new_password": "new-secret"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Incorrect current password"
+
+    # 2. Correct current password
+    resp = client.put(
+        "/user/password",
+        json={"current_password": "secret", "new_password": "new-secret"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "Password updated successfully"
+
+    # 3. Verify new password works
+    login_resp = client.post(
+        "/token",
+        data={"username": user_in_db.username, "password": "new-secret"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_resp.status_code == 200
+
+
+def test_delete_account(user_in_db: User, client: TestClient):
+    """DELETE /user deletes the account."""
+    token = users.create_access_token(data={"sub": user_in_db.username})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.delete("/user", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "Account deleted successfully"
+
+    # The user should no longer be accessible
+    resp_after = client.get("/user", headers=headers)
+    assert resp_after.status_code == 401
