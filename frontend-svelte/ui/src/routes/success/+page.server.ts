@@ -17,9 +17,19 @@ export const actions: Actions = {
 		const token = cookies.get('access_token');
 		const data = await request.formData();
 		const question = data.get('question');
+		const messageHistoryRaw = data.get('message_history');
 
 		if (!question) {
 			return fail(400, { error: 'Missing question' });
+		}
+
+		let messageHistory = null;
+		if (messageHistoryRaw) {
+			try {
+				messageHistory = JSON.parse(messageHistoryRaw.toString());
+			} catch (e) {
+				console.error('Failed to parse message_history', e);
+			}
 		}
 
 		try {
@@ -39,7 +49,8 @@ export const actions: Actions = {
 				},
 				body: JSON.stringify({
 					prompt: question.toString(),
-					deps: deps
+					deps: deps,
+					message_history: messageHistory
 				})
 			});
 

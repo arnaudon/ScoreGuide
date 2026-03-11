@@ -6,10 +6,12 @@
 
 	let { form } = $props();
 	let history = $state<{question: string, answer: string, score_id?: number, scoreDetails?: any}[]>([]);
+	let rawHistory = $state<any[]>([]);
 	let loading = $state(false);
 
 	function clearHistory() {
 		history = [];
+		rawHistory = [];
 	}
 </script>
 
@@ -72,6 +74,10 @@
 						
 						let scoreId = data.answer?.score_id || data.answer?.response?.score_id;
 
+						if (data.answer?.message_history) {
+							rawHistory = data.answer.message_history;
+						}
+
 						history.push({
 							question: data.question,
 							answer: typeof textAns === 'string' ? textAns : JSON.stringify(textAns, null, 2),
@@ -83,6 +89,7 @@
 				update({ reset: true });
 			};
 		}} class="flex gap-2">
+			<input type="hidden" name="message_history" value={JSON.stringify(rawHistory)} />
 			<Input name="question" placeholder="Question" required />
 			<Button type="submit" disabled={loading}>Ask</Button>
 		</form>
