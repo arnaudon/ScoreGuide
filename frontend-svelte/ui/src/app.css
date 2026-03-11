@@ -65,7 +65,6 @@
 	}
 
 	body {
-		background-image: url('/parchment-texture.png');
 		background-color: hsl(var(--background));
 		color: hsl(var(--foreground));
 	}
