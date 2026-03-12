@@ -24,7 +24,10 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 			const score = scores.find((s: any) => s.id === Number(params.id));
 			
 			if (score) {
-				cookies.set('last_score_id', params.id, { path: '/' });
+				cookies.set('last_score_id', params.id, { 
+					path: '/',
+					maxAge: 60 * 60 * 24 * 30 // 30 days
+				});
 			}
 
 			return { 
