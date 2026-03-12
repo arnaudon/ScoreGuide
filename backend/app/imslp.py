@@ -110,7 +110,7 @@ async def fix_entry(entry):
             for key, value in res.output.model_dump().items():
                 setattr(entry, key, value)
             break
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             if attempt < max_retries - 1:
                 wait_time = 2**attempt * 5  # Exponential backoff
                 logger.warning(
