@@ -110,10 +110,8 @@ async def fix_entry(entry):
             for key, value in res.output.model_dump().items():
                 setattr(entry, key, value)
             break
-        except (ModelHTTPError, UnexpectedModelBehavior) as e:
-            if (
-                isinstance(e, ModelHTTPError) and e.status_code == 503 and attempt < max_retries - 1
-            ) or (isinstance(e, UnexpectedModelBehavior) and attempt < max_retries - 1):
+        except Exception as e:
+            if attempt < max_retries - 1:
                 wait_time = 2**attempt * 5  # Exponential backoff
                 logger.warning(
                     "Model error %s , retrying in %s s (attempt %s / %s)",
