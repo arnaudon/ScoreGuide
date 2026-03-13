@@ -91,11 +91,15 @@ async def get_page(start):
     return data
 
 
-async def fix_entry(entry):
+async def fix_entry(entry, session):
     """Fix missing values in the entry using an agent."""
-    from app.agent import ACTIVE_MODELS
+    from app.db import Setting
+    
+    setting = session.get(Setting, "model_complete")
+    model = setting.value if setting else os.getenv("MODEL", "test")
+    
     agent = Agent(
-        ACTIVE_MODELS["complete"],
+        model,
         output_type=ScoreBase,
         system_prompt=""" Fix missing values.""",
         tools=[duckduckgo_search_tool()],
@@ -146,7 +150,7 @@ async def add_entry(i, item, session, overwrite=False):
         key=metadata.get("Key", ""),
         score_metadata=json.dumps(metadata),
     )
-    await fix_entry(entry)
+    await fix_entry(entry, session)
     stmt = insert(IMSLP).values(entry.model_dump())
     update_columns = {
         col.name: stmt.excluded[col.name]

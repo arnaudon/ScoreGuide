@@ -24,11 +24,6 @@ if os.getenv("USE_LOGFIRE"):
 
 load_dotenv()
 
-ACTIVE_MODELS = {
-    "main": os.getenv("MODEL", "test"),
-    "imslp": os.getenv("MODEL", "test"),
-    "complete": os.getenv("MODEL", "test"),
-}
 postgres_server = MCPServerSSE("http://mcp-postgres:8001/sse")
 
 
@@ -95,7 +90,7 @@ async def get_easiest_score_by_composer(ctx: RunContext[Deps], filter_params: Fi
 def get_main_agent(model: str | None = None):
     """Initializes and returns the main agent for handling user queries about scores."""
     agent = Agent(
-        model or ACTIVE_MODELS["main"],
+        model or os.getenv("MODEL", "test"),
         output_type=Response,
         deps_type=Deps,
         system_prompt="""Your task it to find a score to play.
@@ -131,7 +126,7 @@ async def run_imslp_agent(prompt: str, message_history=None, model: str | None =
         A FullResponse object containing the agent's response and message history.
     """
     agent = Agent(
-        model or ACTIVE_MODELS["imslp"],
+        model or os.getenv("MODEL", "test"),
         system_prompt="""
         You are a database assistant. 
         Your ONLY source of data is the table: public.imslp.
@@ -235,7 +230,7 @@ async def run_complete_agent(score: Score, model: str | None = None):
         The updated Score object.
     """
     agent = Agent(
-        model or ACTIVE_MODELS["complete"],
+        model or os.getenv("MODEL", "test"),
         output_type=Score,
         system_prompt="""You are a music expert, and your task it to provide accurate
         informations about a music piece. Use the search tool to find current information

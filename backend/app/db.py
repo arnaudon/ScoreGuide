@@ -2,9 +2,16 @@
 
 import os
 
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Field, Session, SQLModel, create_engine
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database/app.db")
+
+
+class Setting(SQLModel, table=True):
+    """Key-value settings for the app."""
+
+    key: str = Field(primary_key=True)
+    value: str
 
 
 def init_db():
