@@ -28,25 +28,25 @@
 			<div class="space-y-2">
 				<label for="model_main" class="text-sm font-medium leading-none">Main Agent Model</label>
 				<select id="model_main" name="model_main" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-					<option value="gemini/gemini-2.5-flash" selected={data.activeModels.main === 'gemini/gemini-2.5-flash' || data.activeModels.main === ''}>Gemini 2.5 Flash</option>
-					<option value="gemini/gemini-2.5-pro" selected={data.activeModels.main === 'gemini/gemini-2.5-pro'}>Gemini 2.5 Pro</option>
-					<option value="gemini/gemini-3-pro-preview" selected={data.activeModels.main === 'gemini/gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
+					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.main === 'google-gla:gemini-2.5-flash' || data.activeModels.main === ''}>Gemini 2.5 Flash</option>
+					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.main === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
+					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.main === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
 				</select>
 			</div>
 			<div class="space-y-2">
 				<label for="model_imslp" class="text-sm font-medium leading-none">IMSLP Agent Model</label>
 				<select id="model_imslp" name="model_imslp" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-					<option value="gemini/gemini-2.5-flash" selected={data.activeModels.imslp === 'gemini/gemini-2.5-flash' || data.activeModels.imslp === ''}>Gemini 2.5 Flash</option>
-					<option value="gemini/gemini-2.5-pro" selected={data.activeModels.imslp === 'gemini/gemini-2.5-pro'}>Gemini 2.5 Pro</option>
-					<option value="gemini/gemini-3-pro-preview" selected={data.activeModels.imslp === 'gemini/gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
+					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash' || data.activeModels.imslp === ''}>Gemini 2.5 Flash</option>
+					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.imslp === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
+					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.imslp === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
 				</select>
 			</div>
 			<div class="space-y-2">
 				<label for="model_complete" class="text-sm font-medium leading-none">Complete Agent Model</label>
 				<select id="model_complete" name="model_complete" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-					<option value="gemini/gemini-2.5-flash" selected={data.activeModels.complete === 'gemini/gemini-2.5-flash' || data.activeModels.complete === ''}>Gemini 2.5 Flash</option>
-					<option value="gemini/gemini-2.5-pro" selected={data.activeModels.complete === 'gemini/gemini-2.5-pro'}>Gemini 2.5 Pro</option>
-					<option value="gemini/gemini-3-pro-preview" selected={data.activeModels.complete === 'gemini/gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
+					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash' || data.activeModels.complete === ''}>Gemini 2.5 Flash</option>
+					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.complete === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
+					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.complete === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
 				</select>
 			</div>
 			<button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 self-start" type="submit">
