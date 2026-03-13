@@ -165,20 +165,24 @@ async def run_main_agent(
 @app.get("/admin/model", dependencies=[Depends(get_admin_user)])
 def get_active_model(session: Session = Depends(get_session)):
     """Get the currently active agent models."""
+    main_setting = session.get(Setting, "model_main")
+    imslp_setting = session.get(Setting, "model_imslp")
+    complete_setting = session.get(Setting, "model_complete")
+    
     models = {
         "main": (
-            session.get(Setting, "model_main").value
-            if session.get(Setting, "model_main")
+            main_setting.value
+            if main_setting
             else os.getenv("MODEL", "test")
         ),
         "imslp": (
-            session.get(Setting, "model_imslp").value
-            if session.get(Setting, "model_imslp")
+            imslp_setting.value
+            if imslp_setting
             else os.getenv("MODEL", "test")
         ),
         "complete": (
-            session.get(Setting, "model_complete").value
-            if session.get(Setting, "model_complete")
+            complete_setting.value
+            if complete_setting
             else os.getenv("MODEL", "test")
         ),
     }
