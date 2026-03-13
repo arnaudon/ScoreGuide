@@ -93,9 +93,9 @@ async def get_page(start):
 
 async def fix_entry(entry):
     """Fix missing values in the entry using an agent."""
-    from app.agent import ACTIVE_MODEL
+    from app.agent import ACTIVE_MODELS
     agent = Agent(
-        ACTIVE_MODEL,
+        ACTIVE_MODELS["complete"],
         output_type=ScoreBase,
         system_prompt=""" Fix missing values.""",
         tools=[duckduckgo_search_tool()],

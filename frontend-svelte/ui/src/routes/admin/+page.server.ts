@@ -46,38 +46,40 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 			progress = await progressResponse.json();
 		}
 
-		let activeModel = '';
+		let activeModels = { main: '', imslp: '', complete: '' };
 		const modelResponse = await fetch(`${BACKEND_URL}/admin/model`, {
 			headers: { Authorization: `Bearer ${token}` }
 		});
 		if (modelResponse.ok) {
 			const resData = await modelResponse.json();
-			activeModel = resData.model;
+			activeModels = resData.models || { main: '', imslp: '', complete: '' };
 		}
 
-		return { users, stats, progress, activeModel };
+		return { users, stats, progress, activeModels };
 	} catch (error) {
 		console.error('Failed to fetch admin data:', error);
 	}
 
-	return { users: [], stats: { total_works: 0, total_composers: 0 }, progress: { status: 'idle', page: 0, total: 0 }, activeModel: '' };
+	return { users: [], stats: { total_works: 0, total_composers: 0 }, progress: { status: 'idle', page: 0, total: 0 }, activeModels: { main: '', imslp: '', complete: '' } };
 };
 
 export const actions = {
-	set_model: async ({ request, cookies, fetch }) => {
+	set_models: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		const data = await request.formData();
-		const model = data.get('model')?.toString();
-		if (model) {
-			await fetch(`${BACKEND_URL}/admin/model`, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ model })
-			});
-		}
+		const models = {
+			main: data.get('model_main')?.toString() || '',
+			imslp: data.get('model_imslp')?.toString() || '',
+			complete: data.get('model_complete')?.toString() || ''
+		};
+		await fetch(`${BACKEND_URL}/admin/model`, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${token}`,
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ models })
+		});
 	},
 	update: async ({ request, cookies, fetch }) => {
 		const data = await request.formData();

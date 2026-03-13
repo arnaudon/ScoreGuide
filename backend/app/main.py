@@ -129,15 +129,15 @@ async def run_main_agent(
 
 @app.get("/admin/model", dependencies=[Depends(get_admin_user)])
 def get_active_model():
-    """Get the currently active global agent model."""
-    return {"model": agent_module.ACTIVE_MODEL}
+    """Get the currently active agent models."""
+    return {"models": agent_module.ACTIVE_MODELS}
 
 
 @app.post("/admin/model", dependencies=[Depends(get_admin_user)])
-def set_active_model(model: str = Body(..., embed=True)):
-    """Set the currently active global agent model."""
-    agent_module.ACTIVE_MODEL = model
-    return {"message": "Model updated", "model": model}
+def set_active_model(models: dict = Body(..., embed=True)):
+    """Set the currently active agent models."""
+    agent_module.ACTIVE_MODELS.update(models)
+    return {"message": "Models updated", "models": agent_module.ACTIVE_MODELS}
 
 
 def get_pdf_user(token: str = "", session: Session = Depends(get_session)):  # pragma: no cover
