@@ -19,6 +19,7 @@
 	import { FlexRender, createSvelteTable, renderComponent } from '$lib/components/ui/data-table/index.js';
 	import AgentChat from '$lib/components/AgentChat.svelte';
 	import DataTableSortButton from './data-table-sort-button.svelte';
+	import { imslpAgentHistoryStore } from '$lib/stores/chat.svelte';
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);
@@ -224,6 +225,7 @@
 						placeholder="e.g. Find me piano sonatas by Beethoven"
 						onResult={onImslpResult}
 						user={data.user}
+						store={imslpAgentHistoryStore}
 					>
 						{#snippet children()}
 							<div />
