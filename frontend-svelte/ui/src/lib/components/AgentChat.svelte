@@ -76,7 +76,7 @@
 <div class="flex flex-col h-full w-full">
 	<h1 class="text-2xl font-bold mb-4 text-foreground">{title}</h1>
 
-	<div class="flex-1 overflow-y-auto mb-4 space-y-4 pr-2" bind:this={scrollContainer}>
+	<div class="overflow-y-auto mb-4 space-y-4 pr-2" bind:this={scrollContainer}>
 		{#each history as msg, index}
 			<div class="bg-muted p-4 rounded-lg">
 				<p class="font-bold text-foreground">Q: {msg.question}</p>
@@ -90,7 +90,7 @@
 		{/if}
 	</div>
 
-	<div class="bg-card border rounded-lg p-4 shadow-sm">
+	<div class="bg-card border rounded-lg p-4 shadow-sm mt-auto">
 		<form method="POST" {action} use:enhance={handleEnhance} class="flex gap-2">
 			<input type="hidden" name="message_history" value={JSON.stringify(rawHistory)} />
 			<Input name="question" {placeholder} required />
