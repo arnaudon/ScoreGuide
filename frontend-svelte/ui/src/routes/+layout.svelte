@@ -9,8 +9,8 @@
 
 	let { children, data } = $props();
 
-	function toggleLanguage() {
-		setLocale(languageTag() === 'en' ? 'fr' : 'en');
+	function setLanguage(lang: 'en' | 'fr') {
+		setLocale(lang);
 	}
 </script>
 
@@ -38,10 +38,16 @@
 			{@render children()}
 		</main>
 		<footer class="p-4 text-center text-sm text-muted-foreground">
-			<div class="mb-2">
-				<button onclick={toggleLanguage} class="rounded-md border px-2 py-1 text-xs font-semibold hover:bg-muted">
-					{m.toggle_lang()}
-				</button>
+			<div class="mb-2 flex justify-center">
+				<div class="flex rounded-md border text-xs font-semibold">
+					<button onclick={() => setLanguage('en')} class="px-2 py-1 hover:bg-muted {languageTag() === 'en' ? 'bg-muted' : ''}">
+						EN
+					</button>
+					<div class="w-[1px] bg-border"></div>
+					<button onclick={() => setLanguage('fr')} class="px-2 py-1 hover:bg-muted {languageTag() === 'fr' ? 'bg-muted' : ''}">
+						FR
+					</button>
+				</div>
 			</div>
 			© 2026 Alexis Arnaudon. {m.footer_contact()}
 			<a href="mailto:alexis.arnaudon@gmail.com" class="hover:underline">

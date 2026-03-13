@@ -5,8 +5,8 @@
 	import { setLocale, languageTag } from '$lib/paraglide/runtime';
 	import * as m from '$lib/paraglide/messages.js';
 
-	function toggleLanguage() {
-		setLocale(languageTag() === 'en' ? 'fr' : 'en');
+	function setLanguage(lang: 'en' | 'fr') {
+		setLocale(lang);
 	}
 </script>
 
@@ -73,9 +73,15 @@
 		</Sidebar.Menu>
 		<div class="flex items-center gap-2">
 			<DarkModeToggle />
-			<button onclick={toggleLanguage} class="rounded-md border p-2 text-xs font-semibold hover:bg-muted">
-				{m.toggle_lang()}
-			</button>
+			<div class="flex rounded-md border text-xs font-semibold">
+				<button onclick={() => setLanguage('en')} class="p-2 hover:bg-muted {languageTag() === 'en' ? 'bg-muted' : ''}">
+					EN
+				</button>
+				<div class="w-[1px] bg-border"></div>
+				<button onclick={() => setLanguage('fr')} class="p-2 hover:bg-muted {languageTag() === 'fr' ? 'bg-muted' : ''}">
+					FR
+				</button>
+			</div>
 		</div>
 	</Sidebar.Footer>
 </Sidebar.Root>
