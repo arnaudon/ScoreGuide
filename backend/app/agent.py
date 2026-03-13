@@ -139,8 +139,6 @@ async def run_imslp_agent(prompt: str, message_history=None, model: str | None =
         Example: WHERE instrumentation LIKE '%piano%'
         NEVER use double quotes (") for strings.
         ALWAYS append "LIMIT 100" to your SQL queries to prevent fetching too many results.
-        If the query returns exactly 100 results, you MUST append this exact warning to your response: 
-        "Warning: we limit the search to 100, more scores may be available, please refine your search."
         Do not list the scores in your text response if you provide score_ids, as it is duplicate data.
         """,
         toolsets=[postgres_server],

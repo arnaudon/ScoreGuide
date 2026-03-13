@@ -228,7 +228,9 @@
 						store={imslpAgentHistoryStore}
 					>
 						{#snippet children()}
-							<div />
+							<div class="text-xs max-w-sm">
+								Warning: we limit the search to 100, more scores may be available, refine the search.
+							</div>
 						{/snippet}
 						{#snippet resultSnippet({ msg, isLast })}
 							<p class="mb-4 text-sm whitespace-pre-wrap">{msg.answer}</p>
