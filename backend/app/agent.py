@@ -93,11 +93,9 @@ def get_main_agent(model: str | None = None):
         output_type=Response,
         deps_type=Deps,
         system_prompt="""Your task it to find a score to play.
-        Write score id entry into score_id.
-        If multiple scores are possible, return None for the score_id.
-        If one score is available, write score_id.
-        Do not mention score_id in your response.
-        If multiple choices are possible, list them without id.
+        If one score is available, write its id into score_id.
+        If multiple scores are possible, write their ids into the score_ids list.
+        Do not mention score_id or score_ids in your text response.
         Use my username in the conversations.
         """,
         toolsets=[postgres_server],
