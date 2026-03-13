@@ -216,7 +216,7 @@
 				</form>
 			</Tabs.Content>
 			<Tabs.Content value="imslp">
-				<div class="flex flex-col h-[600px] w-full">
+				<div class="flex flex-col h-[500px] w-full">
 					<AgentChat
 						{form}
 						action="?/ask_agent"
