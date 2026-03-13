@@ -2,7 +2,7 @@
 
 import os
 
-from sqlmodel import Field, Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database/app.db")
 
