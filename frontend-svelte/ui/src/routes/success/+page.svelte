@@ -101,20 +101,13 @@
 		{form}
 		action="?/ask"
 		title="Agent"
-		placeholder="Question"
+		placeholder="e.g. Find me piano sonatas by Beethoven"
 		{onResult}
 		user={data.user}
 		store={mainAgentHistoryStore}
 	>
 		{#snippet children()}
-			<div>
-				<p class="mb-2">Here is how to use me:</p>
-				<ul class="list-disc list-inside space-y-1">
-					<li>Ask me a question about a score or a composer</li>
-					<li>I can give you a random score from a composer</li>
-					<li>etc...</li>
-				</ul>
-			</div>
+			<div />
 		{/snippet}
 
 		{#snippet resultSnippet({ msg, isLast })}
