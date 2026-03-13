@@ -237,3 +237,80 @@ def test_delete_account(user_in_db: User, client: TestClient):
     # The user should no longer be accessible
     resp_after = client.get("/user", headers=headers)
     assert resp_after.status_code == 401
+
+
+def test_set_user_credits(user_in_db: User, client: TestClient, session: Session):
+    """PUT /users/{user_id}/credits sets max credits for a user."""
+    # Create an admin user token
+    admin_user = User(username="admin_user", email="admin@test.com", password="pwd", role="admin")
+    session.add(admin_user)
+    session.commit()
+    
+    admin_token = users.create_access_token(data={"sub": admin_user.username})
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # 1. Success
+    resp = client.put(
+        f"/users/{user_in_db.id}/credits",
+        json={"max_credits": 100},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["max_credits"] == 100
+
+    # 2. User not found
+    resp_not_found = client.put(
+        "/users/9999/credits",
+        json={"max_credits": 100},
+        headers=admin_headers,
+    )
+    assert resp_not_found.status_code == 404
+
+    # 3. Forbidden (not admin)
+    user_token = users.create_access_token(data={"sub": user_in_db.username})
+    user_headers = {"Authorization": f"Bearer {user_token}"}
+    resp_forbidden = client.put(
+        f"/users/{user_in_db.id}/credits",
+        json={"max_credits": 100},
+        headers=user_headers,
+    )
+    assert resp_forbidden.status_code == 403
+
+
+def test_refill_user_credits(user_in_db: User, client: TestClient, session: Session):
+    """POST /users/{user_id}/refill_credits refills credits for a user."""
+    admin_user = User(username="admin_user2", email="admin2@test.com", password="pwd", role="admin")
+    session.add(admin_user)
+    session.commit()
+    
+    admin_token = users.create_access_token(data={"sub": admin_user.username})
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    user_in_db.max_credits = 50
+    user_in_db.credits = 10
+    session.add(user_in_db)
+    session.commit()
+
+    # 1. Success
+    resp = client.post(
+        f"/users/{user_in_db.id}/refill_credits",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["credits"] == 50
+
+    # 2. User not found
+    resp_not_found = client.post(
+        "/users/9999/refill_credits",
+        headers=admin_headers,
+    )
+    assert resp_not_found.status_code == 404
+
+    # 3. Forbidden (not admin)
+    user_token = users.create_access_token(data={"sub": user_in_db.username})
+    user_headers = {"Authorization": f"Bearer {user_token}"}
+    resp_forbidden = client.post(
+        f"/users/{user_in_db.id}/refill_credits",
+        headers=user_headers,
+    )
+    assert resp_forbidden.status_code == 403
