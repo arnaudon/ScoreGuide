@@ -2,7 +2,6 @@
 
 import os
 import random
-from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, TypeAdapter
@@ -166,7 +165,8 @@ async def run_imslp_agent(prompt: str, message_history=None, model: str | None =
             response = ImslpResponse(response="Rate limit exceeded (Quota hit)", score_ids=[])
         elif e.status_code == 503:
             response = ImslpResponse(
-                response="The model is currently experiencing high demand. Please try again in a few moments.",
+                response="The model is currently experiencing high demand. "
+                "Please try again in a few moments.",
                 score_ids=[],
             )
         else:
@@ -215,7 +215,8 @@ async def run_agent(prompt: str, deps: Deps, message_history=None, model: str | 
             response = Response(response="Rate limit exceeded (Quota hit)")
         elif e.status_code == 503:
             response = Response(
-                response="The model is currently experiencing high demand. Please try again in a few moments."
+                response="The model is currently experiencing high demand. "
+                "Please try again in a few moments."
             )
         else:
             response = Response(response="An HTTP error occurred")

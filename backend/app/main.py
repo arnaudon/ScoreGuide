@@ -13,7 +13,6 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
 from app import imslp, users
-import app.agent as agent_module
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
 from app.db import Setting, get_session
 from app.file_helper import file_helper
@@ -58,9 +57,7 @@ def add_score(
 
 
 @app.post("/complete_score", dependencies=[Depends(get_current_user)])
-async def complete_score(
-    score: Score, session: Session = Depends(get_session)
-):  # pragma: no cover
+async def complete_score(score: Score, session: Session = Depends(get_session)):  # pragma: no cover
     """Complete a score."""
     setting = session.get(Setting, "model_complete")
     model = setting.value if setting else os.getenv("MODEL", "test")
@@ -119,7 +116,8 @@ async def run_imslp_agent_api(
     if current_user.credits <= 0:
         raise HTTPException(
             status_code=403,
-            detail="You have run out of agent credits. Please contact alexis.arnaudon@gmail.com to get more.",
+            detail="You have run out of agent credits."
+            "Please contact alexis.arnaudon@gmail.com to get more credits.",
         )
 
     setting = session.get(Setting, "model_imslp")
@@ -145,7 +143,8 @@ async def run_main_agent(
     if current_user.credits <= 0:
         raise HTTPException(
             status_code=403,
-            detail="You have run out of agent credits. Please contact alexis.arnaudon@gmail.com to get more.",
+            detail="You have run out of agent credits."
+            "Please contact alexis.arnaudon@gmail.com to get more credits.",
         )
 
     setting = session.get(Setting, "model_main")
@@ -167,9 +166,21 @@ async def run_main_agent(
 def get_active_model(session: Session = Depends(get_session)):
     """Get the currently active agent models."""
     models = {
-        "main": session.get(Setting, "model_main").value if session.get(Setting, "model_main") else os.getenv("MODEL", "test"),
-        "imslp": session.get(Setting, "model_imslp").value if session.get(Setting, "model_imslp") else os.getenv("MODEL", "test"),
-        "complete": session.get(Setting, "model_complete").value if session.get(Setting, "model_complete") else os.getenv("MODEL", "test"),
+        "main": (
+            session.get(Setting, "model_main").value
+            if session.get(Setting, "model_main")
+            else os.getenv("MODEL", "test")
+        ),
+        "imslp": (
+            session.get(Setting, "model_imslp").value
+            if session.get(Setting, "model_imslp")
+            else os.getenv("MODEL", "test")
+        ),
+        "complete": (
+            session.get(Setting, "model_complete").value
+            if session.get(Setting, "model_complete")
+            else os.getenv("MODEL", "test")
+        ),
     }
     return {"models": models}
 

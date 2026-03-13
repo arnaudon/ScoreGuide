@@ -242,12 +242,12 @@ def test_delete_account(user_in_db: User, client: TestClient):
 def test_set_user_credits(user_in_db: User, client: TestClient, session: Session):
     """PUT /users/{user_id}/credits sets max credits for a user."""
     app.dependency_overrides.pop(users.get_current_user, None)
-    
+
     # Create an admin user token
     admin_user = User(username="admin_user", email="admin@test.com", password="pwd", role="admin")
     session.add(admin_user)
     session.commit()
-    
+
     admin_token = users.create_access_token(data={"sub": admin_user.username})
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
@@ -283,10 +283,12 @@ def test_main_admin_model_endpoints(client: TestClient, session: Session):
     """Test get and set active models in main.py."""
     app.dependency_overrides.pop(users.get_current_user, None)
 
-    admin_user = User(username="admin_model_user", email="adminm@test.com", password="pwd", role="admin")
+    admin_user = User(
+        username="admin_model_user", email="adminm@test.com", password="pwd", role="admin"
+    )
     session.add(admin_user)
     session.commit()
-    
+
     admin_token = users.create_access_token(data={"sub": admin_user.username})
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
@@ -312,7 +314,7 @@ def test_main_admin_model_endpoints(client: TestClient, session: Session):
         headers=admin_headers,
     )
     assert resp_set2.status_code == 200
-    
+
     resp_get2 = client.get("/admin/model", headers=admin_headers)
     assert resp_get2.json()["models"]["main"] == "gpt-3.5"
 
@@ -320,11 +322,11 @@ def test_main_admin_model_endpoints(client: TestClient, session: Session):
 def test_refill_user_credits(user_in_db: User, client: TestClient, session: Session):
     """POST /users/{user_id}/refill_credits refills credits for a user."""
     app.dependency_overrides.pop(users.get_current_user, None)
-    
+
     admin_user = User(username="admin_user2", email="admin2@test.com", password="pwd", role="admin")
     session.add(admin_user)
     session.commit()
-    
+
     admin_token = users.create_access_token(data={"sub": admin_user.username})
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
 

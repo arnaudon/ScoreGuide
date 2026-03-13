@@ -4,12 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.models.test import TestModel
 
 from app import agent
-from shared.responses import FullResponse
-from shared.responses import ImslpResponse
-from shared.responses import Response
+from shared.responses import FullResponse, ImslpResponse, Response
 from shared.scores import Difficulty, Score, Scores
 from shared.user import User
 

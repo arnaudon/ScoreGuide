@@ -26,5 +26,3 @@ def test_get_session_context_manager(temp_engine_fixture):  # pylint: disable=re
         assert isinstance(session, Session)
     finally:
         db.engine = orig
-
-

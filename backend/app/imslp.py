@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import time
-from typing import Any
 
 import httpx
 import requests
@@ -18,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, func, select, text
 
 from app.db import engine, get_session
+from app.db import Setting
 from app.users import get_admin_user
 from shared.scores import IMSLP, ScoreBase
 
@@ -93,11 +93,10 @@ async def get_page(start):
 
 async def fix_entry(entry, session):
     """Fix missing values in the entry using an agent."""
-    from app.db import Setting
-    
+
     setting = session.get(Setting, "model_complete")
     model = setting.value if setting else os.getenv("MODEL", "test")
-    
+
     agent = Agent(
         model,
         output_type=ScoreBase,
