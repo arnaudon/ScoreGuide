@@ -32,6 +32,12 @@ class Token(BaseModel):
     token_type: str
 
 
+class UserUpdateRequest(BaseModel):
+    """User update request model."""
+
+    instrument: str | None = None
+
+
 class PasswordChangeRequest(BaseModel):
     """Password change request model."""
 
@@ -166,6 +172,26 @@ async def get_current_user_route(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Get current user."""
+    return current_user
+
+
+@router.put("/user")
+async def update_user(
+    req: UserUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Session = Depends(get_session),
+):
+    """Update current user."""
+    updated = False
+    if req.instrument is not None:
+        current_user.instrument = req.instrument
+        updated = True
+
+    if updated:
+        session.add(current_user)
+        session.commit()
+        session.refresh(current_user)
+
     return current_user
 
 
