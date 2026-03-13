@@ -50,7 +50,22 @@
 					<label for="instrument" class="text-sm leading-none font-medium"
 						>Preferred Instrument</label
 					>
-					<Input id="instrument" name="instrument" type="text" value={form?.instrument ?? ''} />
+					<select
+						id="instrument"
+						name="instrument"
+						class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+					>
+						<option value="" disabled selected={!form?.instrument}>Select an instrument...</option>
+						<option value="piano" selected={form?.instrument === 'piano'}>Piano</option>
+						<option value="violin" selected={form?.instrument === 'violin'}>Violin</option>
+						<option value="viola" selected={form?.instrument === 'viola'}>Viola</option>
+						<option value="cello" selected={form?.instrument === 'cello'}>Cello</option>
+						<option value="guitar" selected={form?.instrument === 'guitar'}>Guitar</option>
+						<option value="flute" selected={form?.instrument === 'flute'}>Flute</option>
+						<option value="clarinet" selected={form?.instrument === 'clarinet'}>Clarinet</option>
+						<option value="trumpet" selected={form?.instrument === 'trumpet'}>Trumpet</option>
+						<option value="other" selected={form?.instrument === 'other'}>Other</option>
+					</select>
 				</div>
 			{/if}
 
