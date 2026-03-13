@@ -206,6 +206,7 @@ def get_progress():
 def cancel():
     """Cancel the IMSLP update"""
     progress_tracker["cancel_requested"] = True
+    progress_tracker["status"] = "cancelling"
 
 
 @router.get("/stats", dependencies=[Depends(get_admin_user)])

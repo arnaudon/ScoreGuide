@@ -7,7 +7,7 @@
 	let { data }: PageProps = $props();
 
 	$effect(() => {
-		if (data.progress?.status === 'processing') {
+		if (data.progress?.status === 'processing' || data.progress?.status === 'cancelling') {
 			const interval = setInterval(() => {
 				invalidateAll();
 			}, 2000);
@@ -41,19 +41,32 @@
 			</form>
 		</div>
 
-		{#if data.progress?.status === 'processing'}
+		{#if data.progress?.status === 'processing' || data.progress?.status === 'cancelling'}
 			<div class="mt-6 p-4 border rounded-md bg-muted/50">
 				<div class="flex justify-between mb-2">
-					<span class="font-medium text-sm">Status: PROCESSING PAGE ({data.progress.page}/{data.progress.total})</span>
+					<span class="font-medium text-sm">
+						{#if data.progress.status === 'cancelling'}
+							Status: CANCELLING... (finishing current item)
+						{:else}
+							Status: PROCESSING PAGE ({data.progress.page}/{data.progress.total})
+						{/if}
+					</span>
 				</div>
 				<div class="w-full bg-secondary rounded-full h-2.5 mb-4 overflow-hidden">
 					<div class="bg-primary h-2.5 rounded-full transition-all" style="width: {(data.progress.page / Math.max(1, data.progress.total)) * 100}%"></div>
 				</div>
 				<form method="POST" action="?/cancel" use:enhance>
-					<button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3">
-						🛑 Cancel Task
+					<button 
+						disabled={data.progress.status === 'cancelling'}
+						class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3 disabled:opacity-50"
+					>
+						{data.progress.status === 'cancelling' ? '⏳ Cancelling...' : '🛑 Cancel Task'}
 					</button>
 				</form>
+			</div>
+		{:else if data.progress?.status === 'cancelled'}
+			<div class="mt-6 p-4 border rounded-md bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+				Task Cancelled.
 			</div>
 		{:else if data.progress?.status === 'completed'}
 			<div class="mt-6 p-4 border rounded-md bg-green-500/10 text-green-600 border-green-500/20">
