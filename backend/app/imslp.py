@@ -17,9 +17,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, func, select, text
 
 from app.db import engine, get_session
-from app.db import Setting
 from app.users import get_admin_user
 from shared.scores import IMSLP, ScoreBase
+from shared.settings import Setting
 
 logger = logging.getLogger(__name__)
 progress_tracker = {"status": "idle", "page": 0, "cancel_requested": False}
