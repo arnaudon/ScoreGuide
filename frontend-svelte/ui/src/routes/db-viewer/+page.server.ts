@@ -141,16 +141,41 @@ export const actions: Actions = {
 
 		const data = await request.formData();
 		const prompt = data.get('prompt');
+		const messageHistoryRaw = data.get('message_history');
 
 		if (!prompt) {
 			return fail(400, { error: 'Missing prompt' });
 		}
 
+		let messageHistory = null;
+		if (messageHistoryRaw) {
+			try {
+				messageHistory = JSON.parse(messageHistoryRaw.toString());
+			} catch (e) {
+				console.error('Failed to parse message_history', e);
+			}
+		}
+
 		try {
-			const promptParam = encodeURIComponent(prompt.toString());
-			const res = await fetch(`${BACKEND_URL}/imslp_agent?prompt=${promptParam}`, {
+			const scoresRes = await fetch(`${BACKEND_URL}/scores`, {
+				headers: {
+					Authorization: `Bearer ${token}`
+				}
+			});
+			const scores_deps = scoresRes.ok ? await scoresRes.json() : [];
+			const deps = JSON.stringify({ scores: scores_deps });
+
+			const res = await fetch(`${BACKEND_URL}/imslp_agent`, {
 				method: 'POST',
-				headers: { Authorization: `Bearer ${token}` }
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					prompt: prompt.toString(),
+					deps: deps,
+					message_history: messageHistory
+				})
 			});
 
 			if (!res.ok) {
@@ -161,7 +186,7 @@ export const actions: Actions = {
 			let scores = [];
 			const score_ids = json.response?.score_ids || [];
 			const agent_response_text = json.response?.response || '';
-			
+
 			if (score_ids.length > 0) {
 				const idsParam = encodeURIComponent(JSON.stringify(score_ids));
 				const scoresRes = await fetch(`${BACKEND_URL}/imslp/scores_by_ids?score_ids=${idsParam}`, {
@@ -172,7 +197,17 @@ export const actions: Actions = {
 				}
 			}
 
-			return { success: true, agent_results: { response: agent_response_text, scores } };
+			const returned_message_history = json.response?.message_history || messageHistory;
+
+			return {
+				success: true,
+				prompt: prompt.toString(),
+				agent_results: {
+					response: agent_response_text,
+					scores,
+					message_history: returned_message_history
+				}
+			};
 		} catch (error) {
 			console.error('Ask agent error:', error);
 			return fail(500, { error: 'Server error when contacting backend' });
