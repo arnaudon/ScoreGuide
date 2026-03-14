@@ -92,7 +92,7 @@
 <div class="flex flex-col h-full w-full {store.history.length === 0 && !loading ? 'justify-center' : ''}">
 	<div class="mb-4">
 		<h1 class="text-lg font-bold text-foreground">
-			{title}{#if store.history.length === 0 && !loading} {m.how_can_i_help()}{/if}
+			{title}{#if store.history.length === 0 && !loading}{' '}{m.how_can_i_help()}{/if}
 		</h1>
 	</div>
 
