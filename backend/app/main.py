@@ -114,7 +114,7 @@ def update_score(
     db_score = session.exec(
         select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
     ).first()
-    
+
     if not db_score:
         raise HTTPException(status_code=404, detail="Score not found")
 
@@ -122,7 +122,7 @@ def update_score(
     for key, value in score_data.items():
         if key not in ("id", "user_id"):
             setattr(db_score, key, value)
-            
+
     session.add(db_score)
     session.commit()
     session.refresh(db_score)
