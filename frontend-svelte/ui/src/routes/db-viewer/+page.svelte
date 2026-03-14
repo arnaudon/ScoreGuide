@@ -222,7 +222,7 @@
 					<AgentChat
 						{form}
 						action="?/ask_agent"
-						title={m.from_imslp()}
+						title={m.imslp_search_help()}
 						placeholder={m.agent_placeholder_imslp()}
 						onResult={onImslpResult}
 						user={data.user}
