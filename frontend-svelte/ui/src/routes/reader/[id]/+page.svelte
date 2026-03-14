@@ -68,7 +68,15 @@
 		</Sheet.Header>
 		{#if data.score}
 			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(data.score).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id'].includes(k)) as [key, value]}
+				{#each Object.entries(data.score).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id'].includes(k)).sort(([a], [b]) => {
+					const order = ['title', 'composer', 'year', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
+					const idxA = order.indexOf(a);
+					const idxB = order.indexOf(b);
+					if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+					if (idxA !== -1) return -1;
+					if (idxB !== -1) return 1;
+					return a.localeCompare(b);
+				}) as [key, value]}
 					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
 						<span class="text-sm font-semibold capitalize text-foreground">
 							{key.replace(/_/g, ' ')}
