@@ -11,8 +11,8 @@
 </script>
 
 <Sidebar.Root>
-	<Sidebar.Header class="p-4 flex flex-row items-center gap-2">
-		<img src="/logo.png" alt="ScoreGuide Logo" class="h-8 w-auto" />
+	<Sidebar.Header class="p-4 flex flex-col items-center gap-2 text-center">
+		<img src="/logo.png" alt="ScoreGuide Logo" class="h-12 w-auto" />
 		<h2 class="text-xl font-bold text-foreground">ScoreGuide</h2>
 	</Sidebar.Header>
 	<Sidebar.Content>
