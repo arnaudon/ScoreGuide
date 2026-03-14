@@ -118,5 +118,7 @@
 	"already_have_account": "Vous avez déjà un compte ?",
 	"dont_have_account": "Vous n'avez pas de compte ?",
 	"privacy_policy": "Politique de confidentialité",
-	"clean_history": "Effacer l'historique"
+	"clean_history": "Effacer l'historique",
+	"ask": "Demander",
+	"agent_placeholder_main": "par ex. Trouvez-moi des sonates pour piano de Beethoven"
 }

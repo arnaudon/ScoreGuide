@@ -16,6 +16,7 @@
 	} from '@tanstack/table-core';
 	import { FlexRender, createSvelteTable, renderComponent } from '$lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 
 	let { form, data } = $props();
 	let sheetOpen = $state(false);
@@ -101,7 +102,7 @@
 		{form}
 		action="?/ask"
 		title="Agent"
-		placeholder="e.g. Find me piano sonatas by Beethoven"
+		placeholder={m.agent_placeholder_main()}
 		{onResult}
 		user={data.user}
 		store={mainAgentHistoryStore}

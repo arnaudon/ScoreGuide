@@ -110,7 +110,7 @@
 		<form method="POST" {action} use:enhance={handleEnhance} class="flex gap-2">
 			<input type="hidden" name="message_history" value={JSON.stringify(store.rawHistory)} />
 			<Input name="question" {placeholder} required />
-			<Button type="submit" disabled={loading}>Ask</Button>
+			<Button type="submit" disabled={loading}>{m.ask()}</Button>
 		</form>
 
 		{#if form?.error}
