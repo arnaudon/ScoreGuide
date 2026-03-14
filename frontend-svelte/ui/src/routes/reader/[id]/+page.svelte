@@ -68,7 +68,7 @@
 		</Sheet.Header>
 		{#if data.score}
 			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(data.score) as [key, value]}
+				{#each Object.entries(data.score).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id'].includes(k)) as [key, value]}
 					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
 						<span class="text-sm font-semibold capitalize text-foreground">
 							{key.replace(/_/g, ' ')}

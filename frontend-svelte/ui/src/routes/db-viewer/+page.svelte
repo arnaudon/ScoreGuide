@@ -471,7 +471,7 @@
 		</Sheet.Header>
 		{#if selectedScore}
 			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(selectedScore) as [key, value]}
+				{#each Object.entries(selectedScore).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id'].includes(k)) as [key, value]}
 					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
 						<span class="text-sm font-semibold capitalize text-foreground">
 							{key.replace(/_/g, ' ')}
@@ -534,23 +534,21 @@
 		</Sheet.Header>
 		{#if agentSelectedScore}
 			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(agentSelectedScore) as [key, value]}
-					{#if key !== 'score_metadata'}
-						<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
-							<span class="text-sm font-semibold capitalize text-foreground">
-								{key.replace(/_/g, ' ')}
-							</span>
-							<span class="col-span-2 text-sm text-muted-foreground break-words">
-								{#if key === 'permlink' && value}
-									<a href={value as string} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">
-										View on IMSLP
-									</a>
-								{:else}
-									{value !== null && value !== '' ? value : '-'}
-								{/if}
-							</span>
-						</div>
-					{/if}
+				{#each Object.entries(agentSelectedScore).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'score_metadata'].includes(k)) as [key, value]}
+					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
+						<span class="text-sm font-semibold capitalize text-foreground">
+							{key.replace(/_/g, ' ')}
+						</span>
+						<span class="col-span-2 text-sm text-muted-foreground break-words">
+							{#if key === 'permlink' && value}
+								<a href={value as string} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">
+									View on IMSLP
+								</a>
+							{:else}
+								{value !== null && value !== '' ? value : '-'}
+							{/if}
+						</span>
+					</div>
 				{/each}
 			</div>
 			
