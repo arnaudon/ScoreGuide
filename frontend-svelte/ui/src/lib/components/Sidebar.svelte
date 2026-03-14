@@ -11,8 +11,9 @@
 </script>
 
 <Sidebar.Root>
-	<Sidebar.Header class="p-4 border-b">
-		<h2 class="text-xl font-bold text-foreground">ScoreAI</h2>
+	<Sidebar.Header class="p-4 flex flex-col items-center gap-2 text-center">
+		<img src="/logo.png" alt="ScoreGuide Logo" class="h-12 w-auto" />
+		<h2 class="text-xl font-bold text-foreground">ScoreGuide</h2>
 	</Sidebar.Header>
 	<Sidebar.Content>
 		<Sidebar.Group>
@@ -62,10 +63,10 @@
 	<Sidebar.Footer class="p-4 gap-4">
 		<Sidebar.Menu>
 			<Sidebar.MenuItem>
-				<Sidebar.MenuButton>
+				<Sidebar.MenuButton class="justify-center text-center">
 					{#snippet child({ props })}
 						<form method="POST" action="/logout" class="w-full">
-							<button type="submit" {...props} class="w-full text-left">{m.nav_logout()}</button>
+							<button type="submit" {...props}>{m.nav_logout()}</button>
 						</form>
 					{/snippet}
 				</Sidebar.MenuButton>

@@ -5,6 +5,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { Snippet } from 'svelte';
+	import * as m from '$lib/paraglide/messages.js';
 
 	type HistoryMessage = {
 		question: string;
@@ -21,6 +22,7 @@
 		form,
 		action,
 		title,
+		emptyMessage,
 		placeholder,
 		onResult,
 		children,
@@ -31,6 +33,7 @@
 		form: any;
 		action: string;
 		title: string;
+		emptyMessage?: string;
 		placeholder: string;
 		onResult: (result: any) => { question: string; answer: any; rawHistory?: any };
 		children: Snippet;
@@ -88,10 +91,14 @@
 	}
 </script>
 
-<div class="flex flex-col h-full w-full">
-	<h1 class="text-2xl font-bold mb-4 text-foreground">{title}</h1>
+<div class="flex flex-col h-full w-full {store.history.length === 0 && !loading ? 'justify-center' : ''}">
+	<div class="mb-4">
+		<h1 class="text-lg font-bold text-foreground">
+			{title}{#if store.history.length === 0 && !loading}{' '}{emptyMessage || m.how_can_i_help()}{/if}
+		</h1>
+	</div>
 
-	<div class="overflow-y-auto mb-4 space-y-4 pr-2" bind:this={scrollContainer}>
+	<div class="overflow-y-auto space-y-4 pr-2 {store.history.length > 0 || loading ? 'mb-4' : ''}" bind:this={scrollContainer}>
 		{#each store.history as msg, index}
 			<div class="bg-muted p-4 rounded-lg">
 				<p class="font-bold text-foreground">Q: {msg.question}</p>
@@ -105,24 +112,27 @@
 		{/if}
 	</div>
 
-	<div class="bg-card border rounded-lg p-4 shadow-sm mt-auto">
+	<div class="bg-card border rounded-lg p-4 shadow-sm {store.history.length > 0 || loading ? 'mt-auto' : ''}">
 		<form method="POST" {action} use:enhance={handleEnhance} class="flex gap-2">
 			<input type="hidden" name="message_history" value={JSON.stringify(store.rawHistory)} />
 			<Input name="question" {placeholder} required />
-			<Button type="submit" disabled={loading}>Ask</Button>
+			<Button type="submit" disabled={loading}>{m.ask()}</Button>
 		</form>
 
 		{#if form?.error}
 			<p class="mt-2 text-sm text-destructive">{form.error}</p>
 		{/if}
 
-		<div class="mt-4 flex justify-between items-end text-sm text-muted-foreground">
-			{@render children()}
+		<div class="mt-4 flex justify-between items-center text-sm text-muted-foreground">
+			<div class="flex items-center gap-4">
+				{@render children()}
+				<span class="text-xs">{m.agent_can_make_mistakes()}</span>
+			</div>
 			<div class="flex items-center gap-4">
 				{#if user?.credits !== undefined}
 					<span class="font-medium">Credits: {user.credits}/{user.max_credits}</span>
 				{/if}
-				<Button variant="outline" size="sm" onclick={clearHistory}>Clean history</Button>
+				<Button variant="outline" size="sm" onclick={clearHistory}>{m.clean_history()}</Button>
 			</div>
 		</div>
 	</div>

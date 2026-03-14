@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import * as m from '$lib/paraglide/messages.js';
+	import { page } from '$app/state';
 
 	let { data }: PageProps = $props();
 	let sheetOpen = $state(false);
@@ -13,6 +14,28 @@
 			const button = iframeEl.contentWindow.document.getElementById('presentationMode');
 			button?.click();
 		}
+	}
+
+	function translateKey(key: string) {
+		const map: Record<string, string> = {
+			title: m.label_title(),
+			composer: m.label_composer(),
+			year: m.label_year(),
+			period: m.label_period(),
+			instrumentation: m.label_instrumentation(),
+			short_description: m.label_short_description(),
+			key: m.label_key_signature(),
+			genre: m.label_genre(),
+			form: m.label_form(),
+			style: m.label_style(),
+			long_description: m.label_long_description(),
+			difficulty: m.label_difficulty(),
+			notable_interpreters: m.label_notable_interpreters(),
+			notable_interpeters: m.label_notable_interpreters(),
+			youtube_url: m.label_youtube_url(),
+			permlink: m.label_permlink()
+		};
+		return map[key] || key.replace(/_/g, ' ');
 	}
 
 	// Use the saved pdf_path from the database
@@ -68,16 +91,26 @@
 		</Sheet.Header>
 		{#if data.score}
 			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(data.score) as [key, value]}
+				{#each Object.entries(data.score).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'short_description_fr', 'long_description_fr'].includes(k)).sort(([a], [b]) => {
+					const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
+					const idxA = order.indexOf(a);
+					const idxB = order.indexOf(b);
+					if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+					if (idxA !== -1) return -1;
+					if (idxB !== -1) return 1;
+					return a.localeCompare(b);
+				}) as [key, value]}
 					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
 						<span class="text-sm font-semibold capitalize text-foreground">
-							{key.replace(/_/g, ' ')}
+							{translateKey(key)}
 						</span>
 						<span class="col-span-2 text-sm text-muted-foreground break-words">
 							{#if key === 'youtube_url' && value}
 								<a href={value as string} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">
 									{m.watch_on_youtube()}
 								</a>
+							{:else if (key === 'short_description' || key === 'long_description') && !m.label_title().toLowerCase().includes('title')}
+								{data.score[key + '_fr'] || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}

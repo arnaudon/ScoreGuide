@@ -103,6 +103,32 @@ async def complete_score(
     return result
 
 
+@app.put("/scores/{score_id}")
+def update_score(
+    score_id: int,
+    score_update: Score,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Session = Depends(get_session),
+):
+    """Update a score in the db."""
+    db_score = session.exec(
+        select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
+    ).first()
+
+    if not db_score:
+        raise HTTPException(status_code=404, detail="Score not found")
+
+    score_data = score_update.model_dump(exclude_unset=True)
+    for key, value in score_data.items():
+        if key not in ("id", "user_id"):
+            setattr(db_score, key, value)
+
+    session.add(db_score)
+    session.commit()
+    session.refresh(db_score)
+    return db_score
+
+
 @app.delete("/scores/{score_id}")
 def delete_score(
     score_id: int,
