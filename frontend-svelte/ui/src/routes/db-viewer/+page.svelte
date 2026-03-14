@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
@@ -495,9 +496,9 @@
 					return async ({ update, result }) => {
 						recompleting = false;
 						if (result.type === 'success') {
-							// Update completes successfully, we keep the sheet open to see the new data
+							await invalidateAll();
 						}
-						update({ reset: false });
+						await update({ reset: false });
 					};
 				}}>
 					<input type="hidden" name="id" value={selectedScore.id} />
