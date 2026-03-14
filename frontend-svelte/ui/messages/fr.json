@@ -117,5 +117,6 @@
 	"keep_logged_in": "Rester connecté",
 	"already_have_account": "Vous avez déjà un compte ?",
 	"dont_have_account": "Vous n'avez pas de compte ?",
-	"privacy_policy": "Politique de confidentialité"
+	"privacy_policy": "Politique de confidentialité",
+	"clean_history": "Effacer l'historique"
 }
