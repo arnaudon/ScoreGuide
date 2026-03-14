@@ -90,7 +90,12 @@
 </script>
 
 <div class="flex flex-col h-full w-full {store.history.length === 0 && !loading ? 'justify-center' : ''}">
-	<h1 class="text-2xl font-bold mb-4 text-foreground {store.history.length === 0 && !loading ? 'text-center' : ''}">{title}</h1>
+	<div class="mb-4">
+		<h1 class="text-lg font-bold text-foreground">{title}</h1>
+		{#if store.history.length === 0 && !loading}
+			<p class="text-sm text-muted-foreground mt-1">{m.how_can_i_help()}</p>
+		{/if}
+	</div>
 
 	<div class="overflow-y-auto space-y-4 pr-2 {store.history.length > 0 || loading ? 'mb-4' : ''}" bind:this={scrollContainer}>
 		{#each store.history as msg, index}
