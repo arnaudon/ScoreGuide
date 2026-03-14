@@ -119,7 +119,7 @@
 	}
 </script>
 
-<div class="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto w-full">
+<div class="flex flex-col h-[calc(100vh-12rem)] max-w-4xl mx-auto w-full">
 	<AgentChat
 		{form}
 		action="?/ask"
