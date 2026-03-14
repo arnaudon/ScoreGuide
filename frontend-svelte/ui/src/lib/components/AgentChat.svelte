@@ -5,6 +5,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { Snippet } from 'svelte';
+	import * as m from '$lib/paraglide/messages.js';
 
 	type HistoryMessage = {
 		question: string;
