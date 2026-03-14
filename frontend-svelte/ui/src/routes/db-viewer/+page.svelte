@@ -39,20 +39,20 @@
 	const columns: ColumnDef<any>[] = [
 		{ 
 			accessorKey: 'title', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Title', onclick: column.getToggleSortingHandler() }) 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_title(), onclick: column.getToggleSortingHandler() }) 
 		},
 		{ 
 			accessorKey: 'composer', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Composer', onclick: column.getToggleSortingHandler() }) 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_composer(), onclick: column.getToggleSortingHandler() }) 
 		},
 		{ 
 			accessorKey: 'instrumentation', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Instrumentation', onclick: column.getToggleSortingHandler() }),
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_instrumentation(), onclick: column.getToggleSortingHandler() }),
 			cell: ({ row }) => row.original.instrumentation || '-'
 		},
 		{ 
 			accessorKey: 'year', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Year', onclick: column.getToggleSortingHandler() }),
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_year(), onclick: column.getToggleSortingHandler() }),
 			filterFn: (row, columnId, filterValue) => {
 				const val = row.getValue(columnId) as number;
 				const [min, max] = (filterValue as [number | undefined, number | undefined]) || [undefined, undefined];
@@ -61,8 +61,8 @@
 				return true;
 			}
 		},
-		{ accessorKey: 'period', header: 'Period' },
-		{ accessorKey: 'genre', header: 'Genre' }
+		{ accessorKey: 'period', header: m.label_period() },
+		{ accessorKey: 'genre', header: m.label_genre() }
 	];
 
 	const table = createSvelteTable({
@@ -115,20 +115,20 @@
 	const imslpColumns: ColumnDef<any>[] = [
 		{ 
 			accessorKey: 'composer', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Composer', onclick: column.getToggleSortingHandler() }) 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_composer(), onclick: column.getToggleSortingHandler() }) 
 		},
 		{ 
 			accessorKey: 'title', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Title', onclick: column.getToggleSortingHandler() }) 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_title(), onclick: column.getToggleSortingHandler() }) 
 		},
 		{ 
 			accessorKey: 'instrumentation', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Instrumentation', onclick: column.getToggleSortingHandler() }),
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_instrumentation(), onclick: column.getToggleSortingHandler() }),
 			cell: ({ row }) => row.original.instrumentation || '-'
 		},
 		{ 
 			accessorKey: 'year', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Year', onclick: column.getToggleSortingHandler() }),
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_year(), onclick: column.getToggleSortingHandler() }),
 			cell: ({ row }) => row.original.year || '-'
 		}
 	];
@@ -312,7 +312,7 @@
 
 										<div class="flex items-center justify-end space-x-2 py-4 px-4 border-t">
 											<div class="flex-1 text-sm text-muted-foreground">
-												Page {imslpTable.getState().pagination.pageIndex + 1} of {Math.max(1, imslpTable.getPageCount())}
+												{m.page_of({ page: imslpTable.getState().pagination.pageIndex + 1, total: Math.max(1, imslpTable.getPageCount()) })}
 											</div>
 											<Button
 												variant="outline"
@@ -320,7 +320,7 @@
 												onclick={() => imslpTable.previousPage()}
 												disabled={!imslpTable.getCanPreviousPage()}
 											>
-												Previous
+												{m.previous()}
 											</Button>
 											<Button
 												variant="outline"
@@ -328,13 +328,13 @@
 												onclick={() => imslpTable.nextPage()}
 												disabled={!imslpTable.getCanNextPage()}
 											>
-												Next
+												{m.next()}
 											</Button>
 										</div>
 									</div>
 								{:else if msg.answer}
 									<p class="text-sm text-muted-foreground mt-2 text-center">
-										No matching scores found.
+										{m.no_matching_scores()}
 									</p>
 								{/if}
 							{/if}
@@ -373,28 +373,28 @@
 	
 	<div class="flex flex-wrap items-center gap-4 py-4">
 		<Input
-			placeholder="Filter titles..."
+			placeholder={m.filter_titles()}
 			value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
 			oninput={(e) => table.getColumn("title")?.setFilterValue(e.currentTarget.value)}
 			class="max-w-xs"
 		/>
 		<Input
-			placeholder="Filter composers..."
+			placeholder={m.filter_composers()}
 			value={(table.getColumn("composer")?.getFilterValue() as string) ?? ""}
 			oninput={(e) => table.getColumn("composer")?.setFilterValue(e.currentTarget.value)}
 			class="max-w-xs"
 		/>
 		<Input
-			placeholder="Filter instrumentation..."
+			placeholder={m.filter_instrumentation()}
 			value={(table.getColumn("instrumentation")?.getFilterValue() as string) ?? ""}
 			oninput={(e) => table.getColumn("instrumentation")?.setFilterValue(e.currentTarget.value)}
 			class="max-w-xs"
 		/>
 		<div class="flex items-center gap-2">
-			<span class="text-sm font-medium">Year:</span>
+			<span class="text-sm font-medium">{m.year()}</span>
 			<Input
 				type="number"
-				placeholder="Min"
+				placeholder={m.min()}
 				value={((table.getColumn("year")?.getFilterValue() as [number, number])?.[0]) ?? ""}
 				oninput={(e) => {
 					const current = (table.getColumn("year")?.getFilterValue() as [number | undefined, number | undefined]) || [undefined, undefined];
@@ -406,7 +406,7 @@
 			<span>-</span>
 			<Input
 				type="number"
-				placeholder="Max"
+				placeholder={m.max()}
 				value={((table.getColumn("year")?.getFilterValue() as [number, number])?.[1]) ?? ""}
 				oninput={(e) => {
 					const current = (table.getColumn("year")?.getFilterValue() as [number | undefined, number | undefined]) || [undefined, undefined];
@@ -454,7 +454,7 @@
 				{:else}
 					<Table.Row>
 						<Table.Cell colspan={columns.length} class="text-center text-muted-foreground py-4">
-							No scores found.
+							{m.no_scores_found()}
 						</Table.Cell>
 					</Table.Row>
 				{/each}
@@ -464,7 +464,7 @@
 
 	<div class="flex items-center justify-end space-x-2 py-4">
 		<div class="flex-1 text-sm text-muted-foreground">
-			Page {table.getState().pagination.pageIndex + 1} of {Math.max(1, table.getPageCount())}
+			{m.page_of({ page: table.getState().pagination.pageIndex + 1, total: Math.max(1, table.getPageCount()) })}
 		</div>
 		<Button
 			variant="outline"
@@ -472,7 +472,7 @@
 			onclick={() => table.previousPage()}
 			disabled={!table.getCanPreviousPage()}
 		>
-			Previous
+			{m.previous()}
 		</Button>
 		<Button
 			variant="outline"
@@ -480,7 +480,7 @@
 			onclick={() => table.nextPage()}
 			disabled={!table.getCanNextPage()}
 		>
-			Next
+			{m.next()}
 		</Button>
 	</div>
 </div>

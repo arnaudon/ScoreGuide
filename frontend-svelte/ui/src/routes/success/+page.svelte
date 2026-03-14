@@ -30,20 +30,20 @@
 	const columns: ColumnDef<any>[] = [
 		{ 
 			accessorKey: 'composer', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Composer', onclick: column.getToggleSortingHandler() }) 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_composer(), onclick: column.getToggleSortingHandler() }) 
 		},
 		{ 
 			accessorKey: 'title', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Title', onclick: column.getToggleSortingHandler() }) 
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_title(), onclick: column.getToggleSortingHandler() }) 
 		},
 		{ 
 			accessorKey: 'instrumentation', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Instrumentation', onclick: column.getToggleSortingHandler() }),
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_instrumentation(), onclick: column.getToggleSortingHandler() }),
 			cell: ({ row }) => row.original.instrumentation || '-'
 		},
 		{ 
 			accessorKey: 'year', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Year', onclick: column.getToggleSortingHandler() }),
+			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_year(), onclick: column.getToggleSortingHandler() }),
 			cell: ({ row }) => row.original.year || '-'
 		}
 	];
@@ -179,7 +179,7 @@
 
 					<div class="flex items-center justify-end space-x-2 py-4 px-4 border-t border-border">
 						<div class="flex-1 text-sm text-muted-foreground">
-							Page {table.getState().pagination.pageIndex + 1} of {Math.max(1, table.getPageCount())}
+							{m.page_of({ page: table.getState().pagination.pageIndex + 1, total: Math.max(1, table.getPageCount()) })}
 						</div>
 						<Button
 							variant="outline"
@@ -187,7 +187,7 @@
 							onclick={() => table.previousPage()}
 							disabled={!table.getCanPreviousPage()}
 						>
-							Previous
+							{m.previous()}
 						</Button>
 						<Button
 							variant="outline"
@@ -195,7 +195,7 @@
 							onclick={() => table.nextPage()}
 							disabled={!table.getCanNextPage()}
 						>
-							Next
+							{m.next()}
 						</Button>
 					</div>
 				</div>
