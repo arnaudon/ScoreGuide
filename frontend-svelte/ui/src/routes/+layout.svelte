@@ -33,11 +33,11 @@
 				{@render children()}
 			</main>
 			<footer class="p-4 text-center text-sm text-muted-foreground">
-				<div class="mb-2 flex justify-center gap-4">
+				<div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-2">
 					<a href="/privacy" class="hover:underline">{m.privacy_policy()}</a>
 					<a href="/contact" class="hover:underline">{m.contact()}</a>
+					<span>© 2026 Alexis Arnaudon.</span>
 				</div>
-				<p>© 2026 Alexis Arnaudon.</p>
 			</footer>
 		</Sidebar.Inset>
 	</Sidebar.Provider>
@@ -47,22 +47,22 @@
 			{@render children()}
 		</main>
 		<footer class="p-4 text-center text-sm text-muted-foreground">
-			<div class="mb-2 flex justify-center">
+			<div class="mb-4 flex justify-center">
 				<div class="flex rounded-md border text-xs font-semibold">
-					<button onclick={() => setLanguage('en')} class="px-2 py-1 hover:bg-muted">
+					<a href={localizeHref(page.url.pathname, { locale: 'en' })} class="px-2 py-1 hover:bg-muted">
 						EN
-					</button>
+					</a>
 					<div class="w-[1px] bg-border"></div>
-					<button onclick={() => setLanguage('fr')} class="px-2 py-1 hover:bg-muted">
+					<a href={localizeHref(page.url.pathname, { locale: 'fr' })} class="px-2 py-1 hover:bg-muted">
 						FR
-					</button>
+					</a>
 				</div>
 			</div>
-			<div class="mb-2 flex justify-center gap-4">
+			<div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-2">
 				<a href="/privacy" class="hover:underline">{m.privacy_policy()}</a>
 				<a href="/contact" class="hover:underline">{m.contact()}</a>
+				<span>© 2026 Alexis Arnaudon.</span>
 			</div>
-			<p>© 2026 Alexis Arnaudon.</p>
 		</footer>
 	</div>
 {/if}
