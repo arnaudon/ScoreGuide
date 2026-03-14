@@ -123,10 +123,12 @@
 			<p class="mt-2 text-sm text-destructive">{form.error}</p>
 		{/if}
 
-		<div class="mt-4 flex justify-between items-end text-sm text-muted-foreground">
-			{@render children()}
+		<div class="mt-4 flex justify-between items-center text-sm text-muted-foreground">
 			<div class="flex items-center gap-4">
+				{@render children()}
 				<span class="text-xs">{m.agent_can_make_mistakes()}</span>
+			</div>
+			<div class="flex items-center gap-4">
 				{#if user?.credits !== undefined}
 					<span class="font-medium">Credits: {user.credits}/{user.max_credits}</span>
 				{/if}

@@ -131,7 +131,6 @@
 		store={mainAgentHistoryStore}
 	>
 		{#snippet children()}
-			<div />
 		{/snippet}
 
 		{#snippet resultSnippet({ msg, isLast })}
