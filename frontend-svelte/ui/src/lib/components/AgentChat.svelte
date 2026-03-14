@@ -123,6 +123,10 @@
 			<p class="mt-2 text-sm text-destructive">{form.error}</p>
 		{/if}
 
+		<p class="mt-2 text-center text-xs text-muted-foreground">
+			{m.agent_can_make_mistakes()}
+		</p>
+
 		<div class="mt-4 flex justify-between items-end text-sm text-muted-foreground">
 			{@render children()}
 			<div class="flex items-center gap-4">

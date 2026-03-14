@@ -144,5 +144,6 @@
 	"label_youtube_url": "URL YouTube",
 	"label_permlink": "Permalien",
 	"page_of": "Page {page} sur {total}",
-	"choose_file": "Choisir un fichier"
+	"choose_file": "Choisir un fichier",
+	"agent_can_make_mistakes": "Les agents peuvent faire des erreurs. Veuillez vérifier les informations importantes."
 }
