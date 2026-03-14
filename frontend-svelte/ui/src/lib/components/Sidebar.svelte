@@ -62,10 +62,10 @@
 	<Sidebar.Footer class="p-4 gap-4">
 		<Sidebar.Menu>
 			<Sidebar.MenuItem>
-				<Sidebar.MenuButton>
+				<Sidebar.MenuButton class="justify-center text-center">
 					{#snippet child({ props })}
 						<form method="POST" action="/logout" class="w-full">
-							<button type="submit" {...props} class="w-full text-left">{m.nav_logout()}</button>
+							<button type="submit" {...props}>{m.nav_logout()}</button>
 						</form>
 					{/snippet}
 				</Sidebar.MenuButton>
