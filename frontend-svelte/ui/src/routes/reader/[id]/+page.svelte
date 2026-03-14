@@ -15,6 +15,28 @@
 		}
 	}
 
+	function translateKey(key: string) {
+		const map: Record<string, string> = {
+			title: m.label_title(),
+			composer: m.label_composer(),
+			year: m.label_year(),
+			period: m.label_period(),
+			instrumentation: m.label_instrumentation(),
+			short_description: m.label_short_description(),
+			key: m.label_key_signature(),
+			genre: m.label_genre(),
+			form: m.label_form(),
+			style: m.label_style(),
+			long_description: m.label_long_description(),
+			difficulty: m.label_difficulty(),
+			notable_interpreters: m.label_notable_interpreters(),
+			notable_interpeters: m.label_notable_interpreters(),
+			youtube_url: m.label_youtube_url(),
+			permlink: m.label_permlink()
+		};
+		return map[key] || key.replace(/_/g, ' ');
+	}
+
 	// Use the saved pdf_path from the database
 	let filename = $derived(data.score?.pdf_path || '');
 	
@@ -79,7 +101,7 @@
 				}) as [key, value]}
 					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
 						<span class="text-sm font-semibold capitalize text-foreground">
-							{key.replace(/_/g, ' ')}
+							{translateKey(key)}
 						</span>
 						<span class="col-span-2 text-sm text-muted-foreground break-words">
 							{#if key === 'youtube_url' && value}

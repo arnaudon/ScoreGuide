@@ -74,6 +74,28 @@
 		getFilteredRowModel: getFilteredRowModel()
 	});
 
+	function translateKey(key: string) {
+		const map: Record<string, string> = {
+			title: m.label_title(),
+			composer: m.label_composer(),
+			year: m.label_year(),
+			period: m.label_period(),
+			instrumentation: m.label_instrumentation(),
+			short_description: m.label_short_description(),
+			key: m.label_key_signature(),
+			genre: m.label_genre(),
+			form: m.label_form(),
+			style: m.label_style(),
+			long_description: m.label_long_description(),
+			difficulty: m.label_difficulty(),
+			notable_interpreters: m.label_notable_interpreters(),
+			notable_interpeters: m.label_notable_interpreters(),
+			youtube_url: m.label_youtube_url(),
+			permlink: m.label_permlink()
+		};
+		return map[key] || key.replace(/_/g, ' ');
+	}
+
 	function onResult(data: any) {
 		let textAns = data.answer?.response;
 		if (typeof textAns === 'object' && textAns !== null && 'response' in textAns) {
@@ -181,7 +203,7 @@
 			{#if msg.score_id}
 				<div class="mt-4">
 					<Button variant="secondary" size="sm" href="/reader/{msg.score_id}">
-						Open PDF (Score ID: {msg.score_id})
+						{m.view_pdf()} (ID: {msg.score_id})
 					</Button>
 				</div>
 			{/if}
@@ -192,8 +214,8 @@
 <Sheet.Root bind:open={sheetOpen}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-md">
 		<Sheet.Header>
-			<Sheet.Title>Score Details</Sheet.Title>
-			<Sheet.Description>Full metadata for the selected score.</Sheet.Description>
+			<Sheet.Title>{m.score_details()}</Sheet.Title>
+			<Sheet.Description>{m.score_details_desc()}</Sheet.Description>
 		</Sheet.Header>
 		{#if selectedScoreDetails}
 			<div class="mt-6 flex flex-col gap-3">
@@ -208,7 +230,7 @@
 				}) as [key, value]}
 					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
 						<span class="text-sm font-semibold capitalize text-foreground">
-							{key.replace(/_/g, ' ')}
+							{translateKey(key)}
 						</span>
 						<span class="col-span-2 text-sm text-muted-foreground break-words">
 							{#if key === 'youtube_url' && value}
@@ -224,7 +246,7 @@
 			</div>
 			
 			<div class="mt-8 flex flex-col gap-2">
-				<Button href="/reader/{selectedScoreDetails.id}" class="w-full">View PDF</Button>
+				<Button href="/reader/{selectedScoreDetails.id}" class="w-full">{m.view_pdf()}</Button>
 			</div>
 		{/if}
 	</Sheet.Content>

@@ -133,6 +133,28 @@
 		}
 	];
 
+	function translateKey(key: string) {
+		const map: Record<string, string> = {
+			title: m.label_title(),
+			composer: m.label_composer(),
+			year: m.label_year(),
+			period: m.label_period(),
+			instrumentation: m.label_instrumentation(),
+			short_description: m.label_short_description(),
+			key: m.label_key_signature(),
+			genre: m.label_genre(),
+			form: m.label_form(),
+			style: m.label_style(),
+			long_description: m.label_long_description(),
+			difficulty: m.label_difficulty(),
+			notable_interpreters: m.label_notable_interpreters(),
+			notable_interpeters: m.label_notable_interpreters(),
+			youtube_url: m.label_youtube_url(),
+			permlink: m.label_permlink()
+		};
+		return map[key] || key.replace(/_/g, ' ');
+	}
+
 	let imslpScores = $state<any[]>([]);
 	function onImslpResult(data: any) {
 		const res = data.agent_results;
@@ -466,8 +488,8 @@
 <Sheet.Root bind:open={sheetOpen}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-md">
 		<Sheet.Header>
-			<Sheet.Title>Score Details</Sheet.Title>
-			<Sheet.Description>Full metadata for the selected score.</Sheet.Description>
+			<Sheet.Title>{m.score_details()}</Sheet.Title>
+			<Sheet.Description>{m.score_details_desc()}</Sheet.Description>
 		</Sheet.Header>
 		{#if selectedScore}
 			<div class="mt-6 flex flex-col gap-3">
@@ -482,7 +504,7 @@
 				}) as [key, value]}
 					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
 						<span class="text-sm font-semibold capitalize text-foreground">
-							{key.replace(/_/g, ' ')}
+							{translateKey(key)}
 						</span>
 						<span class="col-span-2 text-sm text-muted-foreground break-words">
 							{#if key === 'youtube_url' && value}
@@ -498,7 +520,7 @@
 			</div>
 			
 			<div class="mt-8 flex flex-col gap-2">
-				<Button href="/reader/{selectedScore.id}" class="w-full">View PDF</Button>
+				<Button href="/reader/{selectedScore.id}" class="w-full">{m.view_pdf()}</Button>
 				<form method="POST" action="?/recomplete" use:enhance={() => {
 					recompleting = true;
 					return async ({ update, result }) => {
@@ -514,7 +536,7 @@
 					<input type="hidden" name="composer" value={selectedScore.composer} />
 					<input type="hidden" name="pdf_path" value={selectedScore.pdf_path || ''} />
 					<Button type="submit" variant="secondary" class="w-full" disabled={recompleting}>
-						{recompleting ? 'Running Agent...' : 'Rerun Complete Agent'}
+						{recompleting ? m.running_agent() : m.rerun_complete_agent()}
 					</Button>
 				</form>
 				<form method="POST" action="?/delete" use:enhance={() => {
@@ -527,7 +549,7 @@
 					};
 				}}>
 					<input type="hidden" name="id" value={selectedScore.id} />
-					<Button type="submit" variant="destructive" class="w-full">Delete Score</Button>
+					<Button type="submit" variant="destructive" class="w-full">{m.delete_score()}</Button>
 				</form>
 			</div>
 		{/if}
@@ -537,8 +559,8 @@
 <Sheet.Root bind:open={imslpSheetOpen}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-md">
 		<Sheet.Header>
-			<Sheet.Title>IMSLP Score Details</Sheet.Title>
-			<Sheet.Description>Full metadata for the selected IMSLP score.</Sheet.Description>
+			<Sheet.Title>{m.imslp_score_details()}</Sheet.Title>
+			<Sheet.Description>{m.imslp_score_details_desc()}</Sheet.Description>
 		</Sheet.Header>
 		{#if agentSelectedScore}
 			<div class="mt-6 flex flex-col gap-3">
@@ -553,12 +575,12 @@
 				}) as [key, value]}
 					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
 						<span class="text-sm font-semibold capitalize text-foreground">
-							{key.replace(/_/g, ' ')}
+							{translateKey(key)}
 						</span>
 						<span class="col-span-2 text-sm text-muted-foreground break-words">
 							{#if key === 'permlink' && value}
 								<a href={value as string} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">
-									View on IMSLP
+									{m.view_on_imslp()}
 								</a>
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
@@ -569,13 +591,13 @@
 			</div>
 			
 			<div class="mt-8 flex flex-col gap-4 border-t border-border pt-4">
-				<h3 class="font-semibold text-foreground">Add this Score</h3>
+				<h3 class="font-semibold text-foreground">{m.add_this_score()}</h3>
 				<p class="text-sm text-muted-foreground">
-					1. Download PDF from IMSLP: <br/>
+					{m.download_pdf_imslp()}<br/>
 					<a href={agentSelectedScore.permlink} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline break-all">{agentSelectedScore.permlink}</a>
 				</p>
 				<p class="text-sm text-muted-foreground">
-					2. Upload the downloaded PDF below:
+					{m.upload_pdf_below()}
 				</p>
 				<form method="POST" action="?/add_imslp" enctype="multipart/form-data" use:enhance={() => {
 					uploading = true;
@@ -588,11 +610,11 @@
 				}} class="flex flex-col gap-4">
 					<input type="hidden" name="imslp_id" value={agentSelectedScore.id} />
 					<div class="space-y-2">
-						<label for="agent_file_sheet" class="text-sm font-medium leading-none">PDF File</label>
+						<label for="agent_file_sheet" class="text-sm font-medium leading-none">{m.pdf_file()}</label>
 						<Input id="agent_file_sheet" name="file" type="file" accept="application/pdf" required />
 					</div>
 					<Button type="submit" disabled={uploading} class="w-full">
-						{uploading ? 'Adding...' : 'Add Score'}
+						{uploading ? m.adding() : m.add_score()}
 					</Button>
 				</form>
 			</div>
