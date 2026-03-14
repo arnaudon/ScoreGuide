@@ -122,5 +122,7 @@
 	"ask": "Demander",
 	"agent_placeholder_main": "par ex. Trouvez-moi des sonates pour piano de Beethoven",
 	"imslp_search_help": "Je peux chercher dans la base de données IMSLP.",
-	"how_can_i_help": "Comment puis-je vous aider ?"
+	"how_can_i_help": "Comment puis-je vous aider ?",
+	"hello_user": "Bonjour {name},",
+	"what_to_play": "que souhaitez-vous jouer aujourd'hui ?"
 }

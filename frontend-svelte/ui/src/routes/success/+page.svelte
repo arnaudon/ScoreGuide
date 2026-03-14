@@ -101,7 +101,8 @@
 	<AgentChat
 		{form}
 		action="?/ask"
-		title="Agent"
+		title={m.hello_user({ name: data.user.username })}
+		emptyMessage={m.what_to_play()}
 		placeholder={m.agent_placeholder_main()}
 		{onResult}
 		user={data.user}
