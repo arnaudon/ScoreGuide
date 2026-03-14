@@ -121,6 +121,6 @@
 	"clean_history": "Effacer l'historique",
 	"ask": "Demander",
 	"agent_placeholder_main": "par ex. Trouvez-moi des sonates pour piano de Beethoven",
-	"imslp_search_help": "Je suis là pour vous aider à chercher dans la base de données IMSLP.",
+	"imslp_search_help": "Je peux chercher dans la base de données IMSLP.",
 	"how_can_i_help": "Comment puis-je vous aider ?"
 }
