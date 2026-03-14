@@ -145,5 +145,7 @@
 	"label_permlink": "Permlink",
 	"page_of": "Page {page} of {total}",
 	"choose_file": "Choose File",
-	"agent_can_make_mistakes": "Agents can make mistakes. Please verify important information."
+	"agent_can_make_mistakes": "Agents can make mistakes. Please verify important information.",
+	"contact": "Contact",
+	"contact_page_desc": "If you have any questions or need support, please feel free to reach out to us at:"
 }

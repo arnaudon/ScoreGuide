@@ -33,13 +33,11 @@
 				{@render children()}
 			</main>
 			<footer class="p-4 text-center text-sm text-muted-foreground">
-				<p class="mb-2">
+				<div class="mb-2 flex justify-center gap-4">
 					<a href="/privacy" class="hover:underline">{m.privacy_policy()}</a>
-				</p>
-				© 2026 Alexis Arnaudon. {m.footer_contact()}
-				<a href="mailto:alexis.arnaudon@gmail.com" class="hover:underline">
-					alexis.arnaudon@gmail.com
-				</a>
+					<a href="/contact" class="hover:underline">{m.contact()}</a>
+				</div>
+				<p>© 2026 Alexis Arnaudon.</p>
 			</footer>
 		</Sidebar.Inset>
 	</Sidebar.Provider>
@@ -60,13 +58,11 @@
 					</button>
 				</div>
 			</div>
-			<p class="mb-2">
+			<div class="mb-2 flex justify-center gap-4">
 				<a href="/privacy" class="hover:underline">{m.privacy_policy()}</a>
-			</p>
-			© 2026 Alexis Arnaudon. {m.footer_contact()}
-			<a href="mailto:alexis.arnaudon@gmail.com" class="hover:underline">
-				alexis.arnaudon@gmail.com
-			</a>
+				<a href="/contact" class="hover:underline">{m.contact()}</a>
+			</div>
+			<p>© 2026 Alexis Arnaudon.</p>
 		</footer>
 	</div>
 {/if}

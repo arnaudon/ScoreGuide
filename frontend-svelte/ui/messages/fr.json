@@ -145,5 +145,7 @@
 	"label_permlink": "Permalien",
 	"page_of": "Page {page} sur {total}",
 	"choose_file": "Choisir un fichier",
-	"agent_can_make_mistakes": "Les agents peuvent faire des erreurs. Veuillez vérifier les informations importantes."
+	"agent_can_make_mistakes": "Les agents peuvent faire des erreurs. Veuillez vérifier les informations importantes.",
+	"contact": "Contact",
+	"contact_page_desc": "Si vous avez des questions ou avez besoin d'aide, n'hésitez pas à nous contacter à l'adresse suivante :"
 }
