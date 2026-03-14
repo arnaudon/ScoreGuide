@@ -309,6 +309,82 @@ export const actions: Actions = {
 			return fail(500, { error: 'Server error when contacting backend' });
 		}
 	},
+	recomplete: async ({ request, cookies, fetch }) => {
+		const token = cookies.get('access_token');
+		if (!token) {
+			return fail(401, { error: 'Unauthorized' });
+		}
+
+		const data = await request.formData();
+		const id = data.get('id');
+		const title = data.get('title');
+		const composer = data.get('composer');
+		const pdf_path = data.get('pdf_path');
+
+		if (!id || !title || !composer) {
+			return fail(400, { error: 'Missing required fields' });
+		}
+
+		try {
+			const initialScoreData = {
+				title: title.toString(),
+				composer: composer.toString(),
+				pdf_path: pdf_path ? pdf_path.toString() : ''
+			};
+
+			const completeRes = await fetch(`${BACKEND_URL}/complete_score`, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(initialScoreData)
+			});
+
+			if (!completeRes.ok) {
+				return fail(completeRes.status, { error: 'Failed to complete score data with agent' });
+			}
+
+			let scoreData = await completeRes.json();
+			
+			if (typeof scoreData === 'string') {
+				try {
+					scoreData = JSON.parse(scoreData);
+				} catch (e) {
+					console.error('Could not parse scoreData string');
+				}
+			}
+			
+			if (scoreData && typeof scoreData === 'object' && !scoreData.title) {
+				if (scoreData.score) scoreData = scoreData.score;
+				else if (scoreData.response) scoreData = scoreData.response;
+			}
+			
+			const finalScoreData = {
+				...scoreData,
+				pdf_path: pdf_path ? pdf_path.toString() : '',
+				source: 'manual'
+			};
+
+			const updateRes = await fetch(`${BACKEND_URL}/scores/${id}`, {
+				method: 'PUT',
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(finalScoreData)
+			});
+
+			if (!updateRes.ok) {
+				return fail(updateRes.status, { error: 'Failed to update score' });
+			}
+
+			return { success: true };
+		} catch (error) {
+			console.error('Recomplete error:', error);
+			return fail(500, { error: 'Server error when contacting backend' });
+		}
+	},
 	delete: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {

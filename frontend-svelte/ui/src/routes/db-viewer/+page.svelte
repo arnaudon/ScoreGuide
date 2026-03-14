@@ -27,6 +27,7 @@
 	let agentSelectedScore = $state<any>(null);
 	let imslpSheetOpen = $state(false);
 	let uploading = $state(false);
+	let recompleting = $state(false);
 	let sheetOpen = $state(false);
 	let selectedScore = $derived(data.scores.find((s: any) => s.id === selectedScoreId));
 
@@ -489,6 +490,24 @@
 			
 			<div class="mt-8 flex flex-col gap-2">
 				<Button href="/reader/{selectedScore.id}" class="w-full">View PDF</Button>
+				<form method="POST" action="?/recomplete" use:enhance={() => {
+					recompleting = true;
+					return async ({ update, result }) => {
+						recompleting = false;
+						if (result.type === 'success') {
+							// Update completes successfully, we keep the sheet open to see the new data
+						}
+						update({ reset: false });
+					};
+				}}>
+					<input type="hidden" name="id" value={selectedScore.id} />
+					<input type="hidden" name="title" value={selectedScore.title} />
+					<input type="hidden" name="composer" value={selectedScore.composer} />
+					<input type="hidden" name="pdf_path" value={selectedScore.pdf_path || ''} />
+					<Button type="submit" variant="secondary" class="w-full" disabled={recompleting}>
+						{recompleting ? 'Running Agent...' : 'Rerun Complete Agent'}
+					</Button>
+				</form>
 				<form method="POST" action="?/delete" use:enhance={() => {
 					return async ({ update, result }) => {
 						if (result.type === 'success') {
