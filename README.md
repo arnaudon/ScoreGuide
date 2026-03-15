@@ -6,6 +6,15 @@ Build a digital database of your PDF scores, track your practice sessions, and c
 
 ---
 
+## ✨ Features
+
+- 📚 **Smart Library**: Upload PDFs, let AI auto-complete missing metadata, and keep your repertoire organized.
+- 🤖 **AI Assistant**: Chat with an LLM to discover pieces in your library, or search the massive public domain IMSLP database using natural language.
+- 🎹 **Practice Reader**: Built-in distraction-free PDF viewer tailored for your practice sessions.
+- 🌍 **Bilingual**: Fully available in both English and French.
+
+---
+
 ## 🛠️ Stack
 
 - **Frontend**: SvelteKit 5, Tailwind CSS v4, shadcn-svelte
