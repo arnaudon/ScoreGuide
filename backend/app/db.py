@@ -30,10 +30,13 @@ def get_session():
         yield session
 
 
+connect_args = {"prepared_statement_cache_size": 0} if "asyncpg" in ASYNC_DATABASE_URL else {}
+
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
     echo=False,
     poolclass=NullPool,
+    connect_args=connect_args,
 )
 
 
