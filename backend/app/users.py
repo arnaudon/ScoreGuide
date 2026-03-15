@@ -1,6 +1,7 @@
 """Users module."""
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -17,7 +18,7 @@ from shared.user import User
 
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = "00205d1c7dfd3d9d6ad7b542cb50f308b00e4efa3165ed7c1deefab70ade383a"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "...")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 1
 
