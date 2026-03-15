@@ -14,9 +14,10 @@ from sqlmodel import Session, select
 
 from app import imslp, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
-from app.db import get_session, init_db
+from app.db import get_async_session, get_session, init_db
 from app.file_helper import file_helper
 from app.users import get_admin_user, get_current_user, get_current_user_from_token
+from sqlmodel.ext.asyncio.session import AsyncSession
 from shared.scores import Score, Scores
 from shared.settings import Setting
 from shared.user import User
@@ -75,7 +76,7 @@ def add_score(
 async def complete_score(
     score: Score,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Complete a score."""
     if current_user.credits <= 0:
@@ -87,9 +88,9 @@ async def complete_score(
 
     current_user.credits -= 1
     session.add(current_user)
-    session.commit()
+    await session.commit()
 
-    setting = session.get(Setting, "model_complete")
+    setting = await session.get(Setting, "model_complete")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
     try:
@@ -97,7 +98,7 @@ async def complete_score(
     except Exception as e:
         current_user.credits += 1
         session.add(current_user)
-        session.commit()
+        await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
@@ -175,7 +176,7 @@ async def run_imslp_agent_api(
     current_user: Annotated[User, Depends(get_current_user)],
     prompt: str = Body(...),
     message_history: list | None = Body(None),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Run the imslp agent."""
     validate_prompt_security(prompt)
@@ -189,9 +190,9 @@ async def run_imslp_agent_api(
 
     current_user.credits -= 1
     session.add(current_user)
-    session.commit()
+    await session.commit()
 
-    setting = session.get(Setting, "model_imslp")
+    setting = await session.get(Setting, "model_imslp")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
     try:
@@ -199,7 +200,7 @@ async def run_imslp_agent_api(
     except Exception as e:
         current_user.credits += 1
         session.add(current_user)
-        session.commit()
+        await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
@@ -211,7 +212,7 @@ async def run_main_agent(
     prompt: str = Body(...),
     deps: str = Body(...),
     message_history: list | None = Body(None),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Run the agent."""
     validate_prompt_security(prompt)
@@ -225,9 +226,9 @@ async def run_main_agent(
 
     current_user.credits -= 1
     session.add(current_user)
-    session.commit()
+    await session.commit()
 
-    setting = session.get(Setting, "model_main")
+    setting = await session.get(Setting, "model_main")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
     try:
@@ -240,7 +241,7 @@ async def run_main_agent(
     except Exception as e:
         current_user.credits += 1
         session.add(current_user)
-        session.commit()
+        await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
