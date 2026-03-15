@@ -9,7 +9,6 @@ services:
     restart: always
     environment:
       - SCHEDULE=@weekly
-      - POSTGRES_HOST=db
       - S3_PREFIX=database-backups
     env_file: .env
     depends_on:
