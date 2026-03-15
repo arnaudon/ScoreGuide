@@ -113,7 +113,7 @@ async def fix_entry(entry, session):
             for key, value in res.output.model_dump().items():
                 setattr(entry, key, value)
             break
-        except (ModelHTTPError, UnexpectedModelBehavior) as e:
+        except Exception as e:
             # Do not retry client errors (4xx)
             if isinstance(e, ModelHTTPError) and e.status_code < 500:
                 raise e
@@ -121,7 +121,7 @@ async def fix_entry(entry, session):
             if attempt < max_retries - 1:
                 wait_time = 2**attempt * 5  # Exponential backoff
                 logger.warning(
-                    "Model error %s , retrying in %s s (attempt %s / %s)",
+                    "Error %s , retrying in %s s (attempt %s / %s)",
                     e,
                     wait_time,
                     attempt + 1,
@@ -129,7 +129,8 @@ async def fix_entry(entry, session):
                 )
                 time.sleep(wait_time)
             else:
-                raise e
+                logger.error("Failed to fix entry after %s attempts: %s", max_retries, e)
+                break
 
 
 async def add_entry(i, item, session, overwrite=False):
