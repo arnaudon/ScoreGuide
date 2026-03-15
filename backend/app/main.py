@@ -86,9 +86,11 @@ async def complete_score(
             "Please contact alexis.arnaudon@gmail.com to get more credits.",
         )
 
-    current_user.credits -= 1
-    session.add(current_user)
-    await session.commit()
+    async_user = await session.get(User, current_user.id)
+    if async_user:
+        async_user.credits -= 1
+        session.add(async_user)
+        await session.commit()
 
     setting = await session.get(Setting, "model_complete")
     model = setting.value if setting else os.getenv("MODEL", "test")
@@ -96,9 +98,11 @@ async def complete_score(
     try:
         result = await run_complete_agent(score, model)
     except Exception as e:
-        current_user.credits += 1
-        session.add(current_user)
-        await session.commit()
+        async_user = await session.get(User, current_user.id)
+        if async_user:
+            async_user.credits += 1
+            session.add(async_user)
+            await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
@@ -188,9 +192,11 @@ async def run_imslp_agent_api(
             "Please contact alexis.arnaudon@gmail.com to get more credits.",
         )
 
-    current_user.credits -= 1
-    session.add(current_user)
-    await session.commit()
+    async_user = await session.get(User, current_user.id)
+    if async_user:
+        async_user.credits -= 1
+        session.add(async_user)
+        await session.commit()
 
     setting = await session.get(Setting, "model_imslp")
     model = setting.value if setting else os.getenv("MODEL", "test")
@@ -198,9 +204,11 @@ async def run_imslp_agent_api(
     try:
         result = await run_imslp_agent(prompt, message_history=message_history, model=model)
     except Exception as e:
-        current_user.credits += 1
-        session.add(current_user)
-        await session.commit()
+        async_user = await session.get(User, current_user.id)
+        if async_user:
+            async_user.credits += 1
+            session.add(async_user)
+            await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
@@ -224,9 +232,11 @@ async def run_main_agent(
             "Please contact alexis.arnaudon@gmail.com to get more credits.",
         )
 
-    current_user.credits -= 1
-    session.add(current_user)
-    await session.commit()
+    async_user = await session.get(User, current_user.id)
+    if async_user:
+        async_user.credits -= 1
+        session.add(async_user)
+        await session.commit()
 
     setting = await session.get(Setting, "model_main")
     model = setting.value if setting else os.getenv("MODEL", "test")
@@ -239,9 +249,11 @@ async def run_main_agent(
             model=model,
         )
     except Exception as e:
-        current_user.credits += 1
-        session.add(current_user)
-        await session.commit()
+        async_user = await session.get(User, current_user.id)
+        if async_user:
+            async_user.credits += 1
+            session.add(async_user)
+            await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
