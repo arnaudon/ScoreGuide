@@ -278,7 +278,7 @@ async def test_run_imslp_complete_agent_success(monkeypatch):
     mock_agent_instance.run = mock_agent_run
     mock_agent_class = MagicMock(return_value=mock_agent_instance)
     monkeypatch.setattr("app.agent.Agent", mock_agent_class)
-    
+
     result = await agent.run_imslp_complete_agent('{"title": "test"}')
     assert result == score_base
 
@@ -295,7 +295,7 @@ async def test_run_imslp_complete_agent_http_error_retry(monkeypatch):
     mock_agent_class = MagicMock(return_value=mock_agent_instance)
     monkeypatch.setattr("app.agent.Agent", mock_agent_class)
     monkeypatch.setattr("app.agent.time.sleep", lambda x: None)
-    
+
     result = await agent.run_imslp_complete_agent('{"title": "test"}')
     assert result == score_base
     assert mock_agent_run.call_count == 2
@@ -309,7 +309,7 @@ async def test_run_imslp_complete_agent_http_error_no_retry(monkeypatch):
     mock_agent_instance.run = mock_agent_run
     mock_agent_class = MagicMock(return_value=mock_agent_instance)
     monkeypatch.setattr("app.agent.Agent", mock_agent_class)
-    
+
     with pytest.raises(ModelHTTPError):
         await agent.run_imslp_complete_agent('{"title": "test"}')
     assert mock_agent_run.call_count == 1
@@ -324,7 +324,7 @@ async def test_run_imslp_complete_agent_generic_exception(monkeypatch):
     mock_agent_class = MagicMock(return_value=mock_agent_instance)
     monkeypatch.setattr("app.agent.Agent", mock_agent_class)
     monkeypatch.setattr("app.agent.time.sleep", lambda x: None)
-    
+
     with pytest.raises(Exception):
         await agent.run_imslp_complete_agent('{"title": "test"}')
     assert mock_agent_run.call_count == 5

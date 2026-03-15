@@ -4,20 +4,18 @@ import asyncio
 import json
 import logging
 import os
-import time
 
 import httpx
 import requests
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.dialects.postgresql import insert
-
-from app.agent import run_imslp_complete_agent
 from sqlmodel import Session, func, select, text
 
+from app.agent import run_imslp_complete_agent
 from app.db import engine, get_session
 from app.users import get_admin_user
-from shared.scores import IMSLP, ScoreBase
+from shared.scores import IMSLP
 from shared.settings import Setting
 
 logger = logging.getLogger(__name__)
@@ -100,7 +98,7 @@ async def fix_entry(entry, session):
         output = await run_imslp_complete_agent(entry.model_dump_json(), model)
         for key, value in output.model_dump().items():
             setattr(entry, key, value)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Failed to fix entry: %s", e)
 
 

@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
 from sqlmodel import Session, select
 
 from app import db

@@ -258,7 +258,9 @@ def get_active_model(session: Session = Depends(get_session)):
         "main": (main_setting.value if main_setting else os.getenv("MODEL", "test")),
         "imslp": (imslp_setting.value if imslp_setting else os.getenv("MODEL", "test")),
         "complete": (complete_setting.value if complete_setting else os.getenv("MODEL", "test")),
-        "imslp_complete": (imslp_complete_setting.value if imslp_complete_setting else os.getenv("MODEL", "test")),
+        "imslp_complete": (
+            imslp_complete_setting.value if imslp_complete_setting else os.getenv("MODEL", "test")
+        ),
     }
     return {"models": models}
 
