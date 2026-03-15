@@ -11,6 +11,7 @@ export default defineConfig({
 		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide' })
 	],
 	server: {
+		allowedHosts: ['scoreguide.ch'],
 		watch: {
 			usePolling: true
 		}
