@@ -56,8 +56,7 @@ def test_create_access_token_default_expiry():
     assert "exp" in decoded
 
 
-@pytest.mark.asyncio
-async def test_create_access_token_and_get_current_user(user_in_db: User, session: Session):
+def test_create_access_token_and_get_current_user(user_in_db: User, session: Session):
     """create_access_token embeds username and get_current_user resolves it."""
 
     # shorter expiry to exercise explicit expiry branch
@@ -66,38 +65,36 @@ async def test_create_access_token_and_get_current_user(user_in_db: User, sessio
         expires_delta=timedelta(minutes=5),
     )
 
-    user = await users.get_current_user(token, session=session)
+    user = users.get_current_user(token, session=session)
     assert user.id == user_in_db.id
 
 
-@pytest.mark.asyncio
-async def test_get_current_user_valid_invalid_and_missing_sub(user_in_db: User, session: Session):
+def test_get_current_user_valid_invalid_and_missing_sub(user_in_db: User, session: Session):
     """get_current_user returns user for valid token and raises for bad tokens."""
 
     # valid token
     token = users.create_access_token(data={"sub": user_in_db.username})
-    user = await users.get_current_user(token, session=session)
+    user = users.get_current_user(token, session=session)
     assert user.id == user_in_db.id
 
     # invalid token string
     with pytest.raises(HTTPException) as exc:
-        await users.get_current_user("not-a-valid-token", session=session)
+        users.get_current_user("not-a-valid-token", session=session)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     # token without sub should also raise (exercises username is None branch)
     no_sub_token = users.create_access_token(data={})
     with pytest.raises(HTTPException) as exc2:
-        await users.get_current_user(no_sub_token, session=session)
+        users.get_current_user(no_sub_token, session=session)
     assert exc2.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-@pytest.mark.asyncio
-async def test_get_current_user_missing_user_raises(session: Session):
+def test_get_current_user_missing_user_raises(session: Session):
     """If the token refers to a non-existing user, get_current_user raises 401."""
     # token with username that does not exist
     token = users.create_access_token(data={"sub": "does-not-exist"})
     with pytest.raises(HTTPException) as exc:
-        await users.get_current_user(token, session=session)
+        users.get_current_user(token, session=session)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -139,21 +136,19 @@ def test_get_users(client: TestClient):
     assert resp.status_code == 200
 
 
-@pytest.mark.asyncio
-async def test_is_admin(test_user):
+def test_is_admin(test_user):
     """is_admin returns True if user is admin (covers is_admin)."""
-    assert await users.is_admin(test_user) is True
-    assert await users.is_admin(None) is False
+    assert users.is_admin(test_user) is True
+    assert users.is_admin(None) is False
 
 
-@pytest.mark.asyncio
-async def test_get_admin_user(test_user):
+def test_get_admin_user(test_user):
     """get_admin_user returns admin user or None (covers get_admin_user)."""
-    assert await users.get_admin_user(test_user) is None
+    assert users.get_admin_user(test_user) is None
     test_user.role = "other"
-    assert await users.get_admin_user(test_user) is None
+    assert users.get_admin_user(test_user) is None
     test_user.role = "admin"
-    assert await users.get_admin_user(test_user) is test_user
+    assert users.get_admin_user(test_user) is test_user
 
 
 def test_get_current_user_route(client: TestClient):

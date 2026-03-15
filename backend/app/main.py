@@ -7,15 +7,19 @@ from contextlib import asynccontextmanager
 from logging import getLogger
 from typing import Annotated, AsyncGenerator
 
-from fastapi import Body, Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Body, Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlmodel import Session, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import imslp, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
-from app.db import get_session, init_db
+from app.db import get_async_session, get_session, init_db
 from app.file_helper import file_helper
+from app.rate_limit import limiter
 from app.users import get_admin_user, get_current_user, get_current_user_from_token
 from shared.scores import Score, Scores
 from shared.settings import Setting
@@ -45,6 +49,9 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:  # pragma: no cove
 
 
 app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -72,10 +79,12 @@ def add_score(
 
 
 @app.post("/complete_score")
+@limiter.limit("5/minute")
 async def complete_score(
+    request: Request,  # pylint: disable=unused-argument
     score: Score,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Complete a score."""
     if current_user.credits <= 0:
@@ -85,19 +94,23 @@ async def complete_score(
             "Please contact alexis.arnaudon@gmail.com to get more credits.",
         )
 
-    current_user.credits -= 1
-    session.add(current_user)
-    session.commit()
+    async_user = await session.get(User, current_user.id)
+    if async_user:
+        async_user.credits -= 1
+        session.add(async_user)
+        await session.commit()
 
-    setting = session.get(Setting, "model_complete")
+    setting = await session.get(Setting, "model_complete")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
     try:
         result = await run_complete_agent(score, model)
     except Exception as e:
-        current_user.credits += 1
-        session.add(current_user)
-        session.commit()
+        async_user = await session.get(User, current_user.id)
+        if async_user:
+            async_user.credits += 1
+            session.add(async_user)
+            await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
@@ -171,11 +184,13 @@ def get_scores(
 
 
 @app.post("/imslp_agent")
+@limiter.limit("5/minute")
 async def run_imslp_agent_api(
+    request: Request,  # pylint: disable=unused-argument
     current_user: Annotated[User, Depends(get_current_user)],
     prompt: str = Body(...),
     message_history: list | None = Body(None),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Run the imslp agent."""
     validate_prompt_security(prompt)
@@ -187,31 +202,37 @@ async def run_imslp_agent_api(
             "Please contact alexis.arnaudon@gmail.com to get more credits.",
         )
 
-    current_user.credits -= 1
-    session.add(current_user)
-    session.commit()
+    async_user = await session.get(User, current_user.id)
+    if async_user:
+        async_user.credits -= 1
+        session.add(async_user)
+        await session.commit()
 
-    setting = session.get(Setting, "model_imslp")
+    setting = await session.get(Setting, "model_imslp")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
     try:
         result = await run_imslp_agent(prompt, message_history=message_history, model=model)
     except Exception as e:
-        current_user.credits += 1
-        session.add(current_user)
-        session.commit()
+        async_user = await session.get(User, current_user.id)
+        if async_user:
+            async_user.credits += 1
+            session.add(async_user)
+            await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
 
 
 @app.post("/agent")
-async def run_main_agent(
+@limiter.limit("5/minute")
+async def run_main_agent(  # pylint: disable=too-many-positional-arguments
+    request: Request,  # pylint: disable=unused-argument
     current_user: Annotated[User, Depends(get_current_user)],
     prompt: str = Body(...),
     deps: str = Body(...),
     message_history: list | None = Body(None),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Run the agent."""
     validate_prompt_security(prompt)
@@ -223,11 +244,13 @@ async def run_main_agent(
             "Please contact alexis.arnaudon@gmail.com to get more credits.",
         )
 
-    current_user.credits -= 1
-    session.add(current_user)
-    session.commit()
+    async_user = await session.get(User, current_user.id)
+    if async_user:
+        async_user.credits -= 1
+        session.add(async_user)
+        await session.commit()
 
-    setting = session.get(Setting, "model_main")
+    setting = await session.get(Setting, "model_main")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
     try:
@@ -238,9 +261,11 @@ async def run_main_agent(
             model=model,
         )
     except Exception as e:
-        current_user.credits += 1
-        session.add(current_user)
-        session.commit()
+        async_user = await session.get(User, current_user.id)
+        if async_user:
+            async_user.credits += 1
+            session.add(async_user)
+            await session.commit()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result

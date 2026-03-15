@@ -1,11 +1,12 @@
 """Users module."""
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
@@ -13,11 +14,12 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.db import get_session
+from app.rate_limit import limiter
 from shared.user import User
 
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = "00205d1c7dfd3d9d6ad7b542cb50f308b00e4efa3165ed7c1deefab70ade383a"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "...")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 1
 
@@ -94,7 +96,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 
 @router.post("/token")
-async def login_for_access_token(
+@limiter.limit("10/minute")
+def login_for_access_token(
+    request: Request,  # pylint: disable=unused-argument
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: Session = Depends(get_session),
 ) -> Token:
@@ -114,7 +118,7 @@ async def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 
-async def get_current_user(
+def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: Session = Depends(get_session),
 ):
@@ -142,7 +146,7 @@ def get_current_user_from_token(token: str, session: Session):
     return user
 
 
-async def get_admin_user(user: User = Depends(get_current_user)):
+def get_admin_user(user: User = Depends(get_current_user)):
     """Get admin user only."""
     if user.role == "admin":
         return user
@@ -150,7 +154,12 @@ async def get_admin_user(user: User = Depends(get_current_user)):
 
 
 @router.post("/users")
-async def add_user(user: User, session: Session = Depends(get_session)):
+@limiter.limit("5/minute")
+def add_user(
+    request: Request,  # pylint: disable=unused-argument
+    user: User,
+    session: Session = Depends(get_session),
+):
     """Add a user to the db."""
     hashed_password = get_password_hash(user.password)
     user.password = hashed_password
@@ -161,15 +170,13 @@ async def add_user(user: User, session: Session = Depends(get_session)):
 
 
 @router.get("/users")
-async def get_users(
-    _: Annotated[User, Depends(get_admin_user)], session: Session = Depends(get_session)
-):
+def get_users(_: Annotated[User, Depends(get_admin_user)], session: Session = Depends(get_session)):
     """Get all users from the db."""
     return session.exec(select(User)).all()
 
 
 @router.get("/user")
-async def get_current_user_route(
+def get_current_user_route(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Get current user."""
@@ -177,7 +184,7 @@ async def get_current_user_route(
 
 
 @router.put("/user")
-async def update_user(
+def update_user(
     req: UserUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
@@ -201,7 +208,7 @@ async def update_user(
 
 
 @router.get("/is_admin")
-async def is_admin(current_user: Annotated[User | None, Depends(get_admin_user)]):
+def is_admin(current_user: Annotated[User | None, Depends(get_admin_user)]):
     """Check if user is admin."""
     if current_user is not None:
         return True
@@ -209,7 +216,7 @@ async def is_admin(current_user: Annotated[User | None, Depends(get_admin_user)]
 
 
 @router.put("/user/password")
-async def update_password(
+def update_password(
     req: PasswordChangeRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
@@ -227,7 +234,7 @@ async def update_password(
 
 
 @router.put("/users/{user_id}/credits")
-async def set_user_credits(
+def set_user_credits(
     user_id: int,
     request: CreditUpdateRequest,
     current_user: Annotated[User | None, Depends(get_admin_user)],
@@ -252,7 +259,7 @@ async def set_user_credits(
 
 
 @router.post("/users/{user_id}/refill_credits")
-async def refill_user_credits(
+def refill_user_credits(
     user_id: int,
     current_user: Annotated[User | None, Depends(get_admin_user)],
     session: Session = Depends(get_session),
@@ -276,7 +283,7 @@ async def refill_user_credits(
 
 
 @router.delete("/user")
-async def delete_account(
+def delete_account(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
 ):
