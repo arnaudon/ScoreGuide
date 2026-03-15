@@ -8,7 +8,7 @@ services:
     image: schickling/postgres-backup-s3
     restart: always
     environment:
-      - SCHEDULE=@daily
+      - SCHEDULE=@weekly
       - POSTGRES_HOST=db
       - S3_PREFIX=database-backups
     env_file: .env
