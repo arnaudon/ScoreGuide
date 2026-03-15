@@ -3,16 +3,9 @@
 # yourdomain.com {
 #     reverse_proxy frontend:3000
 # }
-# api.yourdomain.com {
-#     reverse_proxy backend:8000
-# }
 
 :80 {
 	reverse_proxy frontend:3000
-}
-
-:8000 {
-	reverse_proxy backend:8000
 }
 
 :5050 {

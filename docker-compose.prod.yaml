@@ -27,7 +27,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "8000:8000"
       - "5050:5050"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
@@ -45,7 +44,7 @@ services:
     restart: always
     environment:
       - BACKEND_URL=http://backend:8000
-      - PUBLIC_BACKEND_URL=http://188.213.128.236:8000
+      - PUBLIC_BACKEND_URL=http://backend:8000
       - BODY_SIZE_LIMIT=Infinity
     env_file: .env
 
