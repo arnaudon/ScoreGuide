@@ -19,7 +19,7 @@
 				{m.login_description()}
 			</p>
 			<p class="mt-4 text-sm text-muted-foreground bg-muted p-2 rounded">
-				This app is a beta version. Feedback is welcome at <a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline">alexis.arnaudon@scoreguide.ch</a>.
+				{m.beta_warning()} <a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline">alexis.arnaudon@scoreguide.ch</a>.
 			</p>
 		</div>
 
