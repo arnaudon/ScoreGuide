@@ -33,6 +33,9 @@
 				{@render children()}
 			</main>
 			<footer class="p-4 text-center text-sm text-muted-foreground">
+				<div class="mb-2 text-xs">
+					{m.beta_warning()} <a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline">alexis.arnaudon@scoreguide.ch</a>.
+				</div>
 				<div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-2">
 					<a href="/privacy" class="hover:underline">{m.privacy_policy()}</a>
 					<a href="/contact" class="hover:underline">{m.contact()}</a>
@@ -57,6 +60,9 @@
 						FR
 					</button>
 				</div>
+			</div>
+			<div class="mb-2 text-xs">
+				{m.beta_warning()} <a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline">alexis.arnaudon@scoreguide.ch</a>.
 			</div>
 			<div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-2">
 				<a href="/privacy" class="hover:underline">{m.privacy_policy()}</a>
