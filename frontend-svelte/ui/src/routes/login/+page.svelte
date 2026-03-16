@@ -18,6 +18,9 @@
 			<p class="mt-2 text-muted-foreground">
 				{m.login_description()}
 			</p>
+			<p class="mt-4 text-sm text-muted-foreground bg-muted p-2 rounded">
+				This app is a beta version. Feedback is welcome at <a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline">alexis.arnaudon@scoreguide.ch</a>.
+			</p>
 		</div>
 
 		<h2 class="text-fancy-title mb-4 text-center text-xl font-semibold">
