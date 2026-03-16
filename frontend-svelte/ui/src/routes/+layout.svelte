@@ -49,13 +49,13 @@
 		<footer class="p-4 text-center text-sm text-muted-foreground">
 			<div class="mb-4 flex justify-center">
 				<div class="flex rounded-md border text-xs font-semibold">
-					<a href={localizeHref(page.url.pathname, { locale: 'en' })} class="px-2 py-1 hover:bg-muted">
+					<button onclick={() => setLanguage('en')} class="px-2 py-1 hover:bg-muted">
 						EN
-					</a>
+					</button>
 					<div class="w-[1px] bg-border"></div>
-					<a href={localizeHref(page.url.pathname, { locale: 'fr' })} class="px-2 py-1 hover:bg-muted">
+					<button onclick={() => setLanguage('fr')} class="px-2 py-1 hover:bg-muted">
 						FR
-					</a>
+					</button>
 				</div>
 			</div>
 			<div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-2">
