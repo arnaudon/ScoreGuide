@@ -134,6 +134,7 @@
 			<Table.Row>
 				<Table.Head>{m.id()}</Table.Head>
 				<Table.Head>{m.username()}</Table.Head>
+				<Table.Head>{m.email()}</Table.Head>
 				<Table.Head>{m.role()}</Table.Head>
 				<Table.Head>{m.credits()}</Table.Head>
 				<Table.Head>Scores</Table.Head>
@@ -146,6 +147,7 @@
 				<Table.Row>
 					<Table.Cell>{user.id || '-'}</Table.Cell>
 					<Table.Cell>{user.username}</Table.Cell>
+					<Table.Cell>{user.email || '-'}</Table.Cell>
 					<Table.Cell class="capitalize">{user.role || (user.is_admin ? 'Admin' : 'User')}</Table.Cell>
 					<Table.Cell>{user.credits ?? '-'}/{user.max_credits ?? '-'}</Table.Cell>
 					<Table.Cell>{user.score_count ?? 0}</Table.Cell>
@@ -158,7 +160,7 @@
 				</Table.Row>
 			{:else}
 				<Table.Row>
-					<Table.Cell colspan={7} class="text-center text-muted-foreground py-4">
+					<Table.Cell colspan={8} class="text-center text-muted-foreground py-4">
 						{m.no_users_found()}
 					</Table.Cell>
 				</Table.Row>
