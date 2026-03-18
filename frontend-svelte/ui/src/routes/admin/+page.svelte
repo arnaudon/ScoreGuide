@@ -180,15 +180,6 @@
 	<h2 class="text-fancy-title text-xl font-semibold text-foreground">{m.users()}</h2>
 </div>
 
-<div class="flex flex-wrap items-center gap-4 py-4">
-	<Input
-		placeholder={m.filter_titles()}
-		value={(table.getColumn("username")?.getFilterValue() as string) ?? ""}
-		oninput={(e) => table.getColumn("username")?.setFilterValue(e.currentTarget.value)}
-		class="max-w-xs"
-	/>
-</div>
-
 <div class="rounded-md border bg-card text-card-foreground shadow-card">
 	<Table.Root>
 		<Table.Header>
