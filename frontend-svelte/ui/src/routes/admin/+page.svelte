@@ -95,6 +95,7 @@
 			<div class="space-y-2">
 				<label for="model_main" class="text-sm font-medium leading-none">{m.main_agent_model()}</label>
 				<select id="model_main" name="model_main" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+					<option value="google-gla:gemini-2.5-flash-lite" selected={data.activeModels.main === 'google-gla:gemini-2.5-flash-lite'}>Gemini 2.5 Flash Lite</option>
 					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.main === 'google-gla:gemini-2.5-flash' || data.activeModels.main === ''}>Gemini 2.5 Flash</option>
 					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.main === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
 					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.main === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
@@ -103,6 +104,7 @@
 			<div class="space-y-2">
 				<label for="model_imslp" class="text-sm font-medium leading-none">{m.imslp_agent_model()}</label>
 				<select id="model_imslp" name="model_imslp" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+					<option value="google-gla:gemini-2.5-flash-lite" selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash-lite'}>Gemini 2.5 Flash Lite</option>
 					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash' || data.activeModels.imslp === ''}>Gemini 2.5 Flash</option>
 					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.imslp === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
 					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.imslp === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
@@ -111,6 +113,7 @@
 			<div class="space-y-2">
 				<label for="model_complete" class="text-sm font-medium leading-none">{m.complete_agent_model()}</label>
 				<select id="model_complete" name="model_complete" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+					<option value="google-gla:gemini-2.5-flash-lite" selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash-lite'}>Gemini 2.5 Flash Lite</option>
 					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash' || data.activeModels.complete === ''}>Gemini 2.5 Flash</option>
 					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.complete === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
 					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.complete === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
@@ -119,6 +122,7 @@
 			<div class="space-y-2">
 				<label for="model_imslp_complete" class="text-sm font-medium leading-none">IMSLP Complete Agent Model</label>
 				<select id="model_imslp_complete" name="model_imslp_complete" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+					<option value="google-gla:gemini-2.5-flash-lite" selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-flash-lite'}>Gemini 2.5 Flash Lite</option>
 					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-flash' || data.activeModels.imslp_complete === ''}>Gemini 2.5 Flash</option>
 					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
 					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.imslp_complete === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
