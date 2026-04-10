@@ -2,6 +2,16 @@ scoreguide.ch {
 	reverse_proxy frontend:3000
 }
 
+gardenai.scoreguide.ch {
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy backend_garden:8000
+	}
+	handle {
+		reverse_proxy frontend_garden:3000
+	}
+}
+
 :8000 {
 	reverse_proxy backend:8000
 }

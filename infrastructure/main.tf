@@ -119,7 +119,7 @@ resource "openstack_networking_secgroup_rule_v2" "allow_pg_home" {
 resource "openstack_compute_instance_v2" "my_webserver" {
   name            = "web-server"
   image_name      = "Debian 12 bookworm"
-  flavor_name     = "a4-ram8-disk80-perf1"
+  flavor_name     = "a1-ram2-disk80-perf1"
   key_pair        = openstack_compute_keypair_v2.my_keypair.name
   security_groups = [openstack_networking_secgroup_v2.my_security_group.name]
 
