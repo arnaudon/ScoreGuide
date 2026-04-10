@@ -52,6 +52,9 @@ services:
       - frontend
       - backend
       - pgadmin
+    networks:
+      - default
+      - web
 
   backend:
     restart: always
@@ -68,6 +71,10 @@ services:
       - BODY_SIZE_LIMIT=Infinity
     env_file: .env
 
+
+networks:
+  web:
+    external: true
 
 volumes:
   postgres_data:
