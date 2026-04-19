@@ -166,8 +166,9 @@ async def run_imslp_agent(prompt: str, message_history=None, model: str | None =
         try:
             adapter = TypeAdapter(list[ModelMessage])
             message_history = adapter.validate_python(message_history)
-        except Exception:  # pylint: disable=broad-exception-caught
-            message_history = None  # pragma: no cover
+        except Exception:  # pylint: disable=broad-exception-caught  # pragma: no cover
+            logger.exception("failed to parse imslp agent message history")
+            message_history = None
 
     try:
         safe_prompt = f"<user_request>\n{prompt}\n</user_request>"
@@ -190,6 +191,7 @@ async def run_imslp_agent(prompt: str, message_history=None, model: str | None =
         else:
             response = ImslpResponse(response="An HTTP error occurred", score_ids=[])
     except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("imslp agent run failed")
         history = []
         response = ImslpResponse(response="An unexpected error occurred", score_ids=[])
 
@@ -215,6 +217,7 @@ async def run_agent(prompt: str, deps: Deps, message_history=None, model: str | 
             adapter = TypeAdapter(list[ModelMessage])
             message_history = adapter.validate_python(message_history)
         except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("failed to parse main agent message history")
             message_history = None
 
     try:
@@ -238,6 +241,7 @@ async def run_agent(prompt: str, deps: Deps, message_history=None, model: str | 
         else:
             response = Response(response="An HTTP error occurred")
     except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("main agent run failed")
         history = []
         response = Response(response="An unexpected error occurred")
 
@@ -277,12 +281,11 @@ async def run_complete_agent(score: Score, model: str | None = None):
         safe_prompt = f"<user_request>\n{prompt}\n</user_request>"
         res = await agent.run(safe_prompt)
         response = res.output
-    except ModelHTTPError as e:
-        if e.status_code == 429:
-            response = score
-        else:
-            response = score
+    except ModelHTTPError:
+        logger.exception("complete agent HTTP error; returning input score unchanged")
+        response = score
     except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("complete agent failed; returning input score unchanged")
         response = score
     return response
 

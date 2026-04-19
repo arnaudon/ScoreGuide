@@ -1,6 +1,7 @@
 """Backend main entry point."""
 
 import json
+import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -42,9 +43,20 @@ def validate_prompt_security(prompt: str):
         raise HTTPException(status_code=400, detail="Invalid input detected.")
 
 
+def configure_logging() -> None:
+    """Configure root logger level/format from env. Idempotent."""
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:  # pragma: no cover
     """Placeholder for startup/shutdown events."""
+    configure_logging()
     init_db()
     yield
 
@@ -69,7 +81,7 @@ app.include_router(imslp.router, tags=["imslp"])
 def health(session: Session = Depends(get_session)):
     """Liveness probe: returns 200 when the DB is reachable, 503 otherwise."""
     try:
-        session.exec(text("SELECT 1"))
+        session.execute(text("SELECT 1"))
     except Exception as e:  # pylint: disable=broad-exception-caught
         raise HTTPException(status_code=503, detail="database unreachable") from e
     return {"status": "ok"}

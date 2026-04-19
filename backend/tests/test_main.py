@@ -1,6 +1,7 @@
 """test backend main.py"""
 
 import io
+import logging
 import os
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.main import validate_prompt_security
+from app.main import configure_logging, validate_prompt_security
 from shared.scores import Score, Scores
 
 backend_dir = Path(__file__).resolve().parent.parent
@@ -140,6 +141,13 @@ def test_delete_pdf(client: TestClient):
     response = client.delete("/pdf/fake_score_not_here.pdf")
 
 
+def test_configure_logging(monkeypatch: pytest.MonkeyPatch):
+    """test logging configuration honors LOG_LEVEL env var"""
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    configure_logging()
+    assert logging.getLogger().level == logging.DEBUG
+
+
 def test_health_ok(client: TestClient):
     """test /health returns 200 when DB is reachable"""
     response = client.get("/health")
@@ -153,7 +161,7 @@ def test_health_db_down(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     def boom(*_args, **_kwargs):
         raise RuntimeError("database unreachable")
 
-    monkeypatch.setattr(Session, "exec", boom)
+    monkeypatch.setattr(Session, "execute", boom)
     response = client.get("/health")
     assert response.status_code == 503
 

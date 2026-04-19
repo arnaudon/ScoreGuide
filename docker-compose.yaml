@@ -52,6 +52,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend-svelte
+      target: prod
     ports:
       - "3000:3000"
     environment:
