@@ -23,7 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app import config, imslp, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
 from app.credits import consume_credit
-from app.db import get_async_session, get_session, init_db
+from app.db import get_async_session, get_session
 from app.file_helper import file_helper
 from app.rate_limit import limiter
 from app.users import get_admin_user, get_current_user, get_current_user_from_token
@@ -78,9 +78,14 @@ def configure_logging() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:  # pragma: no cover
-    """Placeholder for startup/shutdown events."""
+    """Startup / shutdown events.
+
+    Schema is owned by alembic (deploy.yaml and test_docker.yaml both run
+    ``alembic upgrade head`` against the container), so the lifespan no
+    longer calls ``init_db`` — doing so would race with the ALTER-based
+    migrations on a fresh volume.
+    """
     configure_logging()
-    init_db()
     yield
 
 
