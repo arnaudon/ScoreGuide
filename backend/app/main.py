@@ -51,19 +51,6 @@ class ModelsUpdate(BaseModel):
     models: dict[str, str]
 
 
-def validate_prompt_security(prompt: str):
-    """Validate the prompt against common injection attacks."""
-    suspicious_keywords = [
-        "ignore previous",
-        "system prompt",
-        "drop table",
-        "bypass",
-        "forget all instructions",
-    ]
-    if any(keyword in prompt.lower() for keyword in suspicious_keywords):
-        raise HTTPException(status_code=400, detail="Invalid input detected.")
-
-
 def configure_logging() -> None:
     """Configure root logger level/format from env. Idempotent."""
     level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -215,8 +202,6 @@ async def run_imslp_agent_api(
     session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Run the imslp agent."""
-    validate_prompt_security(body.prompt)
-
     setting = await session.get(Setting, "model_imslp")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
@@ -238,8 +223,6 @@ async def run_main_agent(
     session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Run the agent."""
-    validate_prompt_security(body.prompt)
-
     setting = await session.get(Setting, "model_main")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
