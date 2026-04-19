@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from logging import getLogger
 from typing import Annotated
 
+import sentry_sdk
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -31,6 +32,19 @@ from shared.settings import Setting
 from shared.user import User
 
 logger = getLogger(__name__)
+
+
+def _init_sentry() -> None:
+    """Opt-in Sentry init. No-op when SENTRY_DSN isn't set (dev / test / CI)."""
+    if config.SENTRY_DSN:  # pragma: no cover
+        sentry_sdk.init(
+            dsn=config.SENTRY_DSN,
+            environment=config.SENTRY_ENVIRONMENT,
+            traces_sample_rate=config.SENTRY_TRACES_SAMPLE_RATE,
+        )
+
+
+_init_sentry()
 
 
 class ChatRequest(BaseModel):
@@ -117,7 +131,7 @@ async def complete_score(
     score: Score,
     current_user: Annotated[User, Depends(get_current_user)],
     session: AsyncSession = Depends(get_async_session),
-):  # pragma: no cover
+):
     """Complete a score."""
     setting = await session.get(Setting, "model_complete")
     model = setting.value if setting else os.getenv("MODEL", "test")
@@ -201,7 +215,7 @@ async def run_imslp_agent_api(
     body: ChatRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     session: AsyncSession = Depends(get_async_session),
-):  # pragma: no cover
+):
     """Run the imslp agent."""
     setting = await session.get(Setting, "model_imslp")
     model = setting.value if setting else os.getenv("MODEL", "test")
@@ -222,7 +236,7 @@ async def run_main_agent(
     body: MainAgentRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     session: AsyncSession = Depends(get_async_session),
-):  # pragma: no cover
+):
     """Run the agent."""
     setting = await session.get(Setting, "model_main")
     model = setting.value if setting else os.getenv("MODEL", "test")

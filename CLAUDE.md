@@ -52,6 +52,8 @@ uv run --project backend --directory backend alembic upgrade head
 
 ## Architecture notes
 
+**MCP SQL safety (`backend/app/agent.py`, `docker-compose.yaml`, `postgres-init/`).** The IMSLP SQL agent talks to `public.imslp` through the `crystaldba/postgres-mcp` SSE sidecar. Two defenses: (1) the sidecar runs with `--access-mode=restricted` (blocks non-SELECT inside MCP); (2) the sidecar connects as a **`mcp_readonly`** Postgres role whose grants are SELECT-only. The role is bootstrapped by `postgres-init/01_mcp_readonly.sql` on fresh data volumes; an already-initialized prod DB needs `infrastructure/mcp-readonly.sql` run once manually (idempotent).
+
 **Agents (`backend/app/agent.py`).** Four pydantic-ai agents share a model selected by DB `Setting` row (`model_main`, `model_imslp`, `model_complete`, `model_imslp_complete`) falling back to `MODEL` env var, default `"test"` (so tests get the test model; `pydantic_ai.models.ALLOW_MODEL_REQUESTS = False` is set in `tests/conftest.py`).
 - `run_agent` — main chat agent, injects `Deps(user, scores)` with per-user score tools.
 - `run_imslp_agent` — SQL-over-MCP against the `public.imslp` table via the `mcp-postgres` sidecar (`MCPServerSSE("http://mcp-postgres:8001/sse")` — this hostname only resolves inside compose).
@@ -77,3 +79,5 @@ All prompts are wrapped in `<user_request>…</user_request>` and every system p
 ## Deployment
 
 `.github/workflows/deploy.yaml` SSHes into the Infomaniak VPS on push to `main`, writes secrets into `.env`, and runs `docker-compose up --build -d` with both `docker-compose.yaml` + `docker-compose.prod.yaml`, then `alembic upgrade head` inside the backend container. Prod adds pgbouncer, pgadmin, s3 backup, and Caddy terminating TLS for `scoreguide.ch` (see `Caddyfile`).
+
+**Observability.** Sentry is opt-in via env vars: backend honours `SENTRY_DSN` (init in `app.main._init_sentry`); the Svelte app honours `SENTRY_DSN` server-side in `hooks.server.ts` and `PUBLIC_SENTRY_DSN` in `hooks.client.ts`. When neither is set (tests, most dev), init is a no-op and no network calls happen.

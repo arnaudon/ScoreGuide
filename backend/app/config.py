@@ -18,3 +18,8 @@ CORS_ORIGINS = [
     for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
     if origin.strip()
 ]
+
+# Sentry is opt-in: if SENTRY_DSN isn't set, sentry_sdk.init() is skipped entirely.
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+SENTRY_ENVIRONMENT = os.getenv("SENTRY_ENVIRONMENT", "production")
+SENTRY_TRACES_SAMPLE_RATE = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
