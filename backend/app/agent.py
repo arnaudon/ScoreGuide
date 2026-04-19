@@ -90,6 +90,36 @@ async def get_easiest_score_by_composer(ctx: RunContext[Deps], filter_params: Fi
     return "Not found"
 
 
+def _wrap_user_prompt(prompt: str) -> str:
+    """Wrap the raw user prompt in ``<user_request>`` tags (treat-as-data)."""
+    return f"<user_request>\n{prompt}\n</user_request>"
+
+
+def _parse_history(message_history):
+    """Validate message history into ``list[ModelMessage]`` or return None on failure."""
+    if not message_history:
+        return None
+    try:
+        adapter = TypeAdapter(list[ModelMessage])
+        return adapter.validate_python(message_history)
+    except Exception:  # pylint: disable=broad-exception-caught  # pragma: no cover
+        logger.exception("failed to parse agent message history")
+        return None
+
+
+def _response_for_http_error(err: ModelHTTPError, factory):
+    """Map a ``ModelHTTPError`` to a user-facing response via the factory."""
+    if err.status_code == 429:
+        return factory("Rate limit exceeded (Quota hit)")
+    if err.status_code == 503:
+        msg = (
+            "The model is currently experiencing high demand. "
+            + "Please try again in a few moments."
+        )
+        return factory(msg)
+    return factory("An HTTP error occurred")
+
+
 def get_main_agent(model: str | None = None):
     """Initializes and returns the main agent for handling user queries about scores."""
     agent = Agent(
@@ -162,40 +192,22 @@ async def run_imslp_agent(prompt: str, message_history=None, model: str | None =
         retries=3,
     )
 
-    if message_history:
-        try:
-            adapter = TypeAdapter(list[ModelMessage])
-            message_history = adapter.validate_python(message_history)
-        except Exception:  # pylint: disable=broad-exception-caught  # pragma: no cover
-            logger.exception("failed to parse imslp agent message history")
-            message_history = None
+    def make_response(msg: str) -> ImslpResponse:
+        return ImslpResponse(response=msg, score_ids=[])
 
     try:
-        safe_prompt = f"<user_request>\n{prompt}\n</user_request>"
         res = await agent.run(
-            safe_prompt,
-            message_history=message_history,
+            _wrap_user_prompt(prompt),
+            message_history=_parse_history(message_history),
         )
-        response = res.output
-        history = res.all_messages()
+        return ImslpFullResponse(response=res.output, message_history=res.all_messages())
     except ModelHTTPError as e:
-        history = []
-        if e.status_code == 429:
-            response = ImslpResponse(response="Rate limit exceeded (Quota hit)", score_ids=[])
-        elif e.status_code == 503:
-            response = ImslpResponse(
-                response="The model is currently experiencing high demand. "
-                "Please try again in a few moments.",
-                score_ids=[],
-            )
-        else:
-            response = ImslpResponse(response="An HTTP error occurred", score_ids=[])
+        response = _response_for_http_error(e, make_response)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("imslp agent run failed")
-        history = []
-        response = ImslpResponse(response="An unexpected error occurred", score_ids=[])
+        response = make_response("An unexpected error occurred")
 
-    return ImslpFullResponse(response=response, message_history=history)
+    return ImslpFullResponse(response=response, message_history=[])
 
 
 async def run_agent(prompt: str, deps: Deps, message_history=None, model: str | None = None):
@@ -212,40 +224,23 @@ async def run_agent(prompt: str, deps: Deps, message_history=None, model: str | 
     """
     agent = get_main_agent(model)
 
-    if message_history:
-        try:
-            adapter = TypeAdapter(list[ModelMessage])
-            message_history = adapter.validate_python(message_history)
-        except Exception:  # pylint: disable=broad-exception-caught
-            logger.exception("failed to parse main agent message history")
-            message_history = None
+    def make_response(msg: str) -> Response:
+        return Response(response=msg)
 
     try:
-        safe_prompt = f"<user_request>\n{prompt}\n</user_request>"
         res = await agent.run(
-            safe_prompt,
-            message_history=message_history,
+            _wrap_user_prompt(prompt),
+            message_history=_parse_history(message_history),
             deps=deps,
         )
-        response = res.output
-        history = res.all_messages()
+        return FullResponse(response=res.output, message_history=res.all_messages())
     except ModelHTTPError as e:
-        history = []
-        if e.status_code == 429:
-            response = Response(response="Rate limit exceeded (Quota hit)")
-        elif e.status_code == 503:
-            response = Response(
-                response="The model is currently experiencing high demand. "
-                "Please try again in a few moments."
-            )
-        else:
-            response = Response(response="An HTTP error occurred")
+        response = _response_for_http_error(e, make_response)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("main agent run failed")
-        history = []
-        response = Response(response="An unexpected error occurred")
+        response = make_response("An unexpected error occurred")
 
-    return FullResponse(response=response, message_history=history)
+    return FullResponse(response=response, message_history=[])
 
 
 async def run_complete_agent(score: Score, model: str | None = None):
@@ -278,16 +273,14 @@ async def run_complete_agent(score: Score, model: str | None = None):
     )
     prompt = f"Find the information about music piece {score.title} composed by {score.composer}."
     try:
-        safe_prompt = f"<user_request>\n{prompt}\n</user_request>"
-        res = await agent.run(safe_prompt)
-        response = res.output
+        res = await agent.run(_wrap_user_prompt(prompt))
+        return res.output
     except ModelHTTPError:
         logger.exception("complete agent HTTP error; returning input score unchanged")
-        response = score
+        return score
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("complete agent failed; returning input score unchanged")
-        response = score
-    return response
+        return score
 
 
 async def run_imslp_complete_agent(entry_json: str, model: str | None = None) -> ScoreBase:

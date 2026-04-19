@@ -19,11 +19,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import imslp, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
+from app.credits import consume_credit
 from app.db import get_async_session, get_session, init_db
 from app.file_helper import file_helper
 from app.rate_limit import limiter
 from app.users import get_admin_user, get_current_user, get_current_user_from_token
-from shared.scores import Score, Scores
+from shared.scores import Score, ScoreCreate, Scores, ScoreUpdate
 from shared.settings import Setting
 from shared.user import User
 
@@ -89,16 +90,16 @@ def health(session: Session = Depends(get_session)):
 
 @app.post("/scores")
 def add_score(
-    score: Score,
+    score: ScoreCreate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
 ):
     """Add a score to the db."""
-    score.user_id = current_user.id
-    session.add(score)
+    db_score = Score(**score.model_dump(), user_id=current_user.id)
+    session.add(db_score)
     session.commit()
-    session.refresh(score)
-    return score
+    session.refresh(db_score)
+    return db_score
 
 
 @app.post("/complete_score")
@@ -110,39 +111,20 @@ async def complete_score(
     session: AsyncSession = Depends(get_async_session),
 ):  # pragma: no cover
     """Complete a score."""
-    if current_user.credits <= 0:
-        raise HTTPException(
-            status_code=403,
-            detail="You have run out of agent credits."
-            "Please contact alexis.arnaudon@gmail.com to get more credits.",
-        )
-
-    async_user = await session.get(User, current_user.id)
-    if async_user:
-        async_user.credits -= 1
-        session.add(async_user)
-        await session.commit()
-
     setting = await session.get(Setting, "model_complete")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
-    try:
-        result = await run_complete_agent(score, model)
-    except Exception as e:
-        async_user = await session.get(User, current_user.id)
-        if async_user:
-            async_user.credits += 1
-            session.add(async_user)
-            await session.commit()
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-    return result
+    async with consume_credit(current_user.id, session):
+        try:
+            return await run_complete_agent(score, model)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.put("/scores/{score_id}")
 def update_score(
     score_id: int,
-    score_update: Score,
+    score_update: ScoreUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
 ):
@@ -154,10 +136,8 @@ def update_score(
     if not db_score:
         raise HTTPException(status_code=404, detail="Score not found")
 
-    score_data = score_update.model_dump(exclude_unset=True)
-    for key, value in score_data.items():
-        if key not in ("id", "user_id"):
-            setattr(db_score, key, value)
+    for key, value in score_update.model_dump(exclude_unset=True).items():
+        setattr(db_score, key, value)
 
     session.add(db_score)
     session.commit()
@@ -218,33 +198,14 @@ async def run_imslp_agent_api(
     """Run the imslp agent."""
     validate_prompt_security(prompt)
 
-    if current_user.credits <= 0:
-        raise HTTPException(
-            status_code=403,
-            detail="You have run out of agent credits."
-            "Please contact alexis.arnaudon@gmail.com to get more credits.",
-        )
-
-    async_user = await session.get(User, current_user.id)
-    if async_user:
-        async_user.credits -= 1
-        session.add(async_user)
-        await session.commit()
-
     setting = await session.get(Setting, "model_imslp")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
-    try:
-        result = await run_imslp_agent(prompt, message_history=message_history, model=model)
-    except Exception as e:
-        async_user = await session.get(User, current_user.id)
-        if async_user:
-            async_user.credits += 1
-            session.add(async_user)
-            await session.commit()
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-    return result
+    async with consume_credit(current_user.id, session):
+        try:
+            return await run_imslp_agent(prompt, message_history=message_history, model=model)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/agent")
@@ -260,38 +221,19 @@ async def run_main_agent(  # pylint: disable=too-many-positional-arguments
     """Run the agent."""
     validate_prompt_security(prompt)
 
-    if current_user.credits <= 0:
-        raise HTTPException(
-            status_code=403,
-            detail="You have run out of agent credits."
-            "Please contact alexis.arnaudon@gmail.com to get more credits.",
-        )
-
-    async_user = await session.get(User, current_user.id)
-    if async_user:
-        async_user.credits -= 1
-        session.add(async_user)
-        await session.commit()
-
     setting = await session.get(Setting, "model_main")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
-    try:
-        result = await run_agent(
-            prompt,
-            message_history=message_history,
-            deps=Deps(user=current_user, scores=Scores(**json.loads(deps))),
-            model=model,
-        )
-    except Exception as e:
-        async_user = await session.get(User, current_user.id)
-        if async_user:
-            async_user.credits += 1
-            session.add(async_user)
-            await session.commit()
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-    return result
+    async with consume_credit(current_user.id, session):
+        try:
+            return await run_agent(
+                prompt,
+                message_history=message_history,
+                deps=Deps(user=current_user, scores=Scores(**json.loads(deps))),
+                model=model,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/admin/model", dependencies=[Depends(get_admin_user)])
