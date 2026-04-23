@@ -47,7 +47,13 @@ jobs:
             echo "PUBLIC_SENTRY_DSN=${{ secrets.PUBLIC_SENTRY_DSN }}" >> .env
             echo "SENTRY_ENVIRONMENT=production" >> .env
             echo "PUBLIC_SENTRY_ENVIRONMENT=production" >> .env
-            docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build -d
+            docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build --force-recreate -d
+            # Show what's actually running so deploy logs are diagnosable.
+            docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
+            echo "--- frontend logs (tail 40) ---"
+            docker logs --tail 40 frontend || true
+            echo "--- backend logs (tail 40) ---"
+            docker logs --tail 40 backend || true
             # Wait until Postgres is accepting connections before running psql/alembic.
             for _ in $(seq 30); do
               docker exec postgres_db pg_isready >/dev/null 2>&1 && break
