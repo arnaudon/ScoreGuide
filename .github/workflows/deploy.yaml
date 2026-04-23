@@ -47,6 +47,10 @@ jobs:
             echo "PUBLIC_SENTRY_DSN=${{ secrets.PUBLIC_SENTRY_DSN }}" >> .env
             echo "SENTRY_ENVIRONMENT=production" >> .env
             echo "PUBLIC_SENTRY_ENVIRONMENT=production" >> .env
+            # One-shot: rebuild frontend from scratch to pick up the runtime
+            # @sentry/sveltekit install that the cached deps layer kept stale.
+            # Safe to leave in; no-ops if layers are already fresh.
+            docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml build --no-cache frontend
             docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build --force-recreate -d
             # Show what's actually running so deploy logs are diagnosable.
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
