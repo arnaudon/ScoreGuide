@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
-import { BACKEND_URL } from '$lib/server/api.js';
+import { apiFetch } from '$lib/server/fetchApi.js';
 import type { Score, User } from '$lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
@@ -10,10 +10,10 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 		redirect(303, '/login');
 	}
 
+	const api = apiFetch(fetch, token);
+
 	async function fetchUser(): Promise<User> {
-		const res = await fetch(`${BACKEND_URL}/user`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const res = await api('/user');
 		if (!res.ok) {
 			cookies.delete('access_token', { path: '/', httpOnly: true, secure: !dev, sameSite: 'lax' });
 			redirect(303, '/login');
@@ -22,11 +22,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	}
 
 	async function fetchScores(): Promise<Score[]> {
-		const res = await fetch(`${BACKEND_URL}/scores`, {
-			headers: {
-				Authorization: `Bearer ${token}`
-			}
-		});
+		const res = await api('/scores');
 		return res.ok ? ((await res.json()) as Score[]) : [];
 	}
 
@@ -55,6 +51,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Missing required fields' });
 		}
 
+		const api = apiFetch(fetch, token);
 		try {
 			// 1. Upload PDF
 			let uploadFilename = file.name;
@@ -64,13 +61,7 @@ export const actions: Actions = {
 
 			const formData = new FormData();
 			formData.append('file', file, uploadFilename);
-			const uploadRes = await fetch(`${BACKEND_URL}/pdf`, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`
-				},
-				body: formData
-			});
+			const uploadRes = await api('/pdf', { method: 'POST', body: formData });
 
 			if (!uploadRes.ok) {
 				return fail(uploadRes.status, { error: 'Failed to upload PDF' });
@@ -86,12 +77,9 @@ export const actions: Actions = {
 				pdf_path: filename
 			};
 
-			const completeRes = await fetch(`${BACKEND_URL}/complete_score`, {
+			const completeRes = await api('/complete_score', {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(initialScoreData)
 			});
 
@@ -100,22 +88,22 @@ export const actions: Actions = {
 			}
 
 			let scoreData = await completeRes.json();
-			
+
 			// Handle case where agent returns a JSON string instead of an object
 			if (typeof scoreData === 'string') {
 				try {
 					scoreData = JSON.parse(scoreData);
 				} catch (e) {
-					console.error('Could not parse scoreData string');
+					console.error('Could not parse scoreData string', e);
 				}
 			}
-			
+
 			// Handle case where agent wraps the score in a response object
 			if (scoreData && typeof scoreData === 'object' && !scoreData.title) {
 				if (scoreData.score) scoreData = scoreData.score;
 				else if (scoreData.response) scoreData = scoreData.response;
 			}
-			
+
 			// Create the final payload, ensuring pdf_path and source are explicitly set
 			const finalScoreData = {
 				...scoreData,
@@ -124,12 +112,9 @@ export const actions: Actions = {
 			};
 
 			// 3. Add Score to DB
-			const scoreRes = await fetch(`${BACKEND_URL}/scores`, {
+			const scoreRes = await api('/scores', {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(finalScoreData)
 			});
 
@@ -166,21 +151,15 @@ export const actions: Actions = {
 			}
 		}
 
+		const api = apiFetch(fetch, token);
 		try {
-			const scoresRes = await fetch(`${BACKEND_URL}/scores`, {
-				headers: {
-					Authorization: `Bearer ${token}`
-				}
-			});
+			const scoresRes = await api('/scores');
 			const scores_deps = scoresRes.ok ? await scoresRes.json() : [];
 			const deps = JSON.stringify({ scores: scores_deps });
 
-			const res = await fetch(`${BACKEND_URL}/imslp_agent`, {
+			const res = await api('/imslp_agent', {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					prompt: question.toString(),
 					deps: deps,
@@ -189,7 +168,10 @@ export const actions: Actions = {
 			});
 
 			if (!res.ok) {
-				const result = await res.json().catch(() => ({}));
+				const result = await res.json().catch((e) => {
+					console.error('Failed to parse imslp_agent error', e);
+					return {};
+				});
 				return fail(res.status, { error: result.detail || 'Failed to query agent' });
 			}
 
@@ -200,11 +182,9 @@ export const actions: Actions = {
 
 			if (score_ids.length > 0) {
 				const idsParam = encodeURIComponent(JSON.stringify(score_ids));
-				const scoresRes = await fetch(`${BACKEND_URL}/imslp/scores_by_ids?score_ids=${idsParam}`, {
-					headers: { Authorization: `Bearer ${token}` }
-				});
-				if (scoresRes.ok) {
-					scores = await scoresRes.json();
+				const idScoresRes = await api(`/imslp/scores_by_ids?score_ids=${idsParam}`);
+				if (idScoresRes.ok) {
+					scores = await idScoresRes.json();
 				}
 			}
 
@@ -238,6 +218,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Missing IMSLP ID or PDF File' });
 		}
 
+		const api = apiFetch(fetch, token);
 		try {
 			// 1. Upload PDF
 			let uploadFilename = file.name;
@@ -247,13 +228,7 @@ export const actions: Actions = {
 
 			const formData = new FormData();
 			formData.append('file', file, uploadFilename);
-			const uploadRes = await fetch(`${BACKEND_URL}/pdf`, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`
-				},
-				body: formData
-			});
+			const uploadRes = await api('/pdf', { method: 'POST', body: formData });
 
 			if (!uploadRes.ok) {
 				return fail(uploadRes.status, { error: 'Failed to upload PDF' });
@@ -264,9 +239,7 @@ export const actions: Actions = {
 
 			// 2. Fetch IMSLP Score Details
 			const idsParam = encodeURIComponent(JSON.stringify([Number(imslp_id)]));
-			const imslpRes = await fetch(`${BACKEND_URL}/imslp/scores_by_ids?score_ids=${idsParam}`, {
-				headers: { Authorization: `Bearer ${token}` }
-			});
+			const imslpRes = await api(`/imslp/scores_by_ids?score_ids=${idsParam}`);
 
 			if (!imslpRes.ok) {
 				return fail(imslpRes.status, { error: 'Failed to fetch IMSLP score' });
@@ -290,12 +263,9 @@ export const actions: Actions = {
 				key: imslpScore.key || ''
 			};
 
-			const scoreRes = await fetch(`${BACKEND_URL}/scores`, {
+			const scoreRes = await api('/scores', {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(newScore)
 			});
 
@@ -325,6 +295,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Missing required fields' });
 		}
 
+		const api = apiFetch(fetch, token);
 		try {
 			const initialScoreData = {
 				title: title.toString(),
@@ -332,12 +303,9 @@ export const actions: Actions = {
 				pdf_path: pdf_path ? pdf_path.toString() : ''
 			};
 
-			const completeRes = await fetch(`${BACKEND_URL}/complete_score`, {
+			const completeRes = await api('/complete_score', {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(initialScoreData)
 			});
 
@@ -346,32 +314,29 @@ export const actions: Actions = {
 			}
 
 			let scoreData = await completeRes.json();
-			
+
 			if (typeof scoreData === 'string') {
 				try {
 					scoreData = JSON.parse(scoreData);
 				} catch (e) {
-					console.error('Could not parse scoreData string');
+					console.error('Could not parse scoreData string', e);
 				}
 			}
-			
+
 			if (scoreData && typeof scoreData === 'object' && !scoreData.title) {
 				if (scoreData.score) scoreData = scoreData.score;
 				else if (scoreData.response) scoreData = scoreData.response;
 			}
-			
+
 			const finalScoreData = {
 				...scoreData,
 				pdf_path: pdf_path ? pdf_path.toString() : '',
 				source: 'manual'
 			};
 
-			const updateRes = await fetch(`${BACKEND_URL}/scores/${id}`, {
+			const updateRes = await api(`/scores/${id}`, {
 				method: 'PUT',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(finalScoreData)
 			});
 
@@ -398,13 +363,9 @@ export const actions: Actions = {
 			return fail(400, { error: 'Missing score ID' });
 		}
 
+		const api = apiFetch(fetch, token);
 		try {
-			const res = await fetch(`${BACKEND_URL}/scores/${id}`, {
-				method: 'DELETE',
-				headers: {
-					Authorization: `Bearer ${token}`
-				}
-			});
+			const res = await api(`/scores/${id}`, { method: 'DELETE' });
 
 			if (!res.ok) {
 				return fail(res.status, { error: 'Failed to delete score' });

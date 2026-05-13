@@ -1,23 +1,22 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
-import { BACKEND_URL } from '$lib/server/api.js';
+import { apiFetch } from '$lib/server/fetchApi.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
-	
+
 	if (!token) {
 		redirect(303, '/login');
 	}
 
-	const res = await fetch(`${BACKEND_URL}/user`, {
-		headers: { Authorization: `Bearer ${token}` }
-	});
+	const api = apiFetch(fetch, token);
+	const res = await api('/user');
 
 	if (!res.ok) {
 		redirect(303, '/login');
 	}
-	
+
 	const user = await res.json();
 	return { user };
 };
@@ -31,12 +30,10 @@ export const actions: Actions = {
 		const instrument = data.get('instrument');
 		const email = data.get('email');
 
-		const res = await fetch(`${BACKEND_URL}/user`, {
+		const api = apiFetch(fetch, token);
+		const res = await api('/user', {
 			method: 'PUT',
-			headers: {
-				Authorization: `Bearer ${token}`,
-				'Content-Type': 'application/json'
-			},
+			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				instrument: instrument?.toString(),
 				email: email?.toString()
@@ -45,7 +42,10 @@ export const actions: Actions = {
 
 		if (!res.ok) {
 			const result = await res.json();
-			return fail(res.status, { form: 'profile', error: result.detail || 'Failed to update profile' });
+			return fail(res.status, {
+				form: 'profile',
+				error: result.detail || 'Failed to update profile'
+			});
 		}
 
 		return { form: 'profile', success: true };
@@ -67,12 +67,10 @@ export const actions: Actions = {
 			return fail(400, { form: 'password', error: 'New passwords do not match' });
 		}
 
-		const res = await fetch(`${BACKEND_URL}/user/password`, {
+		const api = apiFetch(fetch, token);
+		const res = await api('/user/password', {
 			method: 'PUT',
-			headers: {
-				Authorization: `Bearer ${token}`,
-				'Content-Type': 'application/json'
-			},
+			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				current_password: current_password.toString(),
 				new_password: new_password.toString()
@@ -81,20 +79,21 @@ export const actions: Actions = {
 
 		if (!res.ok) {
 			const result = await res.json();
-			return fail(res.status, { form: 'password', error: result.detail || 'Failed to update password' });
+			return fail(res.status, {
+				form: 'password',
+				error: result.detail || 'Failed to update password'
+			});
 		}
 
 		return { form: 'password', success: true };
 	},
-	
+
 	delete_account: async ({ cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) return fail(401, { error: 'Unauthorized' });
 
-		const res = await fetch(`${BACKEND_URL}/user`, {
-			method: 'DELETE',
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const api = apiFetch(fetch, token);
+		const res = await api('/user', { method: 'DELETE' });
 
 		if (!res.ok) {
 			return fail(res.status, { form: 'delete', error: 'Failed to delete account' });

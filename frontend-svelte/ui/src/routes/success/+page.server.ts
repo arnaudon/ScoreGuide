@@ -1,7 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
-import { BACKEND_URL } from '$lib/server/api.js';
+import { apiFetch } from '$lib/server/fetchApi.js';
+import type { Score } from '$lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -9,9 +10,8 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 		redirect(303, '/login');
 	}
 
-	const res = await fetch(`${BACKEND_URL}/user`, {
-		headers: { Authorization: `Bearer ${token}` }
-	});
+	const api = apiFetch(fetch, token);
+	const res = await api('/user');
 
 	if (!res.ok) {
 		cookies.delete('access_token', { path: '/', httpOnly: true, secure: !dev, sameSite: 'lax' });
@@ -22,9 +22,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 
 	let hasScores = false;
 	try {
-		const scoresRes = await fetch(`${BACKEND_URL}/scores`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const scoresRes = await api('/scores');
 		if (scoresRes.ok) {
 			const scores = await scoresRes.json();
 			hasScores = Array.isArray(scores) && scores.length > 0;
@@ -56,21 +54,15 @@ export const actions: Actions = {
 			}
 		}
 
+		const api = apiFetch(fetch, token);
 		try {
-			const scoresRes = await fetch(`${BACKEND_URL}/scores`, {
-				headers: {
-					Authorization: `Bearer ${token}`
-				}
-			});
-			const scores = scoresRes.ok ? await scoresRes.json() : [];
+			const scoresRes = await api('/scores');
+			const scores: Score[] = scoresRes.ok ? await scoresRes.json() : [];
 			const deps = JSON.stringify({ scores });
 
-			const response = await fetch(`${BACKEND_URL}/agent`, {
+			const response = await api('/agent', {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					prompt: question.toString(),
 					deps: deps,
@@ -80,25 +72,38 @@ export const actions: Actions = {
 
 			if (response.ok) {
 				const result = await response.json();
-				let scoreDetails = null;
-				let returnScores = [];
-				
+				let scoreDetails: Score | null = null;
+				let returnScores: Score[] = [];
+
 				const scoreId = result?.score_id || result?.response?.score_id;
 				if (scoreId) {
-					scoreDetails = scores.find((s: any) => s.id === scoreId) || null;
+					scoreDetails = scores.find((s) => s.id === scoreId) || null;
 				}
 
-				const scoreIds = result?.score_ids || result?.response?.score_ids || [];
+				const scoreIds: number[] = result?.score_ids || result?.response?.score_ids || [];
 				if (Array.isArray(scoreIds) && scoreIds.length > 0) {
-					returnScores = scoreIds.map((id: any) => scores.find((s: any) => s.id === id)).filter(Boolean);
+					returnScores = scoreIds
+						.map((id) => scores.find((s) => s.id === id))
+						.filter((s): s is Score => Boolean(s));
 				} else if (scoreDetails) {
 					returnScores = [scoreDetails];
 				}
 
-				return { success: true, answer: result, question: question.toString(), scoreDetails, scores: returnScores };
+				return {
+					success: true,
+					answer: result,
+					question: question.toString(),
+					scoreDetails,
+					scores: returnScores
+				};
 			} else {
-				const result = await response.json().catch(() => ({}));
-				return fail(response.status, { error: result.detail || `Failed to get response (${response.status})` });
+				const result = await response.json().catch((e) => {
+					console.error('Failed to parse agent error', e);
+					return {};
+				});
+				return fail(response.status, {
+					error: result.detail || `Failed to get response (${response.status})`
+				});
 			}
 		} catch (error) {
 			console.error('Agent error:', error);

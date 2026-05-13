@@ -91,28 +91,40 @@
 	}
 </script>
 
-<div class="flex flex-col h-full w-full {store.history.length === 0 && !loading ? 'justify-center' : ''}">
+<div
+	class="flex h-full w-full flex-col {store.history.length === 0 && !loading
+		? 'justify-center'
+		: ''}"
+>
 	<div class="mb-4">
-		<h1 class="text-lg font-bold text-foreground">
-			{title}{#if store.history.length === 0 && !loading}{' '}{emptyMessage || m.how_can_i_help()}{/if}
+		<h1 class="text-foreground text-lg font-bold">
+			{title}{#if store.history.length === 0 && !loading}{' '}{emptyMessage ||
+					m.how_can_i_help()}{/if}
 		</h1>
 	</div>
 
-	<div class="overflow-y-auto space-y-4 pr-2 {store.history.length > 0 || loading ? 'mb-4' : ''}" bind:this={scrollContainer}>
+	<div
+		class="space-y-4 overflow-y-auto pr-2 {store.history.length > 0 || loading ? 'mb-4' : ''}"
+		bind:this={scrollContainer}
+	>
 		{#each store.history as msg, index}
-			<div class="bg-muted p-4 rounded-lg">
-				<p class="font-bold text-foreground">Q: {msg.question}</p>
+			<div class="bg-muted rounded-lg p-4">
+				<p class="text-foreground font-bold">{m.q_prefix()} {msg.question}</p>
 				{@render resultSnippet({ msg, isLast: index === store.history.length - 1 })}
 			</div>
 		{/each}
 		{#if loading}
-			<div class="bg-muted p-4 rounded-lg animate-pulse">
-				<p class="text-muted-foreground">Thinking...</p>
+			<div class="bg-muted animate-pulse rounded-lg p-4">
+				<p class="text-muted-foreground">{m.thinking()}</p>
 			</div>
 		{/if}
 	</div>
 
-	<div class="bg-card border rounded-lg p-4 shadow-sm {store.history.length > 0 || loading ? 'mt-auto' : ''}">
+	<div
+		class="bg-card rounded-lg border p-4 shadow-sm {store.history.length > 0 || loading
+			? 'mt-auto'
+			: ''}"
+	>
 		<form method="POST" {action} use:enhance={handleEnhance} class="flex gap-2">
 			<input type="hidden" name="message_history" value={JSON.stringify(store.rawHistory)} />
 			<Input name="question" {placeholder} required />
@@ -120,17 +132,19 @@
 		</form>
 
 		{#if form?.error}
-			<p class="mt-2 text-sm text-destructive">{form.error}</p>
+			<p class="text-destructive mt-2 text-sm">{form.error}</p>
 		{/if}
 
-		<div class="mt-4 flex justify-between items-center text-sm text-muted-foreground">
+		<div class="text-muted-foreground mt-4 flex items-center justify-between text-sm">
 			<div class="flex items-center gap-4">
 				{@render children()}
 				<span class="text-xs">{m.agent_can_make_mistakes()}</span>
 			</div>
 			<div class="flex items-center gap-4">
 				{#if user?.credits !== undefined}
-					<span class="font-medium">Credits: {user.credits}/{user.max_credits}</span>
+					<span class="font-medium"
+						>{m.credits_label({ credits: user.credits, max: user.max_credits })}</span
+					>
 				{/if}
 				<Button variant="outline" size="sm" onclick={clearHistory}>{m.clean_history()}</Button>
 			</div>

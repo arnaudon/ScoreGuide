@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { BACKEND_URL } from '$lib/server/api.js';
+import { apiFetch } from '$lib/server/fetchApi.js';
 
 export const GET: RequestHandler = async ({ params, url, fetch }) => {
 	const pathWithQuery = params.filepath;
@@ -23,10 +23,10 @@ export const GET: RequestHandler = async ({ params, url, fetch }) => {
 		return new Response('Not found', { status: 404 });
 	}
 
-	const backendPdfUrl = `${BACKEND_URL}/pdf/${filename}?token=${token}`;
+	const api = apiFetch(fetch, undefined);
 
 	try {
-		const response = await fetch(backendPdfUrl);
+		const response = await api(`/pdf/${filename}?token=${token}`);
 
 		if (!response.ok) {
 			return new Response(response.body, {

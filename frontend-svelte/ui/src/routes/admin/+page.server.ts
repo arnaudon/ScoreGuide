@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { BACKEND_URL } from '$lib/server/api.js';
+import { apiFetch } from '$lib/server/fetchApi.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -9,19 +9,14 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 		redirect(303, '/login');
 	}
 
+	const api = apiFetch(fetch, token);
 	try {
-		const adminCheck = await fetch(`${BACKEND_URL}/is_admin`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const adminCheck = await api('/is_admin');
 		if (!adminCheck.ok || !(await adminCheck.json())) {
 			redirect(303, '/');
 		}
 
-		const response = await fetch(`${BACKEND_URL}/users`, {
-			headers: {
-				Authorization: `Bearer ${token}`
-			}
-		});
+		const response = await api('/users');
 
 		let users = [];
 		if (response.ok) {
@@ -29,26 +24,19 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 		}
 
 		let stats = { total_works: 0, total_composers: 0 };
-		const statsResponse = await fetch(`${BACKEND_URL}/imslp/stats`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const statsResponse = await api('/imslp/stats');
 		if (statsResponse.ok) {
 			stats = await statsResponse.json();
 		}
 
 		let progress = { status: 'idle', page: 0, total: 0 };
-		const progressResponse = await fetch(`${BACKEND_URL}/imslp/progress`, {
-			method: 'POST',
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const progressResponse = await api('/imslp/progress', { method: 'POST' });
 		if (progressResponse.ok) {
 			progress = await progressResponse.json();
 		}
 
 		let activeModels = { main: '', imslp: '', complete: '', imslp_complete: '' };
-		const modelResponse = await fetch(`${BACKEND_URL}/admin/model`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const modelResponse = await api('/admin/model');
 		if (modelResponse.ok) {
 			const resData = await modelResponse.json();
 			activeModels = resData.models || { main: '', imslp: '', complete: '', imslp_complete: '' };
@@ -59,7 +47,12 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 		console.error('Failed to fetch admin data:', error);
 	}
 
-	return { users: [], stats: { total_works: 0, total_composers: 0 }, progress: { status: 'idle', page: 0, total: 0 }, activeModels: { main: '', imslp: '', complete: '', imslp_complete: '' } };
+	return {
+		users: [],
+		stats: { total_works: 0, total_composers: 0 },
+		progress: { status: 'idle', page: 0, total: 0 },
+		activeModels: { main: '', imslp: '', complete: '', imslp_complete: '' }
+	};
 };
 
 export const actions = {
@@ -72,15 +65,14 @@ export const actions = {
 			return fail(400, { error: 'User ID is required.' });
 		}
 
-		const res = await fetch(`${BACKEND_URL}/users/${userId}/refill_credits`, {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${token}`
-			}
-		});
+		const api = apiFetch(fetch, token);
+		const res = await api(`/users/${userId}/refill_credits`, { method: 'POST' });
 
 		if (!res.ok) {
-			const result = await res.json().catch(() => ({}));
+			const result = await res.json().catch((e) => {
+				console.error('Failed to parse refill_credits error', e);
+				return {};
+			});
 			return fail(res.status, { error: result.detail || 'Failed to refill credits.' });
 		}
 	},
@@ -94,17 +86,18 @@ export const actions = {
 			return fail(400, { error: 'User ID and max credits are required.' });
 		}
 
-		const res = await fetch(`${BACKEND_URL}/users/${userId}/credits`, {
+		const api = apiFetch(fetch, token);
+		const res = await api(`/users/${userId}/credits`, {
 			method: 'PUT',
-			headers: {
-				Authorization: `Bearer ${token}`,
-				'Content-Type': 'application/json'
-			},
+			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ max_credits: Number(max_credits) })
 		});
 
 		if (!res.ok) {
-			const result = await res.json().catch(() => ({}));
+			const result = await res.json().catch((e) => {
+				console.error('Failed to parse set_credits error', e);
+				return {};
+			});
 			return fail(res.status, { error: result.detail || 'Failed to update credits.' });
 		}
 	},
@@ -117,12 +110,10 @@ export const actions = {
 			complete: data.get('model_complete')?.toString() || '',
 			imslp_complete: data.get('model_imslp_complete')?.toString() || ''
 		};
-		await fetch(`${BACKEND_URL}/admin/model`, {
+		const api = apiFetch(fetch, token);
+		await api('/admin/model', {
 			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${token}`,
-				'Content-Type': 'application/json'
-			},
+			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ models })
 		});
 	},
@@ -130,23 +121,17 @@ export const actions = {
 		const data = await request.formData();
 		const maxPages = data.get('max_pages') || '300';
 		const token = cookies.get('access_token');
-		await fetch(`${BACKEND_URL}/imslp/start/${maxPages}`, {
-			method: 'POST',
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const api = apiFetch(fetch, token);
+		await api(`/imslp/start/${maxPages}`, { method: 'POST' });
 	},
 	empty: async ({ cookies, fetch }) => {
 		const token = cookies.get('access_token');
-		await fetch(`${BACKEND_URL}/imslp/empty`, {
-			method: 'POST',
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const api = apiFetch(fetch, token);
+		await api('/imslp/empty', { method: 'POST' });
 	},
 	cancel: async ({ cookies, fetch }) => {
 		const token = cookies.get('access_token');
-		await fetch(`${BACKEND_URL}/imslp/cancel`, {
-			method: 'POST',
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const api = apiFetch(fetch, token);
+		await api('/imslp/cancel', { method: 'POST' });
 	}
 };
