@@ -38,14 +38,14 @@
 		return map[key] || key.replace(/_/g, ' ');
 	}
 
-	// Use the saved pdf_path from the database
+	// Use the saved pdf_path from the database.
 	let filename = $derived(data.score?.pdf_path || '');
 
-	// PDF.js viewer is hosted at /pdfjs/web/viewer.html.
-	// We pass a relative URL to our own PDF proxy endpoint to avoid cross-origin issues.
-	let pdfUrl = $derived(
-		filename ? `/api/pdf/${encodeURIComponent(filename)}?token=${data.token}` : ''
-	);
+	// PDF.js viewer is hosted at /pdfjs/web/viewer.html. It fetches the
+	// `file` URL from the same origin, so the httpOnly access_token cookie
+	// rides along and the /api/pdf proxy authenticates server-side. The
+	// token never appears in any URL the browser sees.
+	let pdfUrl = $derived(filename ? `/api/pdf/${encodeURIComponent(filename)}` : '');
 	let viewerUrl = $derived(
 		pdfUrl ? `/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}` : ''
 	);

@@ -1,11 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { env as publicEnv } from '$env/dynamic/public';
 import { dev } from '$app/environment';
 import { apiFetch } from '$lib/server/fetchApi.js';
 import type { Score } from '$lib/types.js';
-
-const PUBLIC_BACKEND_URL = publicEnv.PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 	const token = cookies.get('access_token');
@@ -31,15 +28,11 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 				});
 			}
 
-			return {
-				score,
-				token,
-				publicBackendUrl: PUBLIC_BACKEND_URL
-			};
+			return { score };
 		}
 	} catch (error) {
 		console.error('Failed to fetch score:', error);
 	}
 
-	return { score: null, token, publicBackendUrl: PUBLIC_BACKEND_URL };
+	return { score: null };
 };
