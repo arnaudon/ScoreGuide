@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import DarkModeToggle from './DarkModeToggle.svelte';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { setLocale } from '$lib/paraglide/runtime';
 	import * as m from '$lib/paraglide/messages.js';
@@ -23,28 +24,28 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child({ props })}
-								<a href="/" {...props}>{m.nav_home()}</a>
+								<a href={resolve('/')} {...props}>{m.nav_home()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child({ props })}
-								<a href="/db-viewer" {...props}>{m.nav_db_viewer()}</a>
+								<a href={resolve('/db-viewer')} {...props}>{m.nav_db_viewer()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child({ props })}
-								<a href="/reader" {...props}>{m.nav_pdf_viewer()}</a>
+								<a href={resolve('/reader')} {...props}>{m.nav_pdf_viewer()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child({ props })}
-								<a href="/account" {...props}>{m.nav_account()}</a>
+								<a href={resolve('/account')} {...props}>{m.nav_account()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
@@ -52,7 +53,7 @@
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton>
 								{#snippet child({ props })}
-									<a href="/admin" {...props}>{m.nav_admin()}</a>
+									<a href={resolve('/admin')} {...props}>{m.nav_admin()}</a>
 								{/snippet}
 							</Sidebar.MenuButton>
 						</Sidebar.MenuItem>

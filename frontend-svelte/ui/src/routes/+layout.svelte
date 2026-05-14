@@ -79,6 +79,7 @@
 
 <div style="display:none">
 	{#each locales as locale (locale)}
-		<a href={localizeHref(page.url.pathname, { locale })}>{locale}</a>
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- localizeHref already returns the resolved path -->
+		<a href={localizeHref(page.url.pathname, { locale })} hreflang={locale}>{locale}</a>
 	{/each}
 </div>
