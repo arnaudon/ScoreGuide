@@ -169,5 +169,9 @@
 	"admin_scores": "Scores",
 	"admin_last_login": "Last Login",
 	"admin_role_admin": "Admin",
-	"admin_role_user": "User"
+	"admin_role_user": "User",
+	"language_switch": "Language",
+	"language_switch_to_en": "Switch to English",
+	"language_switch_to_fr": "Switch to French",
+	"cookie_banner_label": "Cookie consent"
 }

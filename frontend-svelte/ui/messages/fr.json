@@ -169,5 +169,9 @@
 	"admin_scores": "Partitions",
 	"admin_last_login": "Dernière connexion",
 	"admin_role_admin": "Admin",
-	"admin_role_user": "Utilisateur"
+	"admin_role_user": "Utilisateur",
+	"language_switch": "Langue",
+	"language_switch_to_en": "Passer à l'anglais",
+	"language_switch_to_fr": "Passer au français",
+	"cookie_banner_label": "Consentement aux cookies"
 }

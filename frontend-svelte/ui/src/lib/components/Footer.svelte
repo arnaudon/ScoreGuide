@@ -12,10 +12,28 @@
 <footer class="text-muted-foreground p-4 text-sm">
 	{#if showLanguageToggle}
 		<div class="mb-4 flex justify-center">
-			<div class="flex rounded-md border text-xs font-semibold">
-				<button onclick={() => setLanguage('en')} class="hover:bg-muted px-2 py-1">EN</button>
+			<div
+				class="flex rounded-md border text-xs font-semibold"
+				role="group"
+				aria-label={m.language_switch()}
+			>
+				<button
+					type="button"
+					onclick={() => setLanguage('en')}
+					aria-label={m.language_switch_to_en()}
+					class="hover:bg-muted px-2 py-1"
+				>
+					EN
+				</button>
 				<div class="bg-border w-[1px]"></div>
-				<button onclick={() => setLanguage('fr')} class="hover:bg-muted px-2 py-1">FR</button>
+				<button
+					type="button"
+					onclick={() => setLanguage('fr')}
+					aria-label={m.language_switch_to_fr()}
+					class="hover:bg-muted px-2 py-1"
+				>
+					FR
+				</button>
 			</div>
 		</div>
 	{/if}

@@ -75,10 +75,28 @@
 		</Sidebar.Menu>
 		<div class="flex items-center gap-2">
 			<DarkModeToggle />
-			<div class="flex rounded-md border text-xs font-semibold">
-				<button onclick={() => setLanguage('en')} class="hover:bg-muted p-2"> EN </button>
+			<div
+				class="flex rounded-md border text-xs font-semibold"
+				role="group"
+				aria-label={m.language_switch()}
+			>
+				<button
+					type="button"
+					onclick={() => setLanguage('en')}
+					aria-label={m.language_switch_to_en()}
+					class="hover:bg-muted p-2"
+				>
+					EN
+				</button>
 				<div class="bg-border w-[1px]"></div>
-				<button onclick={() => setLanguage('fr')} class="hover:bg-muted p-2"> FR </button>
+				<button
+					type="button"
+					onclick={() => setLanguage('fr')}
+					aria-label={m.language_switch_to_fr()}
+					class="hover:bg-muted p-2"
+				>
+					FR
+				</button>
 			</div>
 		</div>
 	</Sidebar.Footer>

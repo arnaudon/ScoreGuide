@@ -63,9 +63,12 @@
 {#if showCookieBanner}
 	<div
 		class="bg-card border-border fixed right-0 bottom-0 left-0 z-50 flex flex-col items-center justify-between gap-4 border-t p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] sm:flex-row"
+		role="region"
+		aria-label={m.cookie_banner_label()}
 	>
 		<p class="text-card-foreground text-sm">{m.cookie_consent_msg()}</p>
 		<button
+			type="button"
 			onclick={acceptCookies}
 			class="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap"
 		>
