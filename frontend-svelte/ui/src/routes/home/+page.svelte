@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import AgentChat from '$lib/components/AgentChat.svelte';
@@ -21,6 +22,7 @@
 	} from '$lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
 	import type { Score } from '$lib/types.js';
+	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import * as m from '$lib/paraglide/messages.js';
 
 	let { form, data } = $props();
@@ -154,7 +156,9 @@
 			class="border-border bg-muted/50 text-muted-foreground mb-4 rounded-md border border-dashed p-4 text-center text-sm"
 		>
 			{m.empty_db_p1()}
-			<a href="/db-viewer" class="text-primary font-medium hover:underline">{m.empty_db_link()}</a>
+			<a href={resolve('/db-viewer')} class="text-primary font-medium hover:underline"
+				>{m.empty_db_link()}</a
+			>
 			{m.empty_db_p2()}
 		</div>
 	{/if}
@@ -244,7 +248,11 @@
 			{/if}
 			{#if msg.score_id}
 				<div class="mt-4">
-					<Button variant="secondary" size="sm" href="/reader/{msg.score_id}">
+					<Button
+						variant="secondary"
+						size="sm"
+						href={resolve('/reader/[id]', { id: String(msg.score_id) })}
+					>
 						{m.view_pdf()} (ID: {msg.score_id})
 					</Button>
 				</div>
@@ -281,18 +289,13 @@
 								<a
 									href={value as string}
 									target="_blank"
-									rel="noopener noreferrer"
+									rel="external noopener noreferrer"
 									class="text-blue-500 hover:underline"
 								>
 									Watch on YouTube
 								</a>
-							{:else if (key === 'short_description' || key === 'long_description') && !m
-									.label_title()
-									.toLowerCase()
-									.includes('title')}
-								{(selectedScoreDetails as unknown as Record<string, unknown>)[key + '_fr'] ||
-									value ||
-									'-'}
+							{:else if isLocalizedField(key) && selectedScoreDetails}
+								{localizedField(selectedScoreDetails, key) || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}
@@ -302,7 +305,10 @@
 			</div>
 
 			<div class="mt-8 flex flex-col gap-2">
-				<Button href="/reader/{selectedScoreDetails.id}" class="w-full">{m.view_pdf()}</Button>
+				<Button
+					href={resolve('/reader/[id]', { id: String(selectedScoreDetails.id) })}
+					class="w-full">{m.view_pdf()}</Button
+				>
 			</div>
 		{/if}
 	</Sheet.Content>

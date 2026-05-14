@@ -2,6 +2,7 @@
 	import type { PageProps } from './$types';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import * as m from '$lib/paraglide/messages.js';
 
 	let { data }: PageProps = $props();
@@ -114,16 +115,13 @@
 								<a
 									href={value as string}
 									target="_blank"
-									rel="noopener noreferrer"
+									rel="external noopener noreferrer"
 									class="text-blue-500 hover:underline"
 								>
 									{m.watch_on_youtube()}
 								</a>
-							{:else if (key === 'short_description' || key === 'long_description') && !m
-									.label_title()
-									.toLowerCase()
-									.includes('title')}
-								{(data.score as unknown as Record<string, unknown>)[key + '_fr'] || value || '-'}
+							{:else if isLocalizedField(key) && data.score}
+								{localizedField(data.score, key) || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}

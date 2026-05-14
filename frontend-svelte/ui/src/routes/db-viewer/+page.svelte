@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
+	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import * as Table from '$lib/components/ui/table/index.js';
@@ -23,6 +24,7 @@
 		renderComponent
 	} from '$lib/components/ui/data-table/index.js';
 	import type { Score, IMSLPScore } from '$lib/types.js';
+	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import AgentChat from '$lib/components/AgentChat.svelte';
 	import DataTableSortButton from './data-table-sort-button.svelte';
 	import { imslpAgentHistoryStore } from '$lib/stores/chat.svelte';
@@ -450,7 +452,9 @@
 					<input type="hidden" name="id" value={selectedScoreId} />
 					<Button type="submit" variant="destructive">{m.delete()}</Button>
 				</form>
-				<Button href="/reader/{selectedScoreId}">{m.view_pdf()}</Button>
+				<Button href={resolve('/reader/[id]', { id: String(selectedScoreId) })}
+					>{m.view_pdf()}</Button
+				>
 			</div>
 		{/if}
 	</div>
@@ -614,11 +618,8 @@
 								>
 									Watch on YouTube
 								</a>
-							{:else if (key === 'short_description' || key === 'long_description') && !m
-									.label_title()
-									.toLowerCase()
-									.includes('title')}
-								{(selectedScore as unknown as Record<string, unknown>)[key + '_fr'] || value || '-'}
+							{:else if isLocalizedField(key) && selectedScore}
+								{localizedField(selectedScore, key) || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}
@@ -628,7 +629,9 @@
 			</div>
 
 			<div class="mt-8 flex flex-col gap-2">
-				<Button href="/reader/{selectedScore.id}" class="w-full">{m.view_pdf()}</Button>
+				<Button href={resolve('/reader/[id]', { id: String(selectedScore.id) })} class="w-full"
+					>{m.view_pdf()}</Button
+				>
 				<form
 					method="POST"
 					action="?/recomplete"
@@ -700,18 +703,13 @@
 								<a
 									href={value as string}
 									target="_blank"
-									rel="noopener noreferrer"
+									rel="external noopener noreferrer"
 									class="text-blue-500 hover:underline"
 								>
 									{m.view_on_imslp()}
 								</a>
-							{:else if (key === 'short_description' || key === 'long_description') && !m
-									.label_title()
-									.toLowerCase()
-									.includes('title')}
-								{(agentSelectedScore as unknown as Record<string, unknown>)[key + '_fr'] ||
-									value ||
-									'-'}
+							{:else if isLocalizedField(key) && agentSelectedScore}
+								{localizedField(agentSelectedScore, key) || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}
@@ -727,7 +725,7 @@
 					<a
 						href={agentSelectedScore.permlink}
 						target="_blank"
-						rel="noopener noreferrer"
+						rel="external noopener noreferrer"
 						class="break-all text-blue-500 hover:underline">{agentSelectedScore.permlink}</a
 					>
 				</p>
