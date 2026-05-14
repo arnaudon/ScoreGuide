@@ -7,3 +7,9 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Generated / build outputs
+/build/
+/dist/
+/.svelte-kit/
+/src/lib/paraglide/
