@@ -96,10 +96,12 @@
 			{/if}
 
 			{#if form?.error}
-				<p class="text-destructive text-sm font-medium">{form.error}</p>
+				<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
 			{/if}
 			{#if form?.message}
-				<p class="text-sm font-medium text-green-600 dark:text-green-400">{form.message}</p>
+				<p role="status" class="text-sm font-medium text-green-600 dark:text-green-400">
+					{form.message}
+				</p>
 			{/if}
 
 			<Button type="submit" class="w-full">{isRegister ? m.sign_up() : m.login()}</Button>

@@ -26,6 +26,11 @@
 		rawHistory?: unknown[];
 	};
 
+	// Only `error` is read here, but the parent's `form` carries additional
+	// per-page fields (question, scoreDetails, scores, …). Index-typed so we
+	// don't lie about what consumers pass in.
+	type AgentChatForm = { error?: string; [key: string]: unknown };
+
 	let {
 		form,
 		action,
@@ -38,7 +43,7 @@
 		user,
 		store
 	}: {
-		form: { error?: string } | null | undefined;
+		form: AgentChatForm | null | undefined;
 		action: string;
 		title: string;
 		emptyMessage?: string;

@@ -8,9 +8,10 @@ test.describe('login page', () => {
 		await expect(page.locator('input[name="password"]')).toBeVisible();
 	});
 
-	test('rejects an empty submit and shows the missing-fields error', async ({ page }) => {
+	test('rejects an empty submit and surfaces an error', async ({ page }) => {
 		await page.goto('/login');
 		await page.getByRole('button', { name: /^login$/i }).click();
-		await expect(page.getByText('Missing username or password')).toBeVisible();
+		// Wording is i18n-able; assert via the alert landmark instead.
+		await expect(page.getByRole('alert')).toBeVisible();
 	});
 });

@@ -55,8 +55,19 @@ jobs:
         cache-dependency-path: frontend-svelte/ui/package-lock.json
     - name: Install dependencies
       run: npm ci
+    - name: Cache Playwright browsers
+      id: playwright-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('frontend-svelte/ui/package-lock.json') }}
     - name: Install Playwright browsers
-      run: npx playwright install --with-deps chromium
+      run: |
+        if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+          npx playwright install-deps chromium
+        else
+          npx playwright install --with-deps chromium
+        fi
     - name: Build (compiles paraglide messages, verifies prod build)
       run: npm run build
     - name: Lint (prettier)
