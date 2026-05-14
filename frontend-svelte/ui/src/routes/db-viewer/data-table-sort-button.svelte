@@ -10,7 +10,7 @@
 	}: ComponentProps<typeof Button> & { title: string } = $props();
 </script>
 
-<Button {variant} {...restProps} class="-ml-4 h-8 data-[state=open]:bg-accent">
+<Button {variant} {...restProps} class="data-[state=open]:bg-accent -ml-4 h-8">
 	{title}
 	<ArrowUpDown class="ms-2 h-4 w-4" />
 </Button>

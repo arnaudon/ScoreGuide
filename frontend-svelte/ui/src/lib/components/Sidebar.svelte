@@ -12,9 +12,9 @@
 </script>
 
 <Sidebar.Root>
-	<Sidebar.Header class="p-4 flex flex-col items-center gap-2 text-center">
+	<Sidebar.Header class="flex flex-col items-center gap-2 p-4 text-center">
 		<img src="/logo.png" alt="ScoreGuide Logo" class="h-12 w-auto" />
-		<h2 class="text-xl font-bold text-foreground">ScoreGuide</h2>
+		<h2 class="text-foreground text-xl font-bold">ScoreGuide</h2>
 	</Sidebar.Header>
 	<Sidebar.Content>
 		<Sidebar.Group>
@@ -61,7 +61,7 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
-	<Sidebar.Footer class="p-4 gap-4">
+	<Sidebar.Footer class="gap-4 p-4">
 		<Sidebar.Menu>
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton class="justify-center text-center">
@@ -76,13 +76,9 @@
 		<div class="flex items-center gap-2">
 			<DarkModeToggle />
 			<div class="flex rounded-md border text-xs font-semibold">
-				<button onclick={() => setLanguage('en')} class="p-2 hover:bg-muted">
-					EN
-				</button>
-				<div class="w-[1px] bg-border"></div>
-				<button onclick={() => setLanguage('fr')} class="p-2 hover:bg-muted">
-					FR
-				</button>
+				<button onclick={() => setLanguage('en')} class="hover:bg-muted p-2"> EN </button>
+				<div class="bg-border w-[1px]"></div>
+				<button onclick={() => setLanguage('fr')} class="hover:bg-muted p-2"> FR </button>
 			</div>
 		</div>
 	</Sidebar.Footer>
