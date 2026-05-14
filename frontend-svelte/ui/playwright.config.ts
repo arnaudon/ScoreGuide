@@ -14,7 +14,9 @@ export default defineConfig({
 			reuseExistingServer: !process.env.CI,
 			env: {
 				BACKEND_URL: 'http://localhost:9999',
-				PUBLIC_BACKEND_URL: 'http://localhost:9999'
+				PUBLIC_BACKEND_URL: 'http://localhost:9999',
+				// adapter-node needs its public origin to validate CSRF for POSTs.
+				ORIGIN: 'http://localhost:4173'
 			}
 		}
 	]
