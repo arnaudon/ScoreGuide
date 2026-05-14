@@ -27,17 +27,16 @@
 	import DataTableSortButton from './data-table-sort-button.svelte';
 	import { imslpAgentHistoryStore } from '$lib/stores/chat.svelte';
 	import * as m from '$lib/paraglide/messages.js';
-	import { page } from '$app/state';
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);
-	let agentSelectedScore = $state<Score | null>(null);
+	let agentSelectedScore = $state<IMSLPScore | null>(null);
 	let imslpSheetOpen = $state(false);
 	let uploading = $state(false);
 	let recompleting = $state(false);
 	let sheetOpen = $state(false);
-	let manualFiles = $state<any>();
-	let imslpFiles = $state<any>();
+	let manualFiles = $state<FileList | undefined>();
+	let imslpFiles = $state<FileList | undefined>();
 	let selectedScore = $derived(data.scores.find((s: Score) => s.id === selectedScoreId));
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -198,18 +197,18 @@
 		return map[key] || key.replace(/_/g, ' ');
 	}
 
-	let imslpScores = $state<any[]>([]);
-	function onImslpResult(data: any) {
-		const res = data.agent_results;
-		const scores = res.scores || [];
+	let imslpScores = $state<IMSLPScore[]>([]);
+	function onImslpResult(data: Record<string, unknown>) {
+		const res = (data.agent_results ?? {}) as Record<string, unknown>;
+		const scores = (res.scores as IMSLPScore[] | undefined) ?? [];
 		imslpScores = scores;
 		return {
-			question: data.question,
+			question: String(data.question ?? ''),
 			answer: {
 				answer: res.response,
 				scores: scores
 			},
-			rawHistory: res.message_history
+			rawHistory: res.message_history as unknown[] | undefined
 		};
 	}
 
@@ -330,15 +329,13 @@
 						user={data.user}
 						store={imslpAgentHistoryStore}
 					>
-						{#snippet children()}
-							<div class="max-w-sm text-xs">
-								{m.warning_limit_100()}
-							</div>
-						{/snippet}
+						<div class="max-w-sm text-xs">
+							{m.warning_limit_100()}
+						</div>
 						{#snippet resultSnippet({ msg, isLast })}
 							<p class="mb-4 text-sm whitespace-pre-wrap">{msg.answer}</p>
 							{#if isLast}
-								{#if msg.scores && msg.scores.length > 0}
+								{#if Array.isArray(msg.scores) && msg.scores.length > 0}
 									<div
 										class="bg-card text-card-foreground shadow-card mb-4 overflow-hidden rounded-md border"
 									>
@@ -602,7 +599,7 @@
 						if (idxA !== -1) return -1;
 						if (idxB !== -1) return 1;
 						return a.localeCompare(b);
-					}) as [key, value]}
+					}) as [key, value] (key)}
 					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
 						<span class="text-foreground text-sm font-semibold capitalize">
 							{translateKey(key)}
@@ -693,7 +690,7 @@
 						if (idxA !== -1) return -1;
 						if (idxB !== -1) return 1;
 						return a.localeCompare(b);
-					}) as [key, value]}
+					}) as [key, value] (key)}
 					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
 						<span class="text-foreground text-sm font-semibold capitalize">
 							{translateKey(key)}

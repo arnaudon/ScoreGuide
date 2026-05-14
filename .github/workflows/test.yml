@@ -40,3 +40,25 @@ jobs:
       run: uv run --frozen ruff check ${{ matrix.code }}
     - name: Run mypy
       run: uv run --frozen --project ${{ matrix.code }} --directory ${{ matrix.code }} mypy .
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-svelte/ui
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend-svelte/ui/package-lock.json
+    - name: Install dependencies
+      run: npm ci
+    - name: Lint
+      run: npm run lint
+    - name: Type check
+      run: npm run check
+    - name: Unit tests (server)
+      run: npx vitest --run --project server
+

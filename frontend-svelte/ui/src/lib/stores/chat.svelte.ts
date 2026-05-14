@@ -1,11 +1,11 @@
 type HistoryMessage = {
 	question: string;
-	[key: string]: any;
+	[key: string]: unknown;
 };
 
 function createHistoryStore() {
 	let history = $state<HistoryMessage[]>([]);
-	let rawHistory = $state<any[]>([]);
+	let rawHistory = $state<unknown[]>([]);
 
 	return {
 		get history() {
@@ -18,7 +18,7 @@ function createHistoryStore() {
 		get rawHistory() {
 			return rawHistory;
 		},
-		set rawHistory(value: any[]) {
+		set rawHistory(value: unknown[]) {
 			rawHistory = value;
 		},
 

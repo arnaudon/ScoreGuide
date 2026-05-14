@@ -22,15 +22,16 @@
 		renderComponent
 	} from '$lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
+	import type { AdminUser } from '$lib/types.js';
 	import * as m from '$lib/paraglide/messages.js';
 
 	let { data }: PageProps = $props();
 
-	let selectedUser = $state<any>(null);
+	let selectedUser = $state<AdminUser | null>(null);
 	let max_credits = $state(0);
 	let editDialogOpen = $state(false);
 
-	function openEditDialog(user: any) {
+	function openEditDialog(user: AdminUser) {
 		selectedUser = user;
 		max_credits = user.max_credits ?? 20;
 		editDialogOpen = true;
@@ -40,7 +41,7 @@
 	let sorting = $state<SortingState>([]);
 	let columnFilters = $state<ColumnFiltersState>([]);
 
-	const columns: ColumnDef<any>[] = [
+	const columns: ColumnDef<AdminUser>[] = [
 		{
 			accessorKey: 'id',
 			header: ({ column }) =>

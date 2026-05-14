@@ -3,7 +3,6 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import * as m from '$lib/paraglide/messages.js';
-	import { page } from '$app/state';
 
 	let { data }: PageProps = $props();
 	let sheetOpen = $state(false);
@@ -105,7 +104,7 @@
 						if (idxA !== -1) return -1;
 						if (idxB !== -1) return 1;
 						return a.localeCompare(b);
-					}) as [key, value]}
+					}) as [key, value] (key)}
 					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
 						<span class="text-foreground text-sm font-semibold capitalize">
 							{translateKey(key)}

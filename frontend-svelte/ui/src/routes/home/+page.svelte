@@ -20,19 +20,19 @@
 		renderComponent
 	} from '$lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
+	import type { Score } from '$lib/types.js';
 	import * as m from '$lib/paraglide/messages.js';
-	import { page } from '$app/state';
 
 	let { form, data } = $props();
 	let sheetOpen = $state(false);
-	let selectedScoreDetails = $state<any>(null);
+	let selectedScoreDetails = $state<Score | null>(null);
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 5 });
 	let sorting = $state<SortingState>([]);
 	let columnFilters = $state<ColumnFiltersState>([]);
-	let currentScores = $state<any[]>([]);
+	let currentScores = $state<Score[]>([]);
 
-	const columns: ColumnDef<any>[] = [
+	const columns: ColumnDef<Score>[] = [
 		{
 			accessorKey: 'composer',
 			header: ({ column }) =>
@@ -125,25 +125,25 @@
 		return map[key] || key.replace(/_/g, ' ');
 	}
 
-	function onResult(data: any) {
-		let textAns = data.answer?.response;
-		if (typeof textAns === 'object' && textAns !== null && 'response' in textAns) {
-			textAns = textAns.response;
-		}
+	function onResult(data: Record<string, unknown>) {
+		const answer = (data.answer ?? {}) as Record<string, unknown>;
+		const inner = (answer.response ?? null) as Record<string, unknown> | string | null;
+		let textAns: unknown =
+			typeof inner === 'object' && inner !== null && 'response' in inner ? inner.response : inner;
 
-		let scoreId = data.answer?.score_id || data.answer?.response?.score_id;
-		const scores = data.scores || [];
+		const scoreId = answer.score_id ?? (typeof inner === 'object' && inner ? inner.score_id : null);
+		const scores = (data.scores as Score[] | undefined) ?? [];
 		currentScores = scores;
 
 		return {
-			question: data.question,
+			question: String(data.question ?? ''),
 			answer: {
 				answer: typeof textAns === 'string' ? textAns : JSON.stringify(textAns, null, 2),
 				score_id: scoreId,
 				scoreDetails: data.scoreDetails,
 				scores: scores
 			},
-			rawHistory: data.answer?.message_history
+			rawHistory: answer.message_history as unknown[] | undefined
 		};
 	}
 </script>
@@ -168,11 +168,9 @@
 		user={data.user}
 		store={mainAgentHistoryStore}
 	>
-		{#snippet children()}{/snippet}
-
 		{#snippet resultSnippet({ msg, isLast })}
 			<p class="text-muted-foreground mt-2 whitespace-pre-wrap">{msg.answer}</p>
-			{#if isLast && msg.scores && msg.scores.length > 0}
+			{#if isLast && Array.isArray(msg.scores) && msg.scores.length > 0}
 				<div
 					class="bg-card text-card-foreground shadow-card mt-4 overflow-hidden rounded-md border"
 				>
@@ -273,7 +271,7 @@
 						if (idxA !== -1) return -1;
 						if (idxB !== -1) return 1;
 						return a.localeCompare(b);
-					}) as [key, value]}
+					}) as [key, value] (key)}
 					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
 						<span class="text-foreground text-sm font-semibold capitalize">
 							{translateKey(key)}

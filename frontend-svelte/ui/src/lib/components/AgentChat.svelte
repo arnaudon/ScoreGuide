@@ -5,17 +5,25 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { Snippet } from 'svelte';
+	import type { User } from '$lib/types.js';
 	import * as m from '$lib/paraglide/messages.js';
 
 	type HistoryMessage = {
 		question: string;
-		[key: string]: any;
+		[key: string]: unknown;
 	};
 
 	type HistoryStore = {
 		history: HistoryMessage[];
-		rawHistory: any[];
+		rawHistory: unknown[];
 		clear: () => void;
+	};
+
+	type AgentActionData = Record<string, unknown>;
+	type ParsedResult = {
+		question: string;
+		answer: Record<string, unknown>;
+		rawHistory?: unknown[];
 	};
 
 	let {
@@ -30,15 +38,15 @@
 		user,
 		store
 	}: {
-		form: any;
+		form: { error?: string } | null | undefined;
 		action: string;
 		title: string;
 		emptyMessage?: string;
 		placeholder: string;
-		onResult: (result: any) => { question: string; answer: any; rawHistory?: any };
-		children: Snippet;
+		onResult: (result: AgentActionData) => ParsedResult;
+		children?: Snippet;
 		resultSnippet: Snippet<[{ msg: HistoryMessage; isLast: boolean }]>;
-		user: any;
+		user: User | null | undefined;
 		store: HistoryStore;
 	} = $props();
 
@@ -46,8 +54,9 @@
 	let scrollContainer: HTMLElement | undefined = $state();
 
 	$effect(() => {
-		store.history;
-		loading;
+		// Register dependencies so the effect re-runs on history/loading change.
+		void store.history;
+		void loading;
 		if (scrollContainer) {
 			scrollContainer.scrollTop = scrollContainer.scrollHeight;
 		}
@@ -69,7 +78,7 @@
 			loading = false;
 			const success = result.type === 'success' && result.data?.success;
 			if (success) {
-				const data = result.data as any;
+				const data = result.data as AgentActionData;
 				const parsed = onResult(data);
 				store.history = [
 					...store.history,
@@ -98,8 +107,9 @@
 >
 	<div class="mb-4">
 		<h1 class="text-foreground text-lg font-bold">
-			{title}{#if store.history.length === 0 && !loading}{' '}{emptyMessage ||
-					m.how_can_i_help()}{/if}
+			{title}{#if store.history.length === 0 && !loading}
+				{emptyMessage || m.how_can_i_help()}
+			{/if}
 		</h1>
 	</div>
 
@@ -107,7 +117,7 @@
 		class="space-y-4 overflow-y-auto pr-2 {store.history.length > 0 || loading ? 'mb-4' : ''}"
 		bind:this={scrollContainer}
 	>
-		{#each store.history as msg, index}
+		{#each store.history as msg, index (index)}
 			<div class="bg-muted rounded-lg p-4">
 				<p class="text-foreground font-bold">{m.q_prefix()} {msg.question}</p>
 				{@render resultSnippet({ msg, isLast: index === store.history.length - 1 })}
@@ -137,7 +147,7 @@
 
 		<div class="text-muted-foreground mt-4 flex items-center justify-between text-sm">
 			<div class="flex items-center gap-4">
-				{@render children()}
+				{@render children?.()}
 				<span class="text-xs">{m.agent_can_make_mistakes()}</span>
 			</div>
 			<div class="flex items-center gap-4">
