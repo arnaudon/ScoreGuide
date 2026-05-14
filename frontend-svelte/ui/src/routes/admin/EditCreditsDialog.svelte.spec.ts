@@ -30,7 +30,7 @@ describe('EditCreditsDialog.svelte', () => {
 	it('shows the user-named title and prefilled max_credits when open', async () => {
 		render(EditCreditsDialog, { open: true, user: makeUser({ max_credits: 50 }) });
 		await expect.element(page.getByText(/alice/i)).toBeInTheDocument();
-		await expect.element(page.getByLabel(/max credits/i)).toHaveValue(50);
+		await expect.element(page.getByLabelText(/max credits/i)).toHaveValue(50);
 	});
 
 	it('exposes both set_credits and refill_credits forms', async () => {
