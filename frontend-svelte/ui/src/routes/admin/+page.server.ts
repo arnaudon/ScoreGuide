@@ -1,4 +1,4 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '$lib/server/fetchApi.js';
 
@@ -44,6 +44,8 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 
 		return { users, stats, progress, activeModels };
 	} catch (error) {
+		// redirect() throws a Redirect, which we must let propagate.
+		if (isRedirect(error)) throw error;
 		console.error('Failed to fetch admin data:', error);
 	}
 
