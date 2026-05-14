@@ -290,7 +290,9 @@
 									.label_title()
 									.toLowerCase()
 									.includes('title')}
-								{selectedScoreDetails[key + '_fr'] || value || '-'}
+								{(selectedScoreDetails as unknown as Record<string, unknown>)[key + '_fr'] ||
+									value ||
+									'-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}

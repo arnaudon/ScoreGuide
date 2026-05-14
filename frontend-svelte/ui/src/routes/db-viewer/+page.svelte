@@ -618,7 +618,7 @@
 									.label_title()
 									.toLowerCase()
 									.includes('title')}
-								{selectedScore[key + '_fr'] || value || '-'}
+								{(selectedScore as unknown as Record<string, unknown>)[key + '_fr'] || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}
@@ -709,7 +709,9 @@
 									.label_title()
 									.toLowerCase()
 									.includes('title')}
-								{agentSelectedScore[key + '_fr'] || value || '-'}
+								{(agentSelectedScore as unknown as Record<string, unknown>)[key + '_fr'] ||
+									value ||
+									'-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}

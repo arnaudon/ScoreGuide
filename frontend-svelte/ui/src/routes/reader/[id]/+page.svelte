@@ -123,7 +123,7 @@
 									.label_title()
 									.toLowerCase()
 									.includes('title')}
-								{data.score[key + '_fr'] || value || '-'}
+								{(data.score as unknown as Record<string, unknown>)[key + '_fr'] || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}

@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '$lib/server/fetchApi.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
@@ -55,7 +55,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	};
 };
 
-export const actions = {
+export const actions: Actions = {
 	refill_credits: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		const data = await request.formData();

@@ -84,9 +84,7 @@
 					onclick: column.getToggleSortingHandler()
 				}),
 			cell: ({ row }) =>
-				row.original.role === 'admin' || row.original.is_admin
-					? m.admin_role_admin()
-					: m.admin_role_user()
+				row.original.role === 'admin' ? m.admin_role_admin() : m.admin_role_user()
 		},
 		{
 			accessorKey: 'credits',
