@@ -2,11 +2,13 @@
 	import type { PageProps } from './$types';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import EditScoreDialog from '$lib/components/EditScoreDialog.svelte';
 	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import * as m from '$lib/paraglide/messages.js';
 
 	let { data }: PageProps = $props();
 	let sheetOpen = $state(false);
+	let editOpen = $state(false);
 	let iframeEl: HTMLIFrameElement | undefined = $state();
 
 	function enterPresentationMode() {
@@ -61,6 +63,7 @@
 			<div class="flex gap-2">
 				<Button variant="outline" onclick={enterPresentationMode}>{m.presentation_mode()}</Button>
 				<Button variant="outline" onclick={() => (sheetOpen = true)}>{m.view_details()}</Button>
+				<Button variant="outline" onclick={() => (editOpen = true)}>{m.edit_score()}</Button>
 			</div>
 		</div>
 
@@ -132,3 +135,5 @@
 		{/if}
 	</Sheet.Content>
 </Sheet.Root>
+
+<EditScoreDialog bind:open={editOpen} score={data.score} />

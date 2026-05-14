@@ -26,6 +26,7 @@
 	import type { Score, IMSLPScore } from '$lib/types.js';
 	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import AgentChat from '$lib/components/AgentChat.svelte';
+	import EditScoreDialog from '$lib/components/EditScoreDialog.svelte';
 	import DataTableSortButton from './data-table-sort-button.svelte';
 	import { imslpAgentHistoryStore } from '$lib/stores/chat.svelte';
 	import * as m from '$lib/paraglide/messages.js';
@@ -37,6 +38,7 @@
 	let uploading = $state(false);
 	let recompleting = $state(false);
 	let sheetOpen = $state(false);
+	let editOpen = $state(false);
 	let manualFiles = $state<FileList | undefined>();
 	let imslpFiles = $state<FileList | undefined>();
 	let selectedScore = $derived(data.scores.find((s: Score) => s.id === selectedScoreId));
@@ -632,6 +634,9 @@
 				<Button href={resolve('/reader/[id]', { id: String(selectedScore.id) })} class="w-full"
 					>{m.view_pdf()}</Button
 				>
+				<Button variant="outline" class="w-full" onclick={() => (editOpen = true)}>
+					{m.edit_score()}
+				</Button>
 				<form
 					method="POST"
 					action="?/recomplete"
@@ -781,3 +786,5 @@
 		{/if}
 	</Sheet.Content>
 </Sheet.Root>
+
+<EditScoreDialog bind:open={editOpen} score={selectedScore} />

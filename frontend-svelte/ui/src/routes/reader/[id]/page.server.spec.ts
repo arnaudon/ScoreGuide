@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { isRedirect } from '@sveltejs/kit';
-import { load } from './+page.server.js';
-import { makeCookies, jsonResponse, event } from '../../test-helpers.js';
+import { load, actions } from './+page.server.js';
+import { makeCookies, makeFetch, fakeRequest, jsonResponse, event } from '../../test-helpers.js';
 
 const SCORE = { id: 7, title: 'Sonata', composer: 'Beethoven' };
 const OTHER = { id: 99, title: 'Other', composer: 'X' };
@@ -67,5 +67,76 @@ describe('reader/[id] load', () => {
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
 		expect(result).toEqual({ score: null });
 		expect(errSpy).toHaveBeenCalled();
+	});
+});
+
+describe('reader/[id] update_score action', () => {
+	let errSpy: ReturnType<typeof vi.spyOn>;
+	beforeEach(() => {
+		errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+	});
+	afterEach(() => errSpy.mockRestore());
+
+	it('fails 401 when not authenticated', async () => {
+		const result = await actions.update_score(
+			event({
+				request: fakeRequest({ id: '7', title: 't' }),
+				cookies: makeCookies(),
+				fetch: vi.fn()
+			})
+		);
+		expect(result).toMatchObject({ status: 401 });
+	});
+
+	it('fails 400 when id is missing', async () => {
+		const result = await actions.update_score(
+			event({
+				request: fakeRequest({ title: 't' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch: vi.fn()
+			})
+		);
+		expect(result).toMatchObject({ status: 400 });
+	});
+
+	it('PUTs the submitted fields on happy path', async () => {
+		const fetch = makeFetch().mockResolvedValueOnce(jsonResponse({ id: 7 }));
+		const result = await actions.update_score(
+			event({
+				request: fakeRequest({
+					id: '7',
+					title: 'New',
+					composer: 'C',
+					year: '1900',
+					period: 'Modernist',
+					difficulty: 'easy'
+				}),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toEqual({ success: true, scoreUpdated: true });
+		expect(fetch.mock.calls[0][1]!.method).toBe('PUT');
+		expect(fetch.mock.calls[0][0]).toContain('/scores/7');
+		const body = JSON.parse(fetch.mock.calls[0][1]!.body as string);
+		expect(body).toMatchObject({
+			title: 'New',
+			composer: 'C',
+			year: 1900,
+			period: 'Modernist',
+			difficulty: 'easy'
+		});
+	});
+
+	it('forwards backend failure status', async () => {
+		const fetch = vi.fn(async () => new Response(null, { status: 404 }));
+		const result = await actions.update_score(
+			event({
+				request: fakeRequest({ id: '999', title: 't' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({ status: 404 });
 	});
 });
