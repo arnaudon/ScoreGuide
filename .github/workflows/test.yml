@@ -57,6 +57,8 @@ jobs:
       run: npm ci
     - name: Install Playwright browsers
       run: npx playwright install --with-deps chromium
+    - name: Build (compiles paraglide messages, verifies prod build)
+      run: npm run build
     - name: Lint
       run: npm run lint
     - name: Type check
