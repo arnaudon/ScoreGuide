@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { BACKEND_URL } from '$lib/server/api.js';
+import { apiFetch } from '$lib/server/fetchApi.js';
 
 export const load: LayoutServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -7,10 +7,9 @@ export const load: LayoutServerLoad = async ({ cookies, fetch }) => {
 		return { loggedIn: false, isAdmin: false };
 	}
 
+	const api = apiFetch(fetch, token);
 	try {
-		const res = await fetch(`${BACKEND_URL}/is_admin`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const res = await api('/is_admin');
 		if (!res.ok) {
 			return { loggedIn: false, isAdmin: false };
 		}

@@ -11,15 +11,18 @@
 </script>
 
 <div class="flex h-full items-center justify-center pt-10 pb-4">
-	<div class="bg-card text-card-foreground w-full max-w-md rounded-lg border p-6 shadow-card">
+	<div class="bg-card text-card-foreground shadow-card w-full max-w-md rounded-lg border p-6">
 		<div class="mb-4 text-center">
 			<img src="/logo.png" alt="ScoreGuide Logo" class="mx-auto mb-2 h-16 w-auto" />
 			<h1 class="text-fancy-title text-3xl font-bold">ScoreGuide</h1>
-			<p class="mt-2 text-muted-foreground">
+			<p class="text-muted-foreground mt-2">
 				{m.login_description()}
 			</p>
-			<p class="mt-4 text-sm text-muted-foreground bg-muted p-2 rounded">
-				{m.beta_warning()} <a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline">alexis.arnaudon@scoreguide.ch</a>.
+			<p class="text-muted-foreground bg-muted mt-4 rounded p-2 text-sm">
+				{m.beta_warning()}
+				<a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline"
+					>alexis.arnaudon@scoreguide.ch</a
+				>.
 			</p>
 		</div>
 
@@ -56,17 +59,25 @@
 					<select
 						id="instrument"
 						name="instrument"
-						class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+						class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
 					>
 						<option value="" disabled selected={!form?.instrument}>{m.select_instrument()}</option>
 						<option value="piano" selected={form?.instrument === 'piano'}>{m.inst_piano()}</option>
-						<option value="violin" selected={form?.instrument === 'violin'}>{m.inst_violin()}</option>
+						<option value="violin" selected={form?.instrument === 'violin'}
+							>{m.inst_violin()}</option
+						>
 						<option value="viola" selected={form?.instrument === 'viola'}>{m.inst_viola()}</option>
 						<option value="cello" selected={form?.instrument === 'cello'}>{m.inst_cello()}</option>
-						<option value="guitar" selected={form?.instrument === 'guitar'}>{m.inst_guitar()}</option>
+						<option value="guitar" selected={form?.instrument === 'guitar'}
+							>{m.inst_guitar()}</option
+						>
 						<option value="flute" selected={form?.instrument === 'flute'}>{m.inst_flute()}</option>
-						<option value="clarinet" selected={form?.instrument === 'clarinet'}>{m.inst_clarinet()}</option>
-						<option value="trumpet" selected={form?.instrument === 'trumpet'}>{m.inst_trumpet()}</option>
+						<option value="clarinet" selected={form?.instrument === 'clarinet'}
+							>{m.inst_clarinet()}</option
+						>
+						<option value="trumpet" selected={form?.instrument === 'trumpet'}
+							>{m.inst_trumpet()}</option
+						>
 						<option value="other" selected={form?.instrument === 'other'}>{m.inst_other()}</option>
 					</select>
 				</div>
@@ -77,7 +88,7 @@
 					<Checkbox id="remember" name="remember" />
 					<label
 						for="remember"
-						class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+						class="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
 					>
 						{m.keep_logged_in()}
 					</label>
@@ -85,10 +96,12 @@
 			{/if}
 
 			{#if form?.error}
-				<p class="text-destructive text-sm font-medium">{form.error}</p>
+				<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
 			{/if}
 			{#if form?.message}
-				<p class="text-sm font-medium text-green-600 dark:text-green-400">{form.message}</p>
+				<p role="status" class="text-sm font-medium text-green-600 dark:text-green-400">
+					{form.message}
+				</p>
 			{/if}
 
 			<Button type="submit" class="w-full">{isRegister ? m.sign_up() : m.login()}</Button>
@@ -97,7 +110,8 @@
 		<div class="mt-4 text-center text-sm">
 			{#if isRegister}
 				<p class="text-muted-foreground">
-					{m.already_have_account()} <button
+					{m.already_have_account()}
+					<button
 						type="button"
 						class="text-primary hover:underline"
 						onclick={() => (isRegister = false)}>{m.login()}</button
@@ -105,7 +119,8 @@
 				</p>
 			{:else}
 				<p class="text-muted-foreground">
-					{m.dont_have_account()} <button
+					{m.dont_have_account()}
+					<button
 						type="button"
 						class="text-primary hover:underline"
 						onclick={() => (isRegister = true)}>{m.sign_up()}</button

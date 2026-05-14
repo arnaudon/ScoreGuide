@@ -4,8 +4,6 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
 	import {
 		type ColumnDef,
 		type PaginationState,
@@ -16,19 +14,23 @@
 		getSortedRowModel,
 		getFilteredRowModel
 	} from '@tanstack/table-core';
-	import { FlexRender, createSvelteTable, renderComponent } from '$lib/components/ui/data-table/index.js';
+	import {
+		FlexRender,
+		createSvelteTable,
+		renderComponent
+	} from '$lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
+	import EditCreditsDialog from './EditCreditsDialog.svelte';
+	import type { AdminUser } from '$lib/types.js';
 	import * as m from '$lib/paraglide/messages.js';
 
 	let { data }: PageProps = $props();
 
-	let selectedUser = $state<any>(null);
-	let max_credits = $state(0);
+	let selectedUser = $state<AdminUser | null>(null);
 	let editDialogOpen = $state(false);
 
-	function openEditDialog(user: any) {
+	function openEditDialog(user: AdminUser) {
 		selectedUser = user;
-		max_credits = user.max_credits ?? 20;
 		editDialogOpen = true;
 	}
 
@@ -36,24 +38,96 @@
 	let sorting = $state<SortingState>([]);
 	let columnFilters = $state<ColumnFiltersState>([]);
 
-	const columns: ColumnDef<any>[] = [
-		{ accessorKey: 'id', header: ({ column }) => renderComponent(DataTableSortButton, { title: m.id(), onclick: column.getToggleSortingHandler() }) },
-		{ accessorKey: 'username', header: ({ column }) => renderComponent(DataTableSortButton, { title: m.username(), onclick: column.getToggleSortingHandler() }) },
-		{ accessorKey: 'email', header: ({ column }) => renderComponent(DataTableSortButton, { title: m.email(), onclick: column.getToggleSortingHandler() }), cell: ({ row }) => row.original.email || '-' },
-		{ accessorKey: 'instrument', header: ({ column }) => renderComponent(DataTableSortButton, { title: m.preferred_instrument(), onclick: column.getToggleSortingHandler() }), cell: ({ row }) => row.original.instrument || '-' },
-		{ accessorKey: 'role', header: ({ column }) => renderComponent(DataTableSortButton, { title: m.role(), onclick: column.getToggleSortingHandler() }), cell: ({ row }) => (row.original.role || (row.original.is_admin ? 'Admin' : 'User')).charAt(0).toUpperCase() + (row.original.role || (row.original.is_admin ? 'Admin' : 'User')).slice(1) },
-		{ accessorKey: 'credits', header: ({ column }) => renderComponent(DataTableSortButton, { title: m.credits(), onclick: column.getToggleSortingHandler() }), cell: ({ row }) => `${row.original.credits ?? '-'}/${row.original.max_credits ?? '-'}` },
-		{ accessorKey: 'score_count', header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Scores', onclick: column.getToggleSortingHandler() }), cell: ({ row }) => row.original.score_count ?? 0 },
-		{ accessorKey: 'last_login', header: ({ column }) => renderComponent(DataTableSortButton, { title: 'Last Login', onclick: column.getToggleSortingHandler() }), cell: ({ row }) => row.original.last_login ? new Date(row.original.last_login).toLocaleString() : '-' }
+	const columns: ColumnDef<AdminUser>[] = [
+		{
+			accessorKey: 'id',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.id(),
+					onclick: column.getToggleSortingHandler()
+				})
+		},
+		{
+			accessorKey: 'username',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.username(),
+					onclick: column.getToggleSortingHandler()
+				})
+		},
+		{
+			accessorKey: 'email',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.email(),
+					onclick: column.getToggleSortingHandler()
+				}),
+			cell: ({ row }) => row.original.email || '-'
+		},
+		{
+			accessorKey: 'instrument',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.preferred_instrument(),
+					onclick: column.getToggleSortingHandler()
+				}),
+			cell: ({ row }) => row.original.instrument || '-'
+		},
+		{
+			accessorKey: 'role',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.role(),
+					onclick: column.getToggleSortingHandler()
+				}),
+			cell: ({ row }) =>
+				row.original.role === 'admin' ? m.admin_role_admin() : m.admin_role_user()
+		},
+		{
+			accessorKey: 'credits',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.credits(),
+					onclick: column.getToggleSortingHandler()
+				}),
+			cell: ({ row }) => `${row.original.credits ?? '-'}/${row.original.max_credits ?? '-'}`
+		},
+		{
+			accessorKey: 'score_count',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.admin_scores(),
+					onclick: column.getToggleSortingHandler()
+				}),
+			cell: ({ row }) => row.original.score_count ?? 0
+		},
+		{
+			accessorKey: 'last_login',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.admin_last_login(),
+					onclick: column.getToggleSortingHandler()
+				}),
+			cell: ({ row }) =>
+				row.original.last_login ? new Date(row.original.last_login).toLocaleString() : '-'
+		}
 	];
 
 	const table = createSvelteTable({
-		get data() { return data.users; },
+		get data() {
+			return data.users;
+		},
 		columns,
 		state: {
-			get pagination() { return pagination; },
-			get sorting() { return sorting; },
-			get columnFilters() { return columnFilters; }
+			get pagination() {
+				return pagination;
+			},
+			get sorting() {
+				return sorting;
+			},
+			get columnFilters() {
+				return columnFilters;
+			}
 		},
 		onPaginationChange: (updater) => {
 			if (typeof updater === 'function') pagination = updater(pagination);
@@ -84,80 +158,184 @@
 </script>
 
 <div class="mb-4 flex items-center justify-between">
-	<h1 class="text-fancy-title text-2xl font-bold text-foreground">{m.admin_dashboard()}</h1>
+	<h1 class="text-fancy-title text-foreground text-2xl font-bold">{m.admin_dashboard()}</h1>
 </div>
 
-<div class="grid gap-6 md:grid-cols-2 mb-8">
-	<div class="rounded-md border bg-card p-6 text-card-foreground shadow-card">
+<div class="mb-8 grid gap-6 md:grid-cols-2">
+	<div class="bg-card text-card-foreground shadow-card rounded-md border p-6">
 		<h2 class="text-fancy-title mb-2 text-xl font-semibold">{m.agent_configuration()}</h2>
-		<p class="mb-4 text-muted-foreground">{m.agent_configuration_desc()}</p>
+		<p class="text-muted-foreground mb-4">{m.agent_configuration_desc()}</p>
 		<form method="POST" action="?/set_models" use:enhance class="flex flex-col gap-4">
 			<div class="space-y-2">
-				<label for="model_main" class="text-sm font-medium leading-none">{m.main_agent_model()}</label>
-				<select id="model_main" name="model_main" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-					<option value="google-gla:gemini-2.5-flash-lite" selected={data.activeModels.main === 'google-gla:gemini-2.5-flash-lite'}>Gemini 2.5 Flash Lite</option>
-					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.main === 'google-gla:gemini-2.5-flash' || data.activeModels.main === ''}>Gemini 2.5 Flash</option>
-					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.main === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
-					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.main === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
+				<label for="model_main" class="text-sm leading-none font-medium"
+					>{m.main_agent_model()}</label
+				>
+				<select
+					id="model_main"
+					name="model_main"
+					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
+				>
+					<option
+						value="google-gla:gemini-2.5-flash-lite"
+						selected={data.activeModels.main === 'google-gla:gemini-2.5-flash-lite'}
+						>Gemini 2.5 Flash Lite</option
+					>
+					<option
+						value="google-gla:gemini-2.5-flash"
+						selected={data.activeModels.main === 'google-gla:gemini-2.5-flash' ||
+							data.activeModels.main === ''}>Gemini 2.5 Flash</option
+					>
+					<option
+						value="google-gla:gemini-2.5-pro"
+						selected={data.activeModels.main === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option
+					>
+					<option
+						value="google-gla:gemini-3-pro-preview"
+						selected={data.activeModels.main === 'google-gla:gemini-3-pro-preview'}
+						>Gemini 3 Pro Preview</option
+					>
 				</select>
 			</div>
 			<div class="space-y-2">
-				<label for="model_imslp" class="text-sm font-medium leading-none">{m.imslp_agent_model()}</label>
-				<select id="model_imslp" name="model_imslp" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-					<option value="google-gla:gemini-2.5-flash-lite" selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash-lite'}>Gemini 2.5 Flash Lite</option>
-					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash' || data.activeModels.imslp === ''}>Gemini 2.5 Flash</option>
-					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.imslp === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
-					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.imslp === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
+				<label for="model_imslp" class="text-sm leading-none font-medium"
+					>{m.imslp_agent_model()}</label
+				>
+				<select
+					id="model_imslp"
+					name="model_imslp"
+					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
+				>
+					<option
+						value="google-gla:gemini-2.5-flash-lite"
+						selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash-lite'}
+						>Gemini 2.5 Flash Lite</option
+					>
+					<option
+						value="google-gla:gemini-2.5-flash"
+						selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash' ||
+							data.activeModels.imslp === ''}>Gemini 2.5 Flash</option
+					>
+					<option
+						value="google-gla:gemini-2.5-pro"
+						selected={data.activeModels.imslp === 'google-gla:gemini-2.5-pro'}
+						>Gemini 2.5 Pro</option
+					>
+					<option
+						value="google-gla:gemini-3-pro-preview"
+						selected={data.activeModels.imslp === 'google-gla:gemini-3-pro-preview'}
+						>Gemini 3 Pro Preview</option
+					>
 				</select>
 			</div>
 			<div class="space-y-2">
-				<label for="model_complete" class="text-sm font-medium leading-none">{m.complete_agent_model()}</label>
-				<select id="model_complete" name="model_complete" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-					<option value="google-gla:gemini-2.5-flash-lite" selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash-lite'}>Gemini 2.5 Flash Lite</option>
-					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash' || data.activeModels.complete === ''}>Gemini 2.5 Flash</option>
-					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.complete === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
-					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.complete === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
+				<label for="model_complete" class="text-sm leading-none font-medium"
+					>{m.complete_agent_model()}</label
+				>
+				<select
+					id="model_complete"
+					name="model_complete"
+					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
+				>
+					<option
+						value="google-gla:gemini-2.5-flash-lite"
+						selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash-lite'}
+						>Gemini 2.5 Flash Lite</option
+					>
+					<option
+						value="google-gla:gemini-2.5-flash"
+						selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash' ||
+							data.activeModels.complete === ''}>Gemini 2.5 Flash</option
+					>
+					<option
+						value="google-gla:gemini-2.5-pro"
+						selected={data.activeModels.complete === 'google-gla:gemini-2.5-pro'}
+						>Gemini 2.5 Pro</option
+					>
+					<option
+						value="google-gla:gemini-3-pro-preview"
+						selected={data.activeModels.complete === 'google-gla:gemini-3-pro-preview'}
+						>Gemini 3 Pro Preview</option
+					>
 				</select>
 			</div>
 			<div class="space-y-2">
-				<label for="model_imslp_complete" class="text-sm font-medium leading-none">IMSLP Complete Agent Model</label>
-				<select id="model_imslp_complete" name="model_imslp_complete" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-					<option value="google-gla:gemini-2.5-flash-lite" selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-flash-lite'}>Gemini 2.5 Flash Lite</option>
-					<option value="google-gla:gemini-2.5-flash" selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-flash' || data.activeModels.imslp_complete === ''}>Gemini 2.5 Flash</option>
-					<option value="google-gla:gemini-2.5-pro" selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option>
-					<option value="google-gla:gemini-3-pro-preview" selected={data.activeModels.imslp_complete === 'google-gla:gemini-3-pro-preview'}>Gemini 3 Pro Preview</option>
+				<label for="model_imslp_complete" class="text-sm leading-none font-medium"
+					>IMSLP Complete Agent Model</label
+				>
+				<select
+					id="model_imslp_complete"
+					name="model_imslp_complete"
+					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
+				>
+					<option
+						value="google-gla:gemini-2.5-flash-lite"
+						selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-flash-lite'}
+						>Gemini 2.5 Flash Lite</option
+					>
+					<option
+						value="google-gla:gemini-2.5-flash"
+						selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-flash' ||
+							data.activeModels.imslp_complete === ''}>Gemini 2.5 Flash</option
+					>
+					<option
+						value="google-gla:gemini-2.5-pro"
+						selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-pro'}
+						>Gemini 2.5 Pro</option
+					>
+					<option
+						value="google-gla:gemini-3-pro-preview"
+						selected={data.activeModels.imslp_complete === 'google-gla:gemini-3-pro-preview'}
+						>Gemini 3 Pro Preview</option
+					>
 				</select>
 			</div>
-			<button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 self-start" type="submit">
+			<button
+				class="ring-offset-background focus-visible:ring-ring bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center self-start rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+				type="submit"
+			>
 				{m.save()}
 			</button>
 		</form>
 	</div>
 
-	<div class="rounded-md border bg-card p-6 text-card-foreground shadow-card">
+	<div class="bg-card text-card-foreground shadow-card rounded-md border p-6">
 		<h2 class="text-fancy-title mb-2 text-xl font-semibold">{m.imslp_database()}</h2>
-		<p class="mb-4 text-muted-foreground">
-			{m.imslp_database_stats({ works: data.stats?.total_works || 0, composers: data.stats?.total_composers || 0 })}
+		<p class="text-muted-foreground mb-4">
+			{m.imslp_database_stats({
+				works: data.stats?.total_works || 0,
+				composers: data.stats?.total_composers || 0
+			})}
 		</p>
-		<div class="flex gap-4 items-center">
+		<div class="flex items-center gap-4">
 			<form method="POST" action="?/update" use:enhance>
-				<button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2" disabled={data.progress?.status === 'processing'}>
+				<button
+					class="ring-offset-background focus-visible:ring-ring bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+					disabled={data.progress?.status === 'processing'}
+				>
 					{m.update_database()}
 				</button>
 			</form>
-			<form method="POST" action="?/empty" use:enhance onsubmit={(e) => {
-				if (!confirm(m.delete_imslp_confirm())) e.preventDefault();
-			}}>
-				<button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground hover:bg-destructive/90 h-10 px-4 py-2" disabled={data.progress?.status === 'processing'}>
+			<form
+				method="POST"
+				action="?/empty"
+				use:enhance
+				onsubmit={(e) => {
+					if (!confirm(m.delete_imslp_confirm())) e.preventDefault();
+				}}
+			>
+				<button
+					class="ring-offset-background focus-visible:ring-ring bg-destructive text-destructive-foreground hover:bg-destructive/90 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+					disabled={data.progress?.status === 'processing'}
+				>
 					{m.delete_all_data()}
 				</button>
 			</form>
 		</div>
 
 		{#if data.progress?.status === 'processing' || data.progress?.status === 'cancelling'}
-			<div class="mt-6 p-4 border rounded-md bg-muted/50">
-				<div class="flex justify-between mb-2">
-					<span class="font-medium text-sm">
+			<div class="bg-muted/50 mt-6 rounded-md border p-4">
+				<div class="mb-2 flex justify-between">
+					<span class="text-sm font-medium">
 						{#if data.progress.status === 'cancelling'}
 							{m.status_cancelling()}
 						{:else}
@@ -165,13 +343,16 @@
 						{/if}
 					</span>
 				</div>
-				<div class="w-full bg-secondary rounded-full h-2.5 mb-4 overflow-hidden">
-					<div class="bg-primary h-2.5 rounded-full transition-all" style="width: {(data.progress.page / Math.max(1, data.progress.total)) * 100}%"></div>
+				<div class="bg-secondary mb-4 h-2.5 w-full overflow-hidden rounded-full">
+					<div
+						class="bg-primary h-2.5 rounded-full transition-all"
+						style="width: {(data.progress.page / Math.max(1, data.progress.total)) * 100}%"
+					></div>
 				</div>
 				<form method="POST" action="?/cancel" use:enhance>
-					<button 
+					<button
 						disabled={data.progress.status === 'cancelling'}
-						class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3 disabled:opacity-50"
+						class="ring-offset-background focus-visible:ring-ring border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50"
 					>
 						{data.progress.status === 'cancelling' ? m.cancelling() : m.cancel_task()}
 					</button>
@@ -182,10 +363,10 @@
 </div>
 
 <div class="mb-4 flex items-center justify-between">
-	<h2 class="text-fancy-title text-xl font-semibold text-foreground">{m.users()}</h2>
+	<h2 class="text-fancy-title text-foreground text-xl font-semibold">{m.users()}</h2>
 </div>
 
-<div class="rounded-md border bg-card text-card-foreground shadow-card">
+<div class="bg-card text-card-foreground shadow-card rounded-md border">
 	<Table.Root>
 		<Table.Header>
 			{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
@@ -206,18 +387,17 @@
 		</Table.Header>
 		<Table.Body>
 			{#each table.getRowModel().rows as row (row.id)}
-				<Table.Row class="transition-colors hover:bg-muted/50">
+				<Table.Row class="hover:bg-muted/50 transition-colors">
 					{#each row.getVisibleCells() as cell (cell.id)}
 						<Table.Cell>
-							<FlexRender
-								content={cell.column.columnDef.cell}
-								context={cell.getContext()}
-							/>
+							<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
 						</Table.Cell>
 					{/each}
 					<Table.Cell class="text-right">
 						<div class="flex items-center justify-end gap-2">
-							<Button variant="outline" size="sm" onclick={() => openEditDialog(row.original)}>{m.edit()}</Button>
+							<Button variant="outline" size="sm" onclick={() => openEditDialog(row.original)}
+								>{m.edit()}</Button
+							>
 						</div>
 					</Table.Cell>
 				</Table.Row>
@@ -233,8 +413,11 @@
 </div>
 
 <div class="flex items-center justify-end space-x-2 py-4">
-	<div class="flex-1 text-sm text-muted-foreground">
-		{m.page_of({ page: table.getState().pagination.pageIndex + 1, total: Math.max(1, table.getPageCount()) })}
+	<div class="text-muted-foreground flex-1 text-sm">
+		{m.page_of({
+			page: table.getState().pagination.pageIndex + 1,
+			total: Math.max(1, table.getPageCount())
+		})}
 	</div>
 	<Button
 		variant="outline"
@@ -254,54 +437,4 @@
 	</Button>
 </div>
 
-<Sheet.Root bind:open={editDialogOpen}>
-	<Sheet.Content>
-		<Sheet.Header>
-			<Sheet.Title>{m.edit_max_credits({ username: selectedUser?.username || '' })}</Sheet.Title>
-			<Sheet.Description>
-				{m.edit_max_credits_desc()}
-			</Sheet.Description>
-		</Sheet.Header>
-		{#if selectedUser}
-			<div class="mt-4 space-y-6">
-				<form
-					method="POST"
-					action="?/set_credits"
-					use:enhance={() => {
-						return async ({ update }) => {
-							editDialogOpen = false;
-							await update();
-						};
-					}}
-					class="space-y-4"
-				>
-					<input type="hidden" name="user_id" value={selectedUser.id} />
-					<div class="space-y-2">
-						<label for="max_credits" class="text-sm font-medium">{m.max_credits()}</label>
-						<Input id="max_credits" name="max_credits" type="number" bind:value={max_credits} />
-					</div>
-					<Sheet.Footer>
-						<Button type="submit">{m.save_changes()}</Button>
-					</Sheet.Footer>
-				</form>
-
-				<form method="POST" action="?/refill_credits" use:enhance={() => {
-					return async ({ update }) => {
-						editDialogOpen = false;
-						await update();
-					};
-				}}>
-					<input type="hidden" name="user_id" value={selectedUser.id} />
-					<Button
-						variant="outline"
-						type="submit"
-						class="w-full"
-						disabled={selectedUser.credits === selectedUser.max_credits}
-					>
-						{m.refill_credits()}
-					</Button>
-				</form>
-			</div>
-		{/if}
-	</Sheet.Content>
-</Sheet.Root>
+<EditCreditsDialog bind:open={editDialogOpen} user={selectedUser} />

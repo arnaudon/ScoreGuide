@@ -162,5 +162,16 @@
 	"cookie_consent_accept": "Compris !",
 	"terms_p1": "Bienvenue sur ScoreGuide. En utilisant notre site, vous acceptez ces conditions.",
 	"terms_p2": "Vous êtes responsable des fichiers que vous téléchargez. Ne téléchargez pas de matériel protégé par le droit d'auteur sans autorisation.",
-	"terms_p3": "Nous nous réservons le droit de supprimer tout contenu ou de résilier les comptes qui violent ces conditions."
+	"terms_p3": "Nous nous réservons le droit de supprimer tout contenu ou de résilier les comptes qui violent ces conditions.",
+	"thinking": "Réflexion...",
+	"q_prefix": "Q :",
+	"credits_label": "Crédits : {credits}/{max}",
+	"admin_scores": "Partitions",
+	"admin_last_login": "Dernière connexion",
+	"admin_role_admin": "Admin",
+	"admin_role_user": "Utilisateur",
+	"language_switch": "Langue",
+	"language_switch_to_en": "Passer à l'anglais",
+	"language_switch_to_fr": "Passer au français",
+	"cookie_banner_label": "Consentement aux cookies"
 }

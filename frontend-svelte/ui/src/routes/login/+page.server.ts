@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { dev } from '$app/environment';
-import { BACKEND_URL } from '$lib/server/api.js';
+import { apiFetch } from '$lib/server/fetchApi.js';
 
 export const actions: Actions = {
 	login: async ({ request, cookies, fetch }) => {
@@ -18,17 +18,19 @@ export const actions: Actions = {
 		body.append('username', username.toString());
 		body.append('password', password.toString());
 
-		const response = await fetch(`${BACKEND_URL}/token`, {
+		const api = apiFetch(fetch, undefined);
+		const response = await api('/token', {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded'
-			},
-			body: body
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body
 		});
 
 		if (!response.ok) {
 			const result = await response.json();
-			return fail(response.status, { username: username.toString(), error: result.detail || 'Login failed' });
+			return fail(response.status, {
+				username: username.toString(),
+				error: result.detail || 'Login failed'
+			});
 		}
 
 		const tokenData = await response.json();
@@ -62,11 +64,10 @@ export const actions: Actions = {
 			});
 		}
 
-		const response = await fetch(`${BACKEND_URL}/users`, {
+		const api = apiFetch(fetch, undefined);
+		const response = await api('/users', {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
+			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				username: username.toString(),
 				password: password.toString(),
@@ -80,7 +81,9 @@ export const actions: Actions = {
 			try {
 				const result = await response.json();
 				errorMsg = result.detail || errorMsg;
-			} catch (e) {}
+			} catch (e) {
+				console.error('Failed to parse register error response', e);
+			}
 			return fail(response.status, {
 				username: username.toString(),
 				email: email.toString(),
@@ -94,12 +97,10 @@ export const actions: Actions = {
 		body.append('username', username.toString());
 		body.append('password', password.toString());
 
-		const loginRes = await fetch(`${BACKEND_URL}/token`, {
+		const loginRes = await api('/token', {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded'
-			},
-			body: body
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body
 		});
 
 		if (loginRes.ok) {
@@ -113,7 +114,11 @@ export const actions: Actions = {
 			});
 			redirect(303, '/home');
 		} else {
-			return { username: username.toString(), success: true, message: 'Registration successful! Please log in.' };
+			return {
+				username: username.toString(),
+				success: true,
+				message: 'Registration successful! Please log in.'
+			};
 		}
 	}
 };

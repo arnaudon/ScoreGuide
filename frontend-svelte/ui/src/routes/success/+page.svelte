@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import AgentChat from '$lib/components/AgentChat.svelte';
@@ -14,48 +15,77 @@
 		getSortedRowModel,
 		getFilteredRowModel
 	} from '@tanstack/table-core';
-	import { FlexRender, createSvelteTable, renderComponent } from '$lib/components/ui/data-table/index.js';
+	import {
+		FlexRender,
+		createSvelteTable,
+		renderComponent
+	} from '$lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
+	import type { Score } from '$lib/types.js';
+	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import * as m from '$lib/paraglide/messages.js';
-	import { page } from '$app/state';
 
 	let { form, data } = $props();
 	let sheetOpen = $state(false);
-	let selectedScoreDetails = $state<any>(null);
+	let selectedScoreDetails = $state<Score | null>(null);
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 5 });
 	let sorting = $state<SortingState>([]);
 	let columnFilters = $state<ColumnFiltersState>([]);
-	let currentScores = $state<any[]>([]);
+	let currentScores = $state<Score[]>([]);
 
-	const columns: ColumnDef<any>[] = [
-		{ 
-			accessorKey: 'composer', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_composer(), onclick: column.getToggleSortingHandler() }) 
+	const columns: ColumnDef<Score>[] = [
+		{
+			accessorKey: 'composer',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_composer(),
+					onclick: column.getToggleSortingHandler()
+				})
 		},
-		{ 
-			accessorKey: 'title', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_title(), onclick: column.getToggleSortingHandler() }) 
+		{
+			accessorKey: 'title',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_title(),
+					onclick: column.getToggleSortingHandler()
+				})
 		},
-		{ 
-			accessorKey: 'instrumentation', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_instrumentation(), onclick: column.getToggleSortingHandler() }),
+		{
+			accessorKey: 'instrumentation',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_instrumentation(),
+					onclick: column.getToggleSortingHandler()
+				}),
 			cell: ({ row }) => row.original.instrumentation || '-'
 		},
-		{ 
-			accessorKey: 'year', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_year(), onclick: column.getToggleSortingHandler() }),
+		{
+			accessorKey: 'year',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_year(),
+					onclick: column.getToggleSortingHandler()
+				}),
 			cell: ({ row }) => row.original.year || '-'
 		}
 	];
 
 	const table = createSvelteTable({
-		get data() { return currentScores; },
+		get data() {
+			return currentScores;
+		},
 		columns,
 		state: {
-			get pagination() { return pagination; },
-			get sorting() { return sorting; },
-			get columnFilters() { return columnFilters; }
+			get pagination() {
+				return pagination;
+			},
+			get sorting() {
+				return sorting;
+			},
+			get columnFilters() {
+				return columnFilters;
+			}
 		},
 		onPaginationChange: (updater) => {
 			if (typeof updater === 'function') pagination = updater(pagination);
@@ -97,34 +127,38 @@
 		return map[key] || key.replace(/_/g, ' ');
 	}
 
-	function onResult(data: any) {
-		let textAns = data.answer?.response;
-		if (typeof textAns === 'object' && textAns !== null && 'response' in textAns) {
-			textAns = textAns.response;
-		}
+	function onResult(data: Record<string, unknown>) {
+		const answer = (data.answer ?? {}) as Record<string, unknown>;
+		const inner = (answer.response ?? null) as Record<string, unknown> | string | null;
+		let textAns: unknown =
+			typeof inner === 'object' && inner !== null && 'response' in inner ? inner.response : inner;
 
-		let scoreId = data.answer?.score_id || data.answer?.response?.score_id;
-		const scores = data.scores || [];
+		const scoreId = answer.score_id ?? (typeof inner === 'object' && inner ? inner.score_id : null);
+		const scores = (data.scores as Score[] | undefined) ?? [];
 		currentScores = scores;
 
 		return {
-			question: data.question,
+			question: String(data.question ?? ''),
 			answer: {
 				answer: typeof textAns === 'string' ? textAns : JSON.stringify(textAns, null, 2),
 				score_id: scoreId,
 				scoreDetails: data.scoreDetails,
 				scores: scores
 			},
-			rawHistory: data.answer?.message_history
+			rawHistory: answer.message_history as unknown[] | undefined
 		};
 	}
 </script>
 
-<div class="flex flex-col h-[calc(100vh-12rem)] max-w-4xl mx-auto w-full">
+<div class="mx-auto flex h-[calc(100vh-12rem)] w-full max-w-4xl flex-col">
 	{#if data.hasScores === false}
-		<div class="mb-4 rounded-md border border-dashed border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-			{m.empty_db_p1()} 
-			<a href="/db-viewer" class="font-medium text-primary hover:underline">{m.empty_db_link()}</a> 
+		<div
+			class="border-border bg-muted/50 text-muted-foreground mb-4 rounded-md border border-dashed p-4 text-center text-sm"
+		>
+			{m.empty_db_p1()}
+			<a href={resolve('/db-viewer')} class="text-primary font-medium hover:underline"
+				>{m.empty_db_link()}</a
+			>
 			{m.empty_db_p2()}
 		</div>
 	{/if}
@@ -138,13 +172,12 @@
 		user={data.user}
 		store={mainAgentHistoryStore}
 	>
-		{#snippet children()}
-		{/snippet}
-
 		{#snippet resultSnippet({ msg, isLast })}
-			<p class="mt-2 text-muted-foreground whitespace-pre-wrap">{msg.answer}</p>
-			{#if isLast && msg.scores && msg.scores.length > 0}
-				<div class="mt-4 overflow-hidden rounded-md border bg-card text-card-foreground shadow-card">
+			<p class="text-muted-foreground mt-2 whitespace-pre-wrap">{msg.answer}</p>
+			{#if isLast && Array.isArray(msg.scores) && msg.scores.length > 0}
+				<div
+					class="bg-card text-card-foreground shadow-card mt-4 overflow-hidden rounded-md border"
+				>
 					<Table.Root>
 						<Table.Header>
 							{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
@@ -165,7 +198,10 @@
 						<Table.Body>
 							{#each table.getRowModel().rows as row (row.id)}
 								<Table.Row
-									class="cursor-pointer transition-colors hover:bg-muted/50 {selectedScoreDetails?.id === row.original.id ? 'bg-muted' : ''}"
+									class="hover:bg-muted/50 cursor-pointer transition-colors {selectedScoreDetails?.id ===
+									row.original.id
+										? 'bg-muted'
+										: ''}"
 									onclick={() => {
 										selectedScoreDetails = row.original;
 										sheetOpen = true;
@@ -184,9 +220,12 @@
 						</Table.Body>
 					</Table.Root>
 
-					<div class="flex items-center justify-end space-x-2 py-4 px-4 border-t border-border">
-						<div class="flex-1 text-sm text-muted-foreground">
-							{m.page_of({ page: table.getState().pagination.pageIndex + 1, total: Math.max(1, table.getPageCount()) })}
+					<div class="border-border flex items-center justify-end space-x-2 border-t px-4 py-4">
+						<div class="text-muted-foreground flex-1 text-sm">
+							{m.page_of({
+								page: table.getState().pagination.pageIndex + 1,
+								total: Math.max(1, table.getPageCount())
+							})}
 						</div>
 						<Button
 							variant="outline"
@@ -209,7 +248,11 @@
 			{/if}
 			{#if msg.score_id}
 				<div class="mt-4">
-					<Button variant="secondary" size="sm" href="/reader/{msg.score_id}">
+					<Button
+						variant="secondary"
+						size="sm"
+						href={resolve('/reader/[id]', { id: String(msg.score_id) })}
+					>
 						{m.view_pdf()} (ID: {msg.score_id})
 					</Button>
 				</div>
@@ -226,26 +269,33 @@
 		</Sheet.Header>
 		{#if selectedScoreDetails}
 			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(selectedScoreDetails).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'short_description_fr', 'long_description_fr'].includes(k)).sort(([a], [b]) => {
-					const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
-					const idxA = order.indexOf(a);
-					const idxB = order.indexOf(b);
-					if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-					if (idxA !== -1) return -1;
-					if (idxB !== -1) return 1;
-					return a.localeCompare(b);
-				}) as [key, value]}
-					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
-						<span class="text-sm font-semibold capitalize text-foreground">
+				{#each Object.entries(selectedScoreDetails)
+					.filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'short_description_fr', 'long_description_fr'].includes(k))
+					.sort(([a], [b]) => {
+						const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
+						const idxA = order.indexOf(a);
+						const idxB = order.indexOf(b);
+						if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+						if (idxA !== -1) return -1;
+						if (idxB !== -1) return 1;
+						return a.localeCompare(b);
+					}) as [key, value] (key)}
+					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
+						<span class="text-foreground text-sm font-semibold capitalize">
 							{translateKey(key)}
 						</span>
-						<span class="col-span-2 text-sm text-muted-foreground break-words">
+						<span class="text-muted-foreground col-span-2 text-sm break-words">
 							{#if key === 'youtube_url' && value}
-								<a href={value as string} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">
+								<a
+									href={value as string}
+									target="_blank"
+									rel="external noopener noreferrer"
+									class="text-blue-500 hover:underline"
+								>
 									Watch on YouTube
 								</a>
-							{:else if (key === 'short_description' || key === 'long_description') && !m.label_title().toLowerCase().includes('title')}
-								{selectedScoreDetails[key + '_fr'] || value || '-'}
+							{:else if isLocalizedField(key) && selectedScoreDetails}
+								{localizedField(selectedScoreDetails, key) || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}
@@ -253,9 +303,12 @@
 					</div>
 				{/each}
 			</div>
-			
+
 			<div class="mt-8 flex flex-col gap-2">
-				<Button href="/reader/{selectedScoreDetails.id}" class="w-full">{m.view_pdf()}</Button>
+				<Button
+					href={resolve('/reader/[id]', { id: String(selectedScoreDetails.id) })}
+					class="w-full">{m.view_pdf()}</Button
+				>
 			</div>
 		{/if}
 	</Sheet.Content>

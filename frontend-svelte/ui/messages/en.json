@@ -162,5 +162,16 @@
 	"cookie_consent_accept": "Got it!",
 	"terms_p1": "Welcome to ScoreGuide. By using our website, you agree to these terms.",
 	"terms_p2": "You are responsible for the files you upload. Do not upload copyrighted material without permission.",
-	"terms_p3": "We reserve the right to remove any content or terminate accounts that violate these terms."
+	"terms_p3": "We reserve the right to remove any content or terminate accounts that violate these terms.",
+	"thinking": "Thinking...",
+	"q_prefix": "Q:",
+	"credits_label": "Credits: {credits}/{max}",
+	"admin_scores": "Scores",
+	"admin_last_login": "Last Login",
+	"admin_role_admin": "Admin",
+	"admin_role_user": "User",
+	"language_switch": "Language",
+	"language_switch_to_en": "Switch to English",
+	"language_switch_to_fr": "Switch to French",
+	"cookie_banner_label": "Cookie consent"
 }

@@ -13,12 +13,12 @@
 </script>
 
 <div class="max-w-3xl py-4">
-	<h1 class="text-fancy-title mb-8 text-3xl font-bold text-foreground">{m.account_management()}</h1>
+	<h1 class="text-fancy-title text-foreground mb-8 text-3xl font-bold">{m.account_management()}</h1>
 
 	<div class="space-y-8">
-		<section class="rounded-md border bg-card p-6 text-card-foreground shadow-card">
+		<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
 			<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.profile_information()}</h2>
-			<p class="mb-6 text-sm text-muted-foreground">{m.profile_info_desc()}</p>
+			<p class="text-muted-foreground mb-6 text-sm">{m.profile_info_desc()}</p>
 
 			<form
 				method="POST"
@@ -38,25 +38,52 @@
 				</div>
 				<div class="space-y-2">
 					<label for="email" class="text-sm font-medium">{m.email()}</label>
-					<Input id="email" name="email" type="email" value={data.user?.email || ''} class="max-w-md" required />
+					<Input
+						id="email"
+						name="email"
+						type="email"
+						value={data.user?.email || ''}
+						class="max-w-md"
+						required
+					/>
 				</div>
 				<div class="space-y-2">
 					<label for="instrument" class="text-sm font-medium">{m.preferred_instrument()}</label>
 					<select
 						id="instrument"
 						name="instrument"
-						class="flex h-10 w-full max-w-md items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+						class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full max-w-md items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
 					>
-						<option value="" disabled selected={!data.user?.instrument}>{m.select_instrument()}</option>
-						<option value="piano" selected={data.user?.instrument === 'piano'}>{m.inst_piano()}</option>
-						<option value="violin" selected={data.user?.instrument === 'violin'}>{m.inst_violin()}</option>
-						<option value="viola" selected={data.user?.instrument === 'viola'}>{m.inst_viola()}</option>
-						<option value="cello" selected={data.user?.instrument === 'cello'}>{m.inst_cello()}</option>
-						<option value="guitar" selected={data.user?.instrument === 'guitar'}>{m.inst_guitar()}</option>
-						<option value="flute" selected={data.user?.instrument === 'flute'}>{m.inst_flute()}</option>
-						<option value="clarinet" selected={data.user?.instrument === 'clarinet'}>{m.inst_clarinet()}</option>
-						<option value="trumpet" selected={data.user?.instrument === 'trumpet'}>{m.inst_trumpet()}</option>
-						<option value="other" selected={data.user?.instrument === 'other'}>{m.inst_other()}</option>
+						<option value="" disabled selected={!data.user?.instrument}
+							>{m.select_instrument()}</option
+						>
+						<option value="piano" selected={data.user?.instrument === 'piano'}
+							>{m.inst_piano()}</option
+						>
+						<option value="violin" selected={data.user?.instrument === 'violin'}
+							>{m.inst_violin()}</option
+						>
+						<option value="viola" selected={data.user?.instrument === 'viola'}
+							>{m.inst_viola()}</option
+						>
+						<option value="cello" selected={data.user?.instrument === 'cello'}
+							>{m.inst_cello()}</option
+						>
+						<option value="guitar" selected={data.user?.instrument === 'guitar'}
+							>{m.inst_guitar()}</option
+						>
+						<option value="flute" selected={data.user?.instrument === 'flute'}
+							>{m.inst_flute()}</option
+						>
+						<option value="clarinet" selected={data.user?.instrument === 'clarinet'}
+							>{m.inst_clarinet()}</option
+						>
+						<option value="trumpet" selected={data.user?.instrument === 'trumpet'}
+							>{m.inst_trumpet()}</option
+						>
+						<option value="other" selected={data.user?.instrument === 'other'}
+							>{m.inst_other()}</option
+						>
 					</select>
 				</div>
 				<div class="space-y-2">
@@ -79,7 +106,7 @@
 				</div>
 
 				{#if form?.form === 'profile' && form?.error}
-					<p class="text-sm font-medium text-destructive">{form.error}</p>
+					<p class="text-destructive text-sm font-medium">{form.error}</p>
 				{/if}
 				{#if form?.form === 'profile' && form?.success}
 					<p class="text-sm font-medium text-green-600 dark:text-green-400">
@@ -93,20 +120,31 @@
 			</form>
 		</section>
 
-		<section class="rounded-md border bg-card p-6 text-card-foreground shadow-card">
+		<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
 			<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.change_password()}</h2>
-			<p class="mb-6 text-sm text-muted-foreground">{m.change_password_desc()}</p>
-			
-			<form method="POST" action="?/update_password" class="space-y-4" use:enhance={() => {
-				loadingPassword = true;
-				return async ({ update }) => {
-					loadingPassword = false;
-					update({ reset: true });
-				};
-			}}>
+			<p class="text-muted-foreground mb-6 text-sm">{m.change_password_desc()}</p>
+
+			<form
+				method="POST"
+				action="?/update_password"
+				class="space-y-4"
+				use:enhance={() => {
+					loadingPassword = true;
+					return async ({ update }) => {
+						loadingPassword = false;
+						update({ reset: true });
+					};
+				}}
+			>
 				<div class="space-y-2">
 					<label for="current_password" class="text-sm font-medium">{m.current_password()}</label>
-					<Input id="current_password" name="current_password" type="password" required class="max-w-md" />
+					<Input
+						id="current_password"
+						name="current_password"
+						type="password"
+						required
+						class="max-w-md"
+					/>
 				</div>
 				<div class="space-y-2">
 					<label for="new_password" class="text-sm font-medium">{m.new_password()}</label>
@@ -114,14 +152,22 @@
 				</div>
 				<div class="space-y-2">
 					<label for="confirm_password" class="text-sm font-medium">{m.confirm_password()}</label>
-					<Input id="confirm_password" name="confirm_password" type="password" required class="max-w-md" />
+					<Input
+						id="confirm_password"
+						name="confirm_password"
+						type="password"
+						required
+						class="max-w-md"
+					/>
 				</div>
 
 				{#if form?.form === 'password' && form?.error}
-					<p class="text-sm font-medium text-destructive">{form.error}</p>
+					<p class="text-destructive text-sm font-medium">{form.error}</p>
 				{/if}
 				{#if form?.form === 'password' && form?.success}
-					<p class="text-sm font-medium text-green-600 dark:text-green-400">{m.password_updated_success()}</p>
+					<p class="text-sm font-medium text-green-600 dark:text-green-400">
+						{m.password_updated_success()}
+					</p>
 				{/if}
 
 				<Button type="submit" disabled={loadingPassword}>
@@ -129,26 +175,39 @@
 				</Button>
 			</form>
 		</section>
-		
-		<section class="rounded-md border border-destructive/20 bg-card p-6 text-card-foreground shadow-card">
-			<h2 class="text-fancy-title mb-4 text-xl font-semibold text-destructive">{m.danger_zone()}</h2>
-			<p class="mb-6 text-sm text-muted-foreground">{m.danger_zone_desc()}</p>
-			
-			<form method="POST" action="?/delete_account" use:enhance={() => {
-				loadingDelete = true;
-				return async ({ update }) => {
-					loadingDelete = false;
-					update();
-				};
-			}}>
+
+		<section
+			class="border-destructive/20 bg-card text-card-foreground shadow-card rounded-md border p-6"
+		>
+			<h2 class="text-fancy-title text-destructive mb-4 text-xl font-semibold">
+				{m.danger_zone()}
+			</h2>
+			<p class="text-muted-foreground mb-6 text-sm">{m.danger_zone_desc()}</p>
+
+			<form
+				method="POST"
+				action="?/delete_account"
+				use:enhance={() => {
+					loadingDelete = true;
+					return async ({ update }) => {
+						loadingDelete = false;
+						update();
+					};
+				}}
+			>
 				{#if form?.form === 'delete' && form?.error}
-					<p class="mb-4 text-sm font-medium text-destructive">{form.error}</p>
+					<p class="text-destructive mb-4 text-sm font-medium">{form.error}</p>
 				{/if}
-				<Button type="submit" variant="destructive" disabled={loadingDelete} onclick={(e) => {
-					if (!confirm(m.delete_account_confirm())) {
-						e.preventDefault();
-					}
-				}}>
+				<Button
+					type="submit"
+					variant="destructive"
+					disabled={loadingDelete}
+					onclick={(e) => {
+						if (!confirm(m.delete_account_confirm())) {
+							e.preventDefault();
+						}
+					}}
+				>
 					{loadingDelete ? m.deleting() : m.delete_account()}
 				</Button>
 			</form>

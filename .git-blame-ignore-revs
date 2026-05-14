@@ -1,0 +1,7 @@
+# Revisions listed here are skipped by `git blame` when the
+# `blame.ignoreRevsFile` setting points at this file (locally, run:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub honours it automatically).
+
+# style: prettier --write across frontend (PR #85)
+a93d1e1a63243e2bb761c03e12dd8861fda1cd60

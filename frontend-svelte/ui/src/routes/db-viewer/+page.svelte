@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
+	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import * as Table from '$lib/components/ui/table/index.js';
@@ -17,23 +18,27 @@
 		getSortedRowModel,
 		getFilteredRowModel
 	} from '@tanstack/table-core';
-	import { FlexRender, createSvelteTable, renderComponent } from '$lib/components/ui/data-table/index.js';
+	import {
+		FlexRender,
+		createSvelteTable,
+		renderComponent
+	} from '$lib/components/ui/data-table/index.js';
 	import type { Score, IMSLPScore } from '$lib/types.js';
+	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import AgentChat from '$lib/components/AgentChat.svelte';
 	import DataTableSortButton from './data-table-sort-button.svelte';
 	import { imslpAgentHistoryStore } from '$lib/stores/chat.svelte';
 	import * as m from '$lib/paraglide/messages.js';
-	import { page } from '$app/state';
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);
-	let agentSelectedScore = $state<Score | null>(null);
+	let agentSelectedScore = $state<IMSLPScore | null>(null);
 	let imslpSheetOpen = $state(false);
 	let uploading = $state(false);
 	let recompleting = $state(false);
 	let sheetOpen = $state(false);
-	let manualFiles = $state<any>();
-	let imslpFiles = $state<any>();
+	let manualFiles = $state<FileList | undefined>();
+	let imslpFiles = $state<FileList | undefined>();
 	let selectedScore = $derived(data.scores.find((s: Score) => s.id === selectedScoreId));
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -41,25 +46,44 @@
 	let columnFilters = $state<ColumnFiltersState>([]);
 
 	const columns: ColumnDef<Score>[] = [
-		{ 
-			accessorKey: 'title', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_title(), onclick: column.getToggleSortingHandler() }) 
+		{
+			accessorKey: 'title',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_title(),
+					onclick: column.getToggleSortingHandler()
+				})
 		},
-		{ 
-			accessorKey: 'composer', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_composer(), onclick: column.getToggleSortingHandler() }) 
+		{
+			accessorKey: 'composer',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_composer(),
+					onclick: column.getToggleSortingHandler()
+				})
 		},
-		{ 
-			accessorKey: 'instrumentation', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_instrumentation(), onclick: column.getToggleSortingHandler() }),
+		{
+			accessorKey: 'instrumentation',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_instrumentation(),
+					onclick: column.getToggleSortingHandler()
+				}),
 			cell: ({ row }) => row.original.instrumentation || '-'
 		},
-		{ 
-			accessorKey: 'year', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_year(), onclick: column.getToggleSortingHandler() }),
+		{
+			accessorKey: 'year',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_year(),
+					onclick: column.getToggleSortingHandler()
+				}),
 			filterFn: (row, columnId, filterValue) => {
 				const val = row.getValue(columnId) as number;
-				const [min, max] = (filterValue as [number | undefined, number | undefined]) || [undefined, undefined];
+				const [min, max] = (filterValue as [number | undefined, number | undefined]) || [
+					undefined,
+					undefined
+				];
 				if (min !== undefined && !isNaN(min) && val < min) return false;
 				if (max !== undefined && !isNaN(max) && val > max) return false;
 				return true;
@@ -117,22 +141,38 @@
 	let imslpColumnFilters = $state<ColumnFiltersState>([]);
 
 	const imslpColumns: ColumnDef<IMSLPScore>[] = [
-		{ 
-			accessorKey: 'composer', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_composer(), onclick: column.getToggleSortingHandler() }) 
+		{
+			accessorKey: 'composer',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_composer(),
+					onclick: column.getToggleSortingHandler()
+				})
 		},
-		{ 
-			accessorKey: 'title', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_title(), onclick: column.getToggleSortingHandler() }) 
+		{
+			accessorKey: 'title',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_title(),
+					onclick: column.getToggleSortingHandler()
+				})
 		},
-		{ 
-			accessorKey: 'instrumentation', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_instrumentation(), onclick: column.getToggleSortingHandler() }),
+		{
+			accessorKey: 'instrumentation',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_instrumentation(),
+					onclick: column.getToggleSortingHandler()
+				}),
 			cell: ({ row }) => row.original.instrumentation || '-'
 		},
-		{ 
-			accessorKey: 'year', 
-			header: ({ column }) => renderComponent(DataTableSortButton, { title: m.label_year(), onclick: column.getToggleSortingHandler() }),
+		{
+			accessorKey: 'year',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_year(),
+					onclick: column.getToggleSortingHandler()
+				}),
 			cell: ({ row }) => row.original.year || '-'
 		}
 	];
@@ -159,18 +199,18 @@
 		return map[key] || key.replace(/_/g, ' ');
 	}
 
-	let imslpScores = $state<any[]>([]);
-	function onImslpResult(data: any) {
-		const res = data.agent_results;
-		const scores = res.scores || [];
+	let imslpScores = $state<IMSLPScore[]>([]);
+	function onImslpResult(data: Record<string, unknown>) {
+		const res = (data.agent_results ?? {}) as Record<string, unknown>;
+		const scores = (res.scores as IMSLPScore[] | undefined) ?? [];
 		imslpScores = scores;
 		return {
-			question: data.question,
+			question: String(data.question ?? ''),
 			answer: {
 				answer: res.response,
 				scores: scores
 			},
-			rawHistory: res.message_history
+			rawHistory: res.message_history as unknown[] | undefined
 		};
 	}
 
@@ -180,9 +220,15 @@
 		},
 		columns: imslpColumns,
 		state: {
-			get pagination() { return imslpPagination; },
-			get sorting() { return imslpSorting; },
-			get columnFilters() { return imslpColumnFilters; }
+			get pagination() {
+				return imslpPagination;
+			},
+			get sorting() {
+				return imslpSorting;
+			},
+			get columnFilters() {
+				return imslpColumnFilters;
+			}
 		},
 		onPaginationChange: (updater) => {
 			if (typeof updater === 'function') {
@@ -213,7 +259,7 @@
 </script>
 
 <div class="p-8">
-	<div class="mb-8 rounded-md border bg-card p-4 text-card-foreground shadow-card">
+	<div class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-4">
 		<h2 class="text-fancy-title mb-4 text-lg font-semibold">{m.add_new_score()}</h2>
 		<Tabs.Root value="manual" class="w-full">
 			<Tabs.List class="mb-4">
@@ -221,28 +267,45 @@
 				<Tabs.Trigger value="imslp">{m.from_imslp()}</Tabs.Trigger>
 			</Tabs.List>
 			<Tabs.Content value="manual">
-				<form method="POST" action="?/upload" enctype="multipart/form-data" use:enhance={() => {
-					uploading = true;
-					return async ({ update }) => {
-						uploading = false;
-						manualFiles = undefined;
-						update();
-					};
-				}} class="flex flex-col gap-4 md:flex-row md:items-end">
+				<form
+					method="POST"
+					action="?/upload"
+					enctype="multipart/form-data"
+					use:enhance={() => {
+						uploading = true;
+						return async ({ update }) => {
+							uploading = false;
+							manualFiles = undefined;
+							update();
+						};
+					}}
+					class="flex flex-col gap-4 md:flex-row md:items-end"
+				>
 					<div class="flex-1 space-y-2">
-						<label for="title" class="text-sm font-medium leading-none">{m.title()}</label>
+						<label for="title" class="text-sm leading-none font-medium">{m.title()}</label>
 						<Input id="title" name="title" required />
 					</div>
 					<div class="flex-1 space-y-2">
-						<label for="composer" class="text-sm font-medium leading-none">{m.composer()}</label>
+						<label for="composer" class="text-sm leading-none font-medium">{m.composer()}</label>
 						<Input id="composer" name="composer" required />
 					</div>
 					<div class="flex-1 space-y-2">
-						<label for="file" class="text-sm font-medium leading-none">{m.pdf_file()}</label>
+						<label for="file" class="text-sm leading-none font-medium">{m.pdf_file()}</label>
 						<div class="relative">
-							<Input id="file" name="file" type="file" accept="application/pdf" required class="sr-only" bind:files={manualFiles} />
-							<label for="file" class="flex h-9 w-full cursor-pointer items-center rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground">
-								<span class="truncate text-muted-foreground">
+							<Input
+								id="file"
+								name="file"
+								type="file"
+								accept="application/pdf"
+								required
+								class="sr-only"
+								bind:files={manualFiles}
+							/>
+							<label
+								for="file"
+								class="border-input hover:bg-accent hover:text-accent-foreground flex h-9 w-full cursor-pointer items-center rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
+							>
+								<span class="text-muted-foreground truncate">
 									{manualFiles && manualFiles.length > 0 ? manualFiles[0].name : m.choose_file()}
 								</span>
 							</label>
@@ -254,7 +317,11 @@
 				</form>
 			</Tabs.Content>
 			<Tabs.Content value="imslp">
-				<div class="flex flex-col {imslpAgentHistoryStore.history.length > 0 ? 'h-[500px]' : 'h-auto'} w-full">
+				<div
+					class="flex flex-col {imslpAgentHistoryStore.history.length > 0
+						? 'h-[500px]'
+						: 'h-auto'} w-full"
+				>
 					<AgentChat
 						{form}
 						action="?/ask_agent"
@@ -264,17 +331,15 @@
 						user={data.user}
 						store={imslpAgentHistoryStore}
 					>
-						{#snippet children()}
-							<div class="text-xs max-w-sm">
-								{m.warning_limit_100()}
-							</div>
-						{/snippet}
+						<div class="max-w-sm text-xs">
+							{m.warning_limit_100()}
+						</div>
 						{#snippet resultSnippet({ msg, isLast })}
 							<p class="mb-4 text-sm whitespace-pre-wrap">{msg.answer}</p>
 							{#if isLast}
-								{#if msg.scores && msg.scores.length > 0}
+								{#if Array.isArray(msg.scores) && msg.scores.length > 0}
 									<div
-										class="mb-4 overflow-hidden rounded-md border bg-card text-card-foreground shadow-card"
+										class="bg-card text-card-foreground shadow-card mb-4 overflow-hidden rounded-md border"
 									>
 										<Table.Root>
 											<Table.Header>
@@ -296,7 +361,7 @@
 											<Table.Body>
 												{#each imslpTable.getRowModel().rows as row (row.id)}
 													<Table.Row
-														class="cursor-pointer transition-colors hover:bg-muted/50 {agentSelectedScore?.id ===
+														class="hover:bg-muted/50 cursor-pointer transition-colors {agentSelectedScore?.id ===
 														row.original.id
 															? 'bg-muted'
 															: ''}"
@@ -322,9 +387,12 @@
 											</Table.Body>
 										</Table.Root>
 
-										<div class="flex items-center justify-end space-x-2 py-4 px-4 border-t">
-											<div class="flex-1 text-sm text-muted-foreground">
-												{m.page_of({ page: imslpTable.getState().pagination.pageIndex + 1, total: Math.max(1, imslpTable.getPageCount()) })}
+										<div class="flex items-center justify-end space-x-2 border-t px-4 py-4">
+											<div class="text-muted-foreground flex-1 text-sm">
+												{m.page_of({
+													page: imslpTable.getState().pagination.pageIndex + 1,
+													total: Math.max(1, imslpTable.getPageCount())
+												})}
 											</div>
 											<Button
 												variant="outline"
@@ -345,7 +413,7 @@
 										</div>
 									</div>
 								{:else if msg.answer}
-									<p class="text-sm text-muted-foreground mt-2 text-center">
+									<p class="text-muted-foreground mt-2 text-center text-sm">
 										{m.no_matching_scores()}
 									</p>
 								{/if}
@@ -356,50 +424,58 @@
 			</Tabs.Content>
 		</Tabs.Root>
 		{#if form?.error}
-			<p class="mt-4 text-sm font-medium text-destructive">{form.error}</p>
+			<p class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
 		{/if}
 		{#if form?.scoreAdded}
-			<p class="mt-4 text-sm font-medium text-green-600 dark:text-green-400">{m.score_added_success()}</p>
+			<p class="mt-4 text-sm font-medium text-green-600 dark:text-green-400">
+				{m.score_added_success()}
+			</p>
 		{/if}
 	</div>
 
 	<div class="mb-4 flex items-center justify-between">
-		<h1 class="text-fancy-title text-2xl font-bold text-foreground">{m.database_viewer()}</h1>
+		<h1 class="text-fancy-title text-foreground text-2xl font-bold">{m.database_viewer()}</h1>
 		{#if selectedScoreId}
 			<div class="flex gap-2">
-				<form method="POST" action="?/delete" use:enhance={() => {
-					return async ({ update, result }) => {
-						if (result.type === 'success') {
-							selectedScoreId = null;
-						}
-						update();
-					};
-				}}>
+				<form
+					method="POST"
+					action="?/delete"
+					use:enhance={() => {
+						return async ({ update, result }) => {
+							if (result.type === 'success') {
+								selectedScoreId = null;
+							}
+							update();
+						};
+					}}
+				>
 					<input type="hidden" name="id" value={selectedScoreId} />
 					<Button type="submit" variant="destructive">{m.delete()}</Button>
 				</form>
-				<Button href="/reader/{selectedScoreId}">{m.view_pdf()}</Button>
+				<Button href={resolve('/reader/[id]', { id: String(selectedScoreId) })}
+					>{m.view_pdf()}</Button
+				>
 			</div>
 		{/if}
 	</div>
-	
+
 	<div class="flex flex-wrap items-center gap-4 py-4">
 		<Input
 			placeholder={m.filter_titles()}
-			value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-			oninput={(e) => table.getColumn("title")?.setFilterValue(e.currentTarget.value)}
+			value={(table.getColumn('title')?.getFilterValue() as string) ?? ''}
+			oninput={(e) => table.getColumn('title')?.setFilterValue(e.currentTarget.value)}
 			class="max-w-xs"
 		/>
 		<Input
 			placeholder={m.filter_composers()}
-			value={(table.getColumn("composer")?.getFilterValue() as string) ?? ""}
-			oninput={(e) => table.getColumn("composer")?.setFilterValue(e.currentTarget.value)}
+			value={(table.getColumn('composer')?.getFilterValue() as string) ?? ''}
+			oninput={(e) => table.getColumn('composer')?.setFilterValue(e.currentTarget.value)}
 			class="max-w-xs"
 		/>
 		<Input
 			placeholder={m.filter_instrumentation()}
-			value={(table.getColumn("instrumentation")?.getFilterValue() as string) ?? ""}
-			oninput={(e) => table.getColumn("instrumentation")?.setFilterValue(e.currentTarget.value)}
+			value={(table.getColumn('instrumentation')?.getFilterValue() as string) ?? ''}
+			oninput={(e) => table.getColumn('instrumentation')?.setFilterValue(e.currentTarget.value)}
 			class="max-w-xs"
 		/>
 		<div class="flex items-center gap-2">
@@ -407,11 +483,14 @@
 			<Input
 				type="number"
 				placeholder={m.min()}
-				value={((table.getColumn("year")?.getFilterValue() as [number, number])?.[0]) ?? ""}
+				value={(table.getColumn('year')?.getFilterValue() as [number, number])?.[0] ?? ''}
 				oninput={(e) => {
-					const current = (table.getColumn("year")?.getFilterValue() as [number | undefined, number | undefined]) || [undefined, undefined];
+					const current = (table.getColumn('year')?.getFilterValue() as [
+						number | undefined,
+						number | undefined
+					]) || [undefined, undefined];
 					const val = e.currentTarget.value ? parseInt(e.currentTarget.value, 10) : undefined;
-					table.getColumn("year")?.setFilterValue([val, current[1]]);
+					table.getColumn('year')?.setFilterValue([val, current[1]]);
 				}}
 				class="w-20"
 			/>
@@ -419,18 +498,21 @@
 			<Input
 				type="number"
 				placeholder={m.max()}
-				value={((table.getColumn("year")?.getFilterValue() as [number, number])?.[1]) ?? ""}
+				value={(table.getColumn('year')?.getFilterValue() as [number, number])?.[1] ?? ''}
 				oninput={(e) => {
-					const current = (table.getColumn("year")?.getFilterValue() as [number | undefined, number | undefined]) || [undefined, undefined];
+					const current = (table.getColumn('year')?.getFilterValue() as [
+						number | undefined,
+						number | undefined
+					]) || [undefined, undefined];
 					const val = e.currentTarget.value ? parseInt(e.currentTarget.value, 10) : undefined;
-					table.getColumn("year")?.setFilterValue([current[0], val]);
+					table.getColumn('year')?.setFilterValue([current[0], val]);
 				}}
 				class="w-20"
 			/>
 		</div>
 	</div>
 
-	<div class="rounded-md border bg-card text-card-foreground shadow-card">
+	<div class="bg-card text-card-foreground shadow-card rounded-md border">
 		<Table.Root>
 			<Table.Header>
 				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
@@ -450,16 +532,19 @@
 			</Table.Header>
 			<Table.Body>
 				{#each table.getRowModel().rows as row (row.id)}
-					<Table.Row 
-						class="cursor-pointer transition-colors hover:bg-muted/50 {selectedScoreId === row.original.id ? 'bg-muted' : ''}"
-						onclick={() => { selectedScoreId = row.original.id; sheetOpen = true; }}
+					<Table.Row
+						class="hover:bg-muted/50 cursor-pointer transition-colors {selectedScoreId ===
+						row.original.id
+							? 'bg-muted'
+							: ''}"
+						onclick={() => {
+							selectedScoreId = row.original.id;
+							sheetOpen = true;
+						}}
 					>
 						{#each row.getVisibleCells() as cell (cell.id)}
 							<Table.Cell class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]">
-								<FlexRender
-									content={cell.column.columnDef.cell}
-									context={cell.getContext()}
-								/>
+								<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
 							</Table.Cell>
 						{/each}
 					</Table.Row>
@@ -475,8 +560,11 @@
 	</div>
 
 	<div class="flex items-center justify-end space-x-2 py-4">
-		<div class="flex-1 text-sm text-muted-foreground">
-			{m.page_of({ page: table.getState().pagination.pageIndex + 1, total: Math.max(1, table.getPageCount()) })}
+		<div class="text-muted-foreground flex-1 text-sm">
+			{m.page_of({
+				page: table.getState().pagination.pageIndex + 1,
+				total: Math.max(1, table.getPageCount())
+			})}
 		</div>
 		<Button
 			variant="outline"
@@ -505,26 +593,33 @@
 		</Sheet.Header>
 		{#if selectedScore}
 			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(selectedScore).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'short_description_fr', 'long_description_fr'].includes(k)).sort(([a], [b]) => {
-					const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
-					const idxA = order.indexOf(a);
-					const idxB = order.indexOf(b);
-					if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-					if (idxA !== -1) return -1;
-					if (idxB !== -1) return 1;
-					return a.localeCompare(b);
-				}) as [key, value]}
-					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
-						<span class="text-sm font-semibold capitalize text-foreground">
+				{#each Object.entries(selectedScore)
+					.filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'short_description_fr', 'long_description_fr'].includes(k))
+					.sort(([a], [b]) => {
+						const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
+						const idxA = order.indexOf(a);
+						const idxB = order.indexOf(b);
+						if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+						if (idxA !== -1) return -1;
+						if (idxB !== -1) return 1;
+						return a.localeCompare(b);
+					}) as [key, value] (key)}
+					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
+						<span class="text-foreground text-sm font-semibold capitalize">
 							{translateKey(key)}
 						</span>
-						<span class="col-span-2 text-sm text-muted-foreground break-words">
+						<span class="text-muted-foreground col-span-2 text-sm break-words">
 							{#if key === 'youtube_url' && value}
-								<a href={value} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">
+								<a
+									href={value}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="text-blue-500 hover:underline"
+								>
 									Watch on YouTube
 								</a>
-							{:else if (key === 'short_description' || key === 'long_description') && !m.label_title().toLowerCase().includes('title')}
-								{selectedScore[key + '_fr'] || value || '-'}
+							{:else if isLocalizedField(key) && selectedScore}
+								{localizedField(selectedScore, key) || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}
@@ -532,19 +627,25 @@
 					</div>
 				{/each}
 			</div>
-			
+
 			<div class="mt-8 flex flex-col gap-2">
-				<Button href="/reader/{selectedScore.id}" class="w-full">{m.view_pdf()}</Button>
-				<form method="POST" action="?/recomplete" use:enhance={() => {
-					recompleting = true;
-					return async ({ update, result }) => {
-						recompleting = false;
-						if (result.type === 'success') {
-							await invalidateAll();
-						}
-						await update({ reset: false });
-					};
-				}}>
+				<Button href={resolve('/reader/[id]', { id: String(selectedScore.id) })} class="w-full"
+					>{m.view_pdf()}</Button
+				>
+				<form
+					method="POST"
+					action="?/recomplete"
+					use:enhance={() => {
+						recompleting = true;
+						return async ({ update, result }) => {
+							recompleting = false;
+							if (result.type === 'success') {
+								await invalidateAll();
+							}
+							await update({ reset: false });
+						};
+					}}
+				>
 					<input type="hidden" name="id" value={selectedScore.id} />
 					<input type="hidden" name="title" value={selectedScore.title} />
 					<input type="hidden" name="composer" value={selectedScore.composer} />
@@ -553,15 +654,19 @@
 						{recompleting ? m.running_agent() : m.rerun_complete_agent()}
 					</Button>
 				</form>
-				<form method="POST" action="?/delete" use:enhance={() => {
-					return async ({ update, result }) => {
-						if (result.type === 'success') {
-							sheetOpen = false;
-							selectedScoreId = null;
-						}
-						update();
-					};
-				}}>
+				<form
+					method="POST"
+					action="?/delete"
+					use:enhance={() => {
+						return async ({ update, result }) => {
+							if (result.type === 'success') {
+								sheetOpen = false;
+								selectedScoreId = null;
+							}
+							update();
+						};
+					}}
+				>
 					<input type="hidden" name="id" value={selectedScore.id} />
 					<Button type="submit" variant="destructive" class="w-full">{m.delete_score()}</Button>
 				</form>
@@ -578,26 +683,33 @@
 		</Sheet.Header>
 		{#if agentSelectedScore}
 			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(agentSelectedScore).filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'score_metadata', 'short_description_fr', 'long_description_fr'].includes(k)).sort(([a], [b]) => {
-					const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
-					const idxA = order.indexOf(a);
-					const idxB = order.indexOf(b);
-					if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-					if (idxA !== -1) return -1;
-					if (idxB !== -1) return 1;
-					return a.localeCompare(b);
-				}) as [key, value]}
-					<div class="grid grid-cols-3 gap-2 border-b border-border pb-2 last:border-0">
-						<span class="text-sm font-semibold capitalize text-foreground">
+				{#each Object.entries(agentSelectedScore)
+					.filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'score_metadata', 'short_description_fr', 'long_description_fr'].includes(k))
+					.sort(([a], [b]) => {
+						const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
+						const idxA = order.indexOf(a);
+						const idxB = order.indexOf(b);
+						if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+						if (idxA !== -1) return -1;
+						if (idxB !== -1) return 1;
+						return a.localeCompare(b);
+					}) as [key, value] (key)}
+					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
+						<span class="text-foreground text-sm font-semibold capitalize">
 							{translateKey(key)}
 						</span>
-						<span class="col-span-2 text-sm text-muted-foreground break-words">
+						<span class="text-muted-foreground col-span-2 text-sm break-words">
 							{#if key === 'permlink' && value}
-								<a href={value as string} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">
+								<a
+									href={value as string}
+									target="_blank"
+									rel="external noopener noreferrer"
+									class="text-blue-500 hover:underline"
+								>
 									{m.view_on_imslp()}
 								</a>
-							{:else if (key === 'short_description' || key === 'long_description') && !m.label_title().toLowerCase().includes('title')}
-								{agentSelectedScore[key + '_fr'] || value || '-'}
+							{:else if isLocalizedField(key) && agentSelectedScore}
+								{localizedField(agentSelectedScore, key) || value || '-'}
 							{:else}
 								{value !== null && value !== '' ? value : '-'}
 							{/if}
@@ -605,33 +717,57 @@
 					</div>
 				{/each}
 			</div>
-			
-			<div class="mt-8 flex flex-col gap-4 border-t border-border pt-4">
-				<h3 class="font-semibold text-foreground">{m.add_this_score()}</h3>
-				<p class="text-sm text-muted-foreground">
-					{m.download_pdf_imslp()}<br/>
-					<a href={agentSelectedScore.permlink} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline break-all">{agentSelectedScore.permlink}</a>
+
+			<div class="border-border mt-8 flex flex-col gap-4 border-t pt-4">
+				<h3 class="text-foreground font-semibold">{m.add_this_score()}</h3>
+				<p class="text-muted-foreground text-sm">
+					{m.download_pdf_imslp()}<br />
+					<a
+						href={agentSelectedScore.permlink}
+						target="_blank"
+						rel="external noopener noreferrer"
+						class="break-all text-blue-500 hover:underline">{agentSelectedScore.permlink}</a
+					>
 				</p>
-				<p class="text-sm text-muted-foreground">
+				<p class="text-muted-foreground text-sm">
 					{m.upload_pdf_below()}
 				</p>
-				<form method="POST" action="?/add_imslp" enctype="multipart/form-data" use:enhance={() => {
-					uploading = true;
-					return async ({ update }) => {
-						uploading = false;
-						agentSelectedScore = null;
-						imslpSheetOpen = false;
-						imslpFiles = undefined;
-						update();
-					};
-				}} class="flex flex-col gap-4">
+				<form
+					method="POST"
+					action="?/add_imslp"
+					enctype="multipart/form-data"
+					use:enhance={() => {
+						uploading = true;
+						return async ({ update }) => {
+							uploading = false;
+							agentSelectedScore = null;
+							imslpSheetOpen = false;
+							imslpFiles = undefined;
+							update();
+						};
+					}}
+					class="flex flex-col gap-4"
+				>
 					<input type="hidden" name="imslp_id" value={agentSelectedScore.id} />
 					<div class="space-y-2">
-						<label for="agent_file_sheet" class="text-sm font-medium leading-none">{m.pdf_file()}</label>
+						<label for="agent_file_sheet" class="text-sm leading-none font-medium"
+							>{m.pdf_file()}</label
+						>
 						<div class="relative">
-							<Input id="agent_file_sheet" name="file" type="file" accept="application/pdf" required class="sr-only" bind:files={imslpFiles} />
-							<label for="agent_file_sheet" class="flex h-9 w-full cursor-pointer items-center rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground">
-								<span class="truncate text-muted-foreground">
+							<Input
+								id="agent_file_sheet"
+								name="file"
+								type="file"
+								accept="application/pdf"
+								required
+								class="sr-only"
+								bind:files={imslpFiles}
+							/>
+							<label
+								for="agent_file_sheet"
+								class="border-input hover:bg-accent hover:text-accent-foreground flex h-9 w-full cursor-pointer items-center rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
+							>
+								<span class="text-muted-foreground truncate">
 									{imslpFiles && imslpFiles.length > 0 ? imslpFiles[0].name : m.choose_file()}
 								</span>
 							</label>

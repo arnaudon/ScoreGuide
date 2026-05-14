@@ -1,10 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { env as publicEnv } from '$env/dynamic/public';
 import { dev } from '$app/environment';
-import { BACKEND_URL } from '$lib/server/api.js';
-
-const PUBLIC_BACKEND_URL = publicEnv.PUBLIC_BACKEND_URL || 'http://localhost:8000';
+import { apiFetch } from '$lib/server/fetchApi.js';
+import type { Score } from '$lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 	const token = cookies.get('access_token');
@@ -12,19 +10,16 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 		redirect(303, '/login');
 	}
 
+	const api = apiFetch(fetch, token);
 	try {
-		const response = await fetch(`${BACKEND_URL}/scores`, {
-			headers: {
-				Authorization: `Bearer ${token}`
-			}
-		});
+		const response = await api('/scores');
 
 		if (response.ok) {
-			const scores = await response.json();
-			const score = scores.find((s: any) => s.id === Number(params.id));
-			
+			const scores = (await response.json()) as Score[];
+			const score = scores.find((s) => s.id === Number(params.id));
+
 			if (score) {
-				cookies.set('last_score_id', params.id, { 
+				cookies.set('last_score_id', params.id, {
 					path: '/',
 					httpOnly: true,
 					secure: !dev,
@@ -33,15 +28,11 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 				});
 			}
 
-			return { 
-				score, 
-				token, 
-				publicBackendUrl: PUBLIC_BACKEND_URL 
-			};
+			return { score };
 		}
 	} catch (error) {
 		console.error('Failed to fetch score:', error);
 	}
 
-	return { score: null, token, publicBackendUrl: PUBLIC_BACKEND_URL };
+	return { score: null };
 };
