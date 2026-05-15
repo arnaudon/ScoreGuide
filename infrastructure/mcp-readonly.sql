@@ -17,7 +17,6 @@ BEGIN
 END
 $$;
 
-GRANT CONNECT ON DATABASE current_database() TO mcp_readonly;
 GRANT USAGE ON SCHEMA public TO mcp_readonly;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO mcp_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO mcp_readonly;
