@@ -14,7 +14,7 @@ import { apiFetch } from '$lib/server/fetchApi.js';
 export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 	const pathWithQuery = params.filepath;
 	let filename = pathWithQuery;
-	let urlToken: string | null = null;
+	let urlToken: string | null;
 
 	// PDF.js encodes the `?file=` query param value, which means our own
 	// `?token=` query parameter ends up inside `params.filepath`. Strip it.
