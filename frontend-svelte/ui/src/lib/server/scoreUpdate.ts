@@ -1,7 +1,9 @@
 /**
  * Build a partial-update payload for `PUT /scores/{id}` from a FormData
  * submitted by the EditScoreDialog. Only fields present in formData are
- * included. Mirrors the backend `ScoreUpdate` schema (shared/shared/scores.py).
+ * included. Empty strings are forwarded (and overwrite the stored value on
+ * the backend) — that's how the UI lets users clear a field. Mirrors the
+ * backend `ScoreUpdate` schema (shared/shared/scores.py).
  */
 const TEXT_FIELDS = [
 	'title',

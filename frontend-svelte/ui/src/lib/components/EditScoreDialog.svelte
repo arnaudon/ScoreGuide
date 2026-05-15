@@ -7,6 +7,8 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import type { Score, Period, Difficulty } from '$lib/types.js';
 
+	const CURRENT_YEAR = new Date().getFullYear();
+
 	let {
 		open = $bindable(false),
 		score,
@@ -49,7 +51,7 @@
 			title = score.title ?? '';
 			composer = score.composer ?? '';
 			year = score.year ?? 1750;
-			period = (score.period as Period) ?? 'Classical';
+			period = score.period ?? 'Classical';
 			genre = score.genre ?? '';
 			form = score.form ?? '';
 			style = score.style ?? '';
@@ -58,7 +60,7 @@
 			shortDescription = score.short_description ?? '';
 			longDescription = score.long_description ?? '';
 			youtubeUrl = score.youtube_url ?? '';
-			difficulty = (score.difficulty as Difficulty) ?? 'moderate';
+			difficulty = score.difficulty ?? 'moderate';
 			notableInterpreters = score.notable_interpreters ?? '';
 		}
 	});
@@ -104,7 +106,15 @@
 				</div>
 				<div class="space-y-2">
 					<label for="edit-year" class="text-sm font-medium">{m.label_year()}</label>
-					<Input id="edit-year" name="year" type="number" bind:value={year} />
+					<Input
+						id="edit-year"
+						name="year"
+						type="number"
+						step="1"
+						min={-999}
+						max={CURRENT_YEAR + 1}
+						bind:value={year}
+					/>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-period" class="text-sm font-medium">{m.label_period()}</label>
@@ -184,7 +194,7 @@
 				</div>
 				<div class="space-y-2">
 					<label for="edit-youtube-url" class="text-sm font-medium">{m.label_youtube_url()}</label>
-					<Input id="edit-youtube-url" name="youtube_url" type="url" bind:value={youtubeUrl} />
+					<Input id="edit-youtube-url" name="youtube_url" bind:value={youtubeUrl} />
 				</div>
 
 				<Sheet.Footer class="mt-4">
