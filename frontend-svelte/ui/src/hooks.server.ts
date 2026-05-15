@@ -29,4 +29,13 @@ const handleParaglide: Handle = ({ event, resolve }) =>
 
 export const handle: Handle = sequence(Sentry.sentryHandle(), handleParaglide);
 
-export const handleError: HandleServerError = Sentry.handleErrorWithSentry();
+const sentryError = Sentry.handleErrorWithSentry();
+export const handleError: HandleServerError = (input) => {
+	// 404s (and other 4xx) come almost entirely from scanner probes
+	// hitting /sitemaps.xml, /wp-admin, /.git/config, etc. Don't log or
+	// report them — SvelteKit already returns the right status code.
+	if (typeof input.status === 'number' && input.status >= 400 && input.status < 500) {
+		return;
+	}
+	return sentryError(input);
+};
