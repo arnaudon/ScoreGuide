@@ -249,6 +249,103 @@ describe('delete action', () => {
 	});
 });
 
+describe('update_score action', () => {
+	it('fails 401 when not authenticated', async () => {
+		const result = await actions.update_score(
+			event({
+				request: fakeRequest({ id: '7', title: 't' }),
+				cookies: makeCookies(),
+				fetch: vi.fn()
+			})
+		);
+		expect(result).toMatchObject({ status: 401 });
+	});
+
+	it('fails 400 when id is missing', async () => {
+		const result = await actions.update_score(
+			event({
+				request: fakeRequest({ title: 't' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch: vi.fn()
+			})
+		);
+		expect(result).toMatchObject({ status: 400 });
+	});
+
+	it('PUTs only the submitted fields on happy path', async () => {
+		const fetch = makeFetch().mockResolvedValueOnce(jsonResponse({ id: 7 }));
+		const result = await actions.update_score(
+			event({
+				request: fakeRequest({
+					id: '7',
+					title: 'New Title',
+					composer: 'New Composer',
+					year: '1850',
+					period: 'Romantic',
+					difficulty: 'expert',
+					short_description: 'short',
+					long_description: 'long',
+					youtube_url: 'https://example.com',
+					genre: 'g',
+					form: 'f',
+					style: 's',
+					key: 'C',
+					instrumentation: 'piano',
+					notable_interpreters: 'someone'
+				}),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toEqual({ success: true, scoreUpdated: true });
+		expect(fetch.mock.calls[0][1]!.method).toBe('PUT');
+		expect(fetch.mock.calls[0][0]).toContain('/scores/7');
+		const body = JSON.parse(fetch.mock.calls[0][1]!.body as string);
+		expect(body).toMatchObject({
+			title: 'New Title',
+			composer: 'New Composer',
+			year: 1850,
+			period: 'Romantic',
+			difficulty: 'expert',
+			short_description: 'short',
+			long_description: 'long',
+			youtube_url: 'https://example.com',
+			genre: 'g',
+			form: 'f',
+			style: 's',
+			key: 'C',
+			instrumentation: 'piano',
+			notable_interpreters: 'someone'
+		});
+	});
+
+	it('omits year when blank or non-numeric', async () => {
+		const fetch = makeFetch().mockResolvedValueOnce(jsonResponse({ id: 7 }));
+		await actions.update_score(
+			event({
+				request: fakeRequest({ id: '7', title: 't', year: '' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		const body = JSON.parse(fetch.mock.calls[0][1]!.body as string);
+		expect(body).not.toHaveProperty('year');
+		expect(body).toMatchObject({ title: 't' });
+	});
+
+	it('forwards backend failure status', async () => {
+		const fetch = vi.fn(async () => new Response(null, { status: 404 }));
+		const result = await actions.update_score(
+			event({
+				request: fakeRequest({ id: '999', title: 't' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({ status: 404, data: { error: 'Failed to update score' } });
+	});
+});
+
 describe('recomplete action', () => {
 	it('fails 400 when required fields are missing', async () => {
 		const result = await actions.recomplete(
