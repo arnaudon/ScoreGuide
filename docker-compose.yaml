@@ -6,6 +6,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # Consumed by postgres-init/01_mcp_readonly.sh on first init. Use a
+      # URL- and SQL-quote-safe value (alphanumeric) — it's interpolated
+      # into the MCP connection string below and a psql heredoc.
+      MCP_READONLY_PASSWORD: ${MCP_READONLY_PASSWORD:-readonly}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Initializes the `mcp_readonly` role on first start (empty data volume).
@@ -21,8 +25,9 @@ services:
 
   mcp-postgres:
     image: crystaldba/postgres-mcp
-    ports:
-      - "8001:8001"
+    # No published ports on purpose: only the backend talks to this server,
+    # via the compose-internal hostname mcp-postgres:8001. Publishing it
+    # would expose an unauthenticated SQL interface to the host network.
     command:
       - "--transport=sse"
       - "--sse-host=0.0.0.0"
@@ -30,8 +35,8 @@ services:
       - "--access-mode=restricted"
       # Defense-in-depth: connects as a SELECT-only role, so even a prompt
       # that escapes restricted mode can't write. Bootstrapped by
-      # postgres-init/01_mcp_readonly.sql.
-      - "postgresql://mcp_readonly:readonly@db:5432/${POSTGRES_DB}"
+      # postgres-init/01_mcp_readonly.sh.
+      - "postgresql://mcp_readonly:${MCP_READONLY_PASSWORD:-readonly}@db:5432/${POSTGRES_DB}"
     restart: always
 
   backend:

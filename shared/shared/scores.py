@@ -55,8 +55,8 @@ class Score(ScoreBase, table=True):
     pdf_path: str = Field(default="")
     number_of_plays: int = 0
     source: str = Field(default="IMSLP")
-    imslp_id: int | None = Field(default=None)
-    user_id: int | None = Field(foreign_key="user.id")
+    imslp_id: int | None = Field(default=None, index=True)
+    user_id: int | None = Field(foreign_key="user.id", index=True)
     user: Optional["User"] = Relationship(back_populates="scores")
 
     short_description: str = Field(default="")

@@ -45,3 +45,16 @@ def test_upload_and_delete_local_handles_missing_file(monkeypatch):
     monkeypatch.setenv("S3_ENDPOINT", "")
     monkeypatch.setenv("S3_BUCKET", "")
     file_helper.delete_pdf("does_not_exist.pdf")
+
+
+@pytest.mark.parametrize("filename", ["../escape.pdf", "../../etc/passwd", "/etc/passwd", ""])
+def test_local_path_rejects_traversal(monkeypatch, filename):
+    """Filenames escaping DATA_PATH are rejected in all local operations."""
+    monkeypatch.setenv("S3_ENDPOINT", "")
+    monkeypatch.setenv("S3_BUCKET", "")
+    with pytest.raises(ValueError):
+        file_helper.upload_pdf(filename, io.BytesIO(b"x"))
+    with pytest.raises(ValueError):
+        file_helper.download_pdf(filename)
+    with pytest.raises(ValueError):
+        file_helper.delete_pdf(filename)

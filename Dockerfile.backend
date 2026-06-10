@@ -45,15 +45,20 @@ WORKDIR /app
 
 EXPOSE 8000
 
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/backend /app/backend
-COPY --from=builder /app/shared /app/shared
+# Run as a non-root user. uid 1000 matches the default first user on the
+# host so dev bind mounts (./backend, ./data) stay writable.
+RUN useradd --create-home --uid 1000 app
+
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --from=builder --chown=app:app /app/backend /app/backend
+COPY --from=builder --chown=app:app /app/shared /app/shared
 # copy these for db migration
-COPY backend/migrations /app/backend/migrations
-COPY backend/alembic.ini /app/backend/alembic.ini
+COPY --chown=app:app backend/migrations /app/backend/migrations
+COPY --chown=app:app backend/alembic.ini /app/backend/alembic.ini
 
 ENV PYTHONPATH=/app
 ENV PATH="/app/.venv/bin:$PATH"
-# CMD ["tail", "-f", "/dev/null"]
+
+USER app
 
 CMD uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1

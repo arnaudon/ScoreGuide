@@ -22,4 +22,6 @@ COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 EXPOSE 3000
+# Non-root: the node base image ships a `node` user (uid 1000).
+USER node
 CMD ["node", "build"]

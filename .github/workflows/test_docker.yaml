@@ -21,6 +21,11 @@ jobs:
       - name: Create empty .env file
         run: |
           touch .env
+      - name: Make workspace writable for the non-root container user
+        # The dev override bind-mounts ./backend and ./shared; the backend
+        # container now runs as uid 1000 while runner files are uid 1001,
+        # and pytest writes coverage output into the mount.
+        run: chmod -R a+rwX backend shared
       - name: Build and Start Containers
         run: docker compose up -d --build --wait
 

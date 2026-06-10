@@ -128,25 +128,65 @@ def test_add_user_endpoint(client: TestClient):
     payload = {"username": "bob", "email": "bob@example.com", "password": "pw"}
     resp = client.post("/users", json=payload)
     assert resp.status_code == 200
+    data = resp.json()
+    assert "password" not in data
+    assert data["role"] == "user"
+
+    # duplicate usernames are rejected
+    resp_dup = client.post("/users", json=payload)
+    assert resp_dup.status_code == 409
 
 
-def test_get_users(client: TestClient):
-    """GET /users returns all users (covers get_users)."""
+def test_add_user_cannot_self_grant_admin(client: TestClient, session: Session):
+    """POST /users ignores client-supplied role/credits fields."""
+    payload = {"username": "mallory", "password": "pw", "role": "admin", "credits": 9999}
+    resp = client.post("/users", json=payload)
+    assert resp.status_code == 200
+    created = users.get_user("mallory", session)
+    assert created.role == "user"
+    assert created.credits == 50
+
+
+def test_get_users_requires_admin(client: TestClient):
+    """GET /users is forbidden for non-admin users."""
+    resp = client.get("/users")
+    assert resp.status_code == 403
+
+
+def test_get_users(client: TestClient, test_user: User, session: Session):
+    """GET /users returns all users without password hashes (covers get_users)."""
+    test_user.role = "admin"
+    session.add(test_user)
+    session.commit()
+
     resp = client.get("/users")
     assert resp.status_code == 200
+    data = resp.json()
+    assert data
+    for row in data:
+        assert "password" not in row
+        assert "score_count" in row
 
 
-def test_is_admin(test_user):
-    """is_admin returns True if user is admin (covers is_admin)."""
-    assert users.is_admin(test_user) is True
-    assert users.is_admin(None) is False
+def test_is_admin(client: TestClient, test_user: User, session: Session):
+    """GET /is_admin reflects the current user's role (covers is_admin)."""
+    resp = client.get("/is_admin")
+    assert resp.status_code == 200
+    assert resp.json() is False
+
+    test_user.role = "admin"
+    session.add(test_user)
+    session.commit()
+    resp = client.get("/is_admin")
+    assert resp.json() is True
 
 
 def test_get_admin_user(test_user):
-    """get_admin_user returns admin user or None (covers get_admin_user)."""
-    assert users.get_admin_user(test_user) is None
-    test_user.role = "other"
-    assert users.get_admin_user(test_user) is None
+    """get_admin_user returns the admin user and raises 403 otherwise."""
+    with pytest.raises(HTTPException) as exc:
+        users.get_admin_user(test_user)
+    assert exc.value.status_code == status.HTTP_403_FORBIDDEN
+
     test_user.role = "admin"
     assert users.get_admin_user(test_user) is test_user
 

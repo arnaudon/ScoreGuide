@@ -3,13 +3,14 @@ import { apiFetch } from '$lib/server/fetchApi.js';
 
 /**
  * Same-origin PDF proxy. Reads the httpOnly `access_token` cookie set at
- * login and forwards it to the backend's `/pdf/{filename}?token=...`
- * endpoint server-to-server, so the JWT never appears in the browser's
- * URL bar, access logs, or Referer headers.
+ * login and forwards it to the backend's `/pdf/{filename}` endpoint
+ * server-to-server as an `Authorization: Bearer` header, so the JWT never
+ * appears in any URL — neither the browser's nor the backend's access logs.
  *
  * For backwards compatibility with bookmarked PDF.js viewer URLs that
  * still carry `?token=...` in the path or query string, a token in the
- * URL is accepted but no longer required.
+ * URL is accepted but no longer required (and is still forwarded as a
+ * header, not a query param).
  */
 export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 	const pathWithQuery = params.filepath;
@@ -35,10 +36,10 @@ export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 		return new Response('Not found', { status: 404 });
 	}
 
-	const api = apiFetch(fetch, undefined);
+	const api = apiFetch(fetch, token);
 
 	try {
-		const response = await api(`/pdf/${filename}?token=${token}`);
+		const response = await api(`/pdf/${filename}`);
 
 		if (!response.ok) {
 			return new Response(response.body, {

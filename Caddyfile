@@ -1,4 +1,11 @@
 scoreguide.ch {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		# SAMEORIGIN (not DENY): the PDF.js viewer embeds same-origin frames.
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
 	reverse_proxy frontend:3000
 }
 

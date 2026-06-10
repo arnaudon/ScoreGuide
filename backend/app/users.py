@@ -2,6 +2,7 @@
 
 import logging
 import os
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
@@ -20,7 +21,12 @@ from shared.user import User
 
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "...")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or secrets.token_hex(32)
+if not os.getenv("JWT_SECRET_KEY"):
+    logger.warning(
+        "JWT_SECRET_KEY is not set; using a random ephemeral secret. "
+        "All tokens are invalidated on restart — set JWT_SECRET_KEY in production."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 1
 
@@ -33,6 +39,42 @@ class Token(BaseModel):
 
     access_token: str
     token_type: str
+
+
+class UserCreate(BaseModel):
+    """Public registration body.
+
+    Server-owned fields (``role``, ``credits``, ``max_credits``) are
+    deliberately absent so clients cannot self-grant privileges.
+    """
+
+    username: str
+    password: str
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    instrument: str | None = None
+
+
+class UserResponse(BaseModel):
+    """User data safe to return to clients — excludes the password hash."""
+
+    id: int
+    username: str
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    instrument: str | None = None
+    role: str
+    credits: int
+    max_credits: int
+    last_login: datetime | None = None
+
+
+class UserAdminResponse(UserResponse):
+    """Admin ``GET /users`` row — adds the denormalized score count."""
+
+    score_count: int = 0
 
 
 class UserUpdateRequest(BaseModel):
@@ -74,10 +116,16 @@ def get_user(username: str, session: Session):
     return session.exec(select(User).where(User.username == username)).first()
 
 
+# Verified against when the username doesn't exist, so unknown-user and
+# wrong-password attempts take the same time (no user enumeration via timing).
+_DUMMY_PASSWORD_HASH = password_hash.hash("dummy-password")
+
+
 def authenticate_user(username: str, password: str, session: Session):
     """Authenticate user."""
     user = get_user(username, session)
-    if not user:
+    if not user or not user.password:
+        password_hash.verify(password, _DUMMY_PASSWORD_HASH)
         return False
     if not verify_password(password, user.password):
         return False
@@ -154,29 +202,45 @@ def get_current_user_from_token(token: str, session: Session):
 
 
 def get_admin_user(user: User = Depends(get_current_user)):
-    """Get admin user only."""
-    if user.role == "admin":
-        return user
-    return None
+    """Get admin user only; raises 403 for everyone else.
 
-
-@router.post("/users")
-@limiter.limit("5/minute")
-def add_user(
-    request: Request,
-    user: User,
-    session: Session = Depends(get_session),
-):
-    """Add a user to the db."""
-    hashed_password = get_password_hash(user.password)
-    user.password = hashed_password
-    session.add(user)
-    session.commit()
-    session.refresh(user)
+    Must raise (not return None): FastAPI treats any returned value —
+    including None — as a passing dependency, so a non-raising version
+    would let regular users through ``dependencies=[Depends(...)]`` guards.
+    """
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to perform this action.",
+        )
     return user
 
 
-@router.get("/users")
+@router.post("/users", response_model=UserResponse)
+@limiter.limit("5/minute")
+def add_user(
+    request: Request,
+    user: UserCreate,
+    session: Session = Depends(get_session),
+):
+    """Add a user to the db."""
+    if get_user(user.username, session) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
+    db_user = User(
+        username=user.username,
+        password=get_password_hash(user.password),
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        instrument=user.instrument,
+    )
+    session.add(db_user)
+    session.commit()
+    session.refresh(db_user)
+    return db_user
+
+
+@router.get("/users", response_model=list[UserAdminResponse])
 def get_users(_: Annotated[User, Depends(get_admin_user)], session: Session = Depends(get_session)):
     """Get all users from the db."""
     users = session.exec(select(User)).all()
@@ -189,7 +253,7 @@ def get_users(_: Annotated[User, Depends(get_admin_user)], session: Session = De
     return result
 
 
-@router.get("/user")
+@router.get("/user", response_model=UserResponse)
 def get_current_user_route(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
@@ -197,7 +261,7 @@ def get_current_user_route(
     return current_user
 
 
-@router.put("/user")
+@router.put("/user", response_model=UserResponse)
 def update_user(
     req: UserUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -222,9 +286,9 @@ def update_user(
 
 
 @router.get("/is_admin")
-def is_admin(current_user: Annotated[User | None, Depends(get_admin_user)]):
+def is_admin(current_user: Annotated[User, Depends(get_current_user)]):
     """Check if user is admin."""
-    return current_user is not None
+    return current_user.role == "admin"
 
 
 @router.put("/user/password")
@@ -245,20 +309,14 @@ def update_password(
     return {"message": "Password updated successfully"}
 
 
-@router.put("/users/{user_id}/credits")
+@router.put("/users/{user_id}/credits", response_model=UserResponse)
 def set_user_credits(
     user_id: int,
     request: CreditUpdateRequest,
-    current_user: Annotated[User | None, Depends(get_admin_user)],
+    _: Annotated[User, Depends(get_admin_user)],
     session: Session = Depends(get_session),
 ):
     """Set max credits for a user (admin only)."""
-    if current_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to perform this action.",
-        )
-
     user_to_update = session.get(User, user_id)
     if not user_to_update:
         raise HTTPException(status_code=404, detail="User not found")
@@ -270,19 +328,13 @@ def set_user_credits(
     return user_to_update
 
 
-@router.post("/users/{user_id}/refill_credits")
+@router.post("/users/{user_id}/refill_credits", response_model=UserResponse)
 def refill_user_credits(
     user_id: int,
-    current_user: Annotated[User | None, Depends(get_admin_user)],
+    _: Annotated[User, Depends(get_admin_user)],
     session: Session = Depends(get_session),
 ):
     """Refill credits for a user to their max value (admin only)."""
-    if current_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to perform this action.",
-        )
-
     user_to_update = session.get(User, user_id)
     if not user_to_update:
         raise HTTPException(status_code=404, detail="User not found")

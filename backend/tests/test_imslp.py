@@ -17,7 +17,7 @@ from app.imslp import (
     progress_tracker,
 )
 from app.main import app
-from app.users import get_admin_user
+from app.users import get_admin_user, get_current_user
 from shared.scores import IMSLP, ScoreBase
 
 client = TestClient(app)
@@ -41,6 +41,7 @@ def apply_test_db_override(session):
 
     app.dependency_overrides[db.get_session] = get_session_override
     app.dependency_overrides[get_admin_user] = override_get_admin_user
+    app.dependency_overrides[get_current_user] = override_get_admin_user
     yield
     app.dependency_overrides.clear()
 
@@ -408,3 +409,13 @@ def test_get_by_ids(session):
     assert len(data) == 2
     assert data[0]["id"] == 1
     assert data[1]["id"] == 2
+
+
+@pytest.mark.parametrize(
+    "score_ids",
+    ["not-json", '{"a": 1}', '["x"]', "[true]", "[" + ",".join(["1"] * 501) + "]"],
+)
+def test_get_by_ids_rejects_invalid_input(score_ids):
+    """scores_by_ids rejects non-JSON, non-list, non-int and oversized inputs."""
+    response = client.get("/imslp/scores_by_ids", params={"score_ids": score_ids})
+    assert response.status_code == 422

@@ -63,10 +63,12 @@ def async_session_factory_fixture(db_file):
 @pytest.fixture(name="test_scores")
 def test_scores_fixture():
     """Test scores for default db."""
+    # pdf_path is the bare file id (resolved under DATA_PATH, set in test_main)
+    # so the /pdf/{filename} ownership check matches what's requested.
     score_1 = Score(
         composer="composer",
         title="title_1",
-        pdf_path="tests/data/real_score.pdf",
+        pdf_path="real_score.pdf",
         user_id=0,
     )
     score_2 = Score(composer="composer", title="title_2", pdf_path="score_2.pdf", user_id=0)

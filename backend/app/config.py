@@ -12,6 +12,7 @@ import os
 
 MCP_URL = os.getenv("MCP_URL", "http://mcp-postgres:8001/sse")
 AGENT_RATE_LIMIT = os.getenv("AGENT_RATE_LIMIT", "5/minute")
+MAX_PDF_MB = int(os.getenv("MAX_PDF_MB", "50"))
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "alexis.arnaudon@gmail.com")
 CORS_ORIGINS = [
     origin.strip()
