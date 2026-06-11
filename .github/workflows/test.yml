@@ -30,7 +30,10 @@ jobs:
     
     - name: Install dependencies
       run: |
-        sudo apt-get install poppler-utils
+        # apt-get update first: the runner image's preseeded package index
+        # goes stale and pinned versions 404 off the mirrors.
+        sudo apt-get update
+        sudo apt-get install -y poppler-utils
         uv sync --frozen
     - name: Run tests
       run: uv run --frozen --project ${{ matrix.code }} --directory ${{ matrix.code }} pytest
