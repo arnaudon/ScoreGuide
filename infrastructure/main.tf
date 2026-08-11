@@ -116,7 +116,14 @@ moved {
 resource "openstack_compute_instance_v2" "my_webserver" {
   name            = "web-server"
   image_name      = "Debian 12 bookworm"
-  flavor_name     = "a2-ram4-disk80-perf1"
+  # 8 GB is the baseline — the "small" tier in ../../infra.sh. Measured need: ~900 MB of
+  # containers + ~420 MB for an interactive claude on the box + ~400 MB dockerd/OS, plus
+  # 1-2 GB for the SvelteKit build that deploy.yaml runs here via `docker-compose --build`.
+  # 4 GB serves fine but leaves nothing for builds; a1-ram2 OOM-killed sshd outright.
+  # Day-to-day resizing is done out-of-band by infra.sh, so `terraform apply` will pull
+  # the instance back to this flavor (and reboot it). To let infra.sh own the size
+  # instead, add flavor_name to ignore_changes below.
+  flavor_name     = "a4-ram8-disk80-perf1"
   key_pair        = openstack_compute_keypair_v2.my_keypair.name
   security_groups = [openstack_networking_secgroup_v2.my_security_group.name]
 
