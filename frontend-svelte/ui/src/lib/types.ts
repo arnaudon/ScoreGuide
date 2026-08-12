@@ -7,13 +7,7 @@
 export type Difficulty = 'easy' | 'moderate' | 'intermediate' | 'advanced' | 'expert';
 
 export type Period =
-	| 'Medieval'
-	| 'Renaissance'
-	| 'Baroque'
-	| 'Classical'
-	| 'Romantic'
-	| 'Modernist'
-	| 'Postmodernist';
+	'Medieval' | 'Renaissance' | 'Baroque' | 'Classical' | 'Romantic' | 'Modernist' | 'Postmodernist';
 
 /** Matches `shared.scores.Score`. */
 export interface Score {

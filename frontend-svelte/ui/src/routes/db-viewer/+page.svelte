@@ -552,7 +552,7 @@
 					</Table.Row>
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={columns.length} class="text-center text-muted-foreground py-4">
+						<Table.Cell colspan={columns.length} class="text-muted-foreground py-4 text-center">
 							{m.no_scores_found()}
 						</Table.Cell>
 					</Table.Row>
