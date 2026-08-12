@@ -1,5 +1,6 @@
 """Users module."""
 
+import hashlib
 import logging
 import os
 import secrets
@@ -14,10 +15,14 @@ from pwdlib import PasswordHash
 from pydantic import BaseModel
 from sqlmodel import Session, func, select
 
+from app import config
 from app.db import get_session
+from app.email_utils import send_email
 from app.rate_limit import limiter
 from shared.scores import Score
 from shared.user import User
+
+PASSWORD_RESET_PURPOSE = "password_reset"
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +96,19 @@ class PasswordChangeRequest(BaseModel):
     new_password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Forgot password request model."""
+
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Reset password request model."""
+
+    token: str
+    new_password: str
+
+
 class CreditUpdateRequest(BaseModel):
     """Credit update request model."""
 
@@ -142,6 +160,28 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def _password_fingerprint(user: User) -> str:
+    """Short digest of the user's current password hash.
+
+    Embedded in reset tokens so that resetting the password (or changing it
+    in the meantime) invalidates any outstanding token — no server-side
+    token storage needed.
+    """
+    return hashlib.sha256((user.password or "").encode()).hexdigest()[:16]
+
+
+def create_password_reset_token(user: User) -> str:
+    """Create a short-lived, single-use password reset token."""
+    return create_access_token(
+        data={
+            "sub": user.username,
+            "purpose": PASSWORD_RESET_PURPOSE,
+            "pwd_fp": _password_fingerprint(user),
+        },
+        expires_delta=timedelta(minutes=config.PASSWORD_RESET_EXPIRE_MINUTES),
+    )
 
 
 @router.post("/token")
@@ -307,6 +347,70 @@ def update_password(
     session.add(current_user)
     session.commit()
     return {"message": "Password updated successfully"}
+
+
+@router.post("/forgot-password")
+@limiter.limit("5/minute")
+def forgot_password(
+    request: Request,
+    req: ForgotPasswordRequest,
+    session: Session = Depends(get_session),
+):
+    """Email a password reset link if the address belongs to an account.
+
+    Always returns the same generic message so the endpoint can't be used to
+    enumerate registered emails.
+    """
+    user = session.exec(select(User).where(User.email == req.email)).first()
+    if user is not None:
+        reset_link = (
+            f"{config.FRONTEND_URL}/reset-password?token={create_password_reset_token(user)}"
+        )
+        send_email(
+            to=req.email,
+            subject="Reset your ScoreGuide password",
+            body=(
+                f"Hi {user.username},\n\n"
+                "We received a request to reset your ScoreGuide password. "
+                "Click the link below to choose a new one "
+                f"(valid for {config.PASSWORD_RESET_EXPIRE_MINUTES} minutes):\n\n"
+                f"{reset_link}\n\n"
+                "If you didn't request this, you can safely ignore this email."
+            ),
+        )
+    return {"message": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+def reset_password(
+    request: Request,
+    req: ResetPasswordRequest,
+    session: Session = Depends(get_session),
+):
+    """Set a new password from a valid password reset token."""
+    invalid_token_exception = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid or expired reset link",
+    )
+    try:
+        payload = jwt.decode(req.token, SECRET_KEY, algorithms=[ALGORITHM])
+    except InvalidTokenError as exc:
+        raise invalid_token_exception from exc
+
+    username = payload.get("sub")
+    user = get_user(username, session) if username else None
+    if (
+        payload.get("purpose") != PASSWORD_RESET_PURPOSE
+        or user is None
+        or payload.get("pwd_fp") != _password_fingerprint(user)
+    ):
+        raise invalid_token_exception
+
+    user.password = get_password_hash(req.new_password)
+    session.add(user)
+    session.commit()
+    return {"message": "Password reset successfully"}
 
 
 @router.put("/users/{user_id}/credits", response_model=UserResponse)

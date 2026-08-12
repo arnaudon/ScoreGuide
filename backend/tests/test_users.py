@@ -1,6 +1,7 @@
 """Tests for authentication and user utilities in app.users."""
 
 from datetime import timedelta
+from unittest.mock import MagicMock
 
 import jwt
 import pytest
@@ -8,7 +9,7 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app import users
+from app import config, users
 from app.main import app
 from shared.user import User
 
@@ -393,3 +394,115 @@ def test_refill_user_credits(user_in_db: User, client: TestClient, session: Sess
         headers=user_headers,
     )
     assert resp_forbidden.status_code == 403
+
+
+@pytest.fixture(autouse=True)
+def _disable_rate_limit():
+    """forgot/reset-password are limited to 5/min; several tests below exceed that."""
+    users.limiter.enabled = False
+    yield
+    users.limiter.enabled = True
+
+
+def test_forgot_password_existing_user_sends_email(
+    user_in_db: User, client: TestClient, monkeypatch
+):
+    """POST /forgot-password emails a reset link for a known address."""
+    mock_send_email = MagicMock()
+    monkeypatch.setattr(users, "send_email", mock_send_email)
+
+    resp = client.post("/forgot-password", json={"email": user_in_db.email})
+    assert resp.status_code == 200
+    assert "reset link" in resp.json()["message"]
+
+    mock_send_email.assert_called_once()
+    kwargs = mock_send_email.call_args.kwargs
+    assert kwargs["to"] == user_in_db.email
+    assert "/reset-password?token=" in kwargs["body"]
+
+
+def test_forgot_password_unknown_email_is_silent(client: TestClient, monkeypatch):
+    """POST /forgot-password returns the same generic message for unknown emails."""
+    mock_send_email = MagicMock()
+    monkeypatch.setattr(users, "send_email", mock_send_email)
+
+    resp = client.post("/forgot-password", json={"email": "nobody@example.com"})
+    assert resp.status_code == 200
+    assert "reset link" in resp.json()["message"]
+    mock_send_email.assert_not_called()
+
+
+def test_reset_password_success_and_token_becomes_unusable(user_in_db: User, client: TestClient):
+    """POST /reset-password sets a new password; the same token can't be reused."""
+    token = users.create_password_reset_token(user_in_db)
+
+    resp = client.post("/reset-password", json={"token": token, "new_password": "new-secret"})
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "Password reset successfully"
+
+    login_resp = client.post(
+        "/token",
+        data={"username": user_in_db.username, "password": "new-secret"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_resp.status_code == 200
+
+    reuse_resp = client.post("/reset-password", json={"token": token, "new_password": "again"})
+    assert reuse_resp.status_code == 400
+    assert reuse_resp.json()["detail"] == "Invalid or expired reset link"
+
+
+def test_reset_password_invalid_token(client: TestClient):
+    """POST /reset-password rejects garbage tokens."""
+    resp = client.post("/reset-password", json={"token": "not-a-token", "new_password": "x"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Invalid or expired reset link"
+
+
+def test_reset_password_wrong_purpose(user_in_db: User, client: TestClient):
+    """POST /reset-password rejects a valid JWT that isn't a reset token."""
+    token = users.create_access_token(data={"sub": user_in_db.username})
+    resp = client.post("/reset-password", json={"token": token, "new_password": "x"})
+    assert resp.status_code == 400
+
+
+def test_reset_password_unknown_user(client: TestClient):
+    """POST /reset-password rejects a token for a user that no longer exists."""
+    token = jwt.encode(
+        {"sub": "ghost", "purpose": users.PASSWORD_RESET_PURPOSE, "pwd_fp": "whatever"},
+        users.SECRET_KEY,
+        algorithm=users.ALGORITHM,
+    )
+    resp = client.post("/reset-password", json={"token": token, "new_password": "x"})
+    assert resp.status_code == 400
+
+
+def test_password_reset_token_expired(user_in_db: User, client: TestClient):
+    """POST /reset-password rejects an expired reset token."""
+    token = users.create_access_token(
+        data={
+            "sub": user_in_db.username,
+            "purpose": users.PASSWORD_RESET_PURPOSE,
+            "pwd_fp": users._password_fingerprint(user_in_db),
+        },
+        expires_delta=timedelta(minutes=-1),
+    )
+    resp = client.post("/reset-password", json={"token": token, "new_password": "x"})
+    assert resp.status_code == 400
+
+
+def test_password_reset_uses_frontend_url_and_expiry_config(
+    user_in_db: User, client: TestClient, monkeypatch
+):
+    """The emailed reset link and copy reflect config.FRONTEND_URL / expiry."""
+    monkeypatch.setattr(config, "FRONTEND_URL", "https://scoreguide.ch")
+    monkeypatch.setattr(config, "PASSWORD_RESET_EXPIRE_MINUTES", 45)
+    mock_send_email = MagicMock()
+    monkeypatch.setattr(users, "send_email", mock_send_email)
+
+    resp = client.post("/forgot-password", json={"email": user_in_db.email})
+    assert resp.status_code == 200
+
+    body = mock_send_email.call_args.kwargs["body"]
+    assert "https://scoreguide.ch/reset-password?token=" in body
+    assert "45 minutes" in body
