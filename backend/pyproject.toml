@@ -11,8 +11,11 @@ dependencies = [
     "pandas>=2.3.3",
     "pandas-stubs>=2.3.2.250926",
     "pydantic>=2.12.3",
-    "pydantic-ai>=1.2.1",
-    "pydantic-ai-slim[duckduckgo,google,mcp]>=1.2.1",
+    "pydantic-ai>=2.28.0",
+    "pydantic-ai-slim[duckduckgo,google,mcp]>=2.28.0",
+    # imported directly by app/file_helper.py; was only ever present
+    # transitively via pydantic-ai's bedrock extra until 2.x dropped it
+    "boto3>=1.40.0",
     "sqlalchemy[asyncio]>=2.0.44",
     "sqlmodel>=0.0.27",
     "uvicorn>=0.37.0",

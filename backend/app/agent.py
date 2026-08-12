@@ -10,7 +10,7 @@ from pydantic import BaseModel, TypeAdapter
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.mcp import MCPServerSSE
+from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.messages import ModelMessage
 
 from app import config
@@ -28,7 +28,9 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-postgres_server = MCPServerSSE(config.MCP_URL)
+# pydantic-ai 2.x replaced MCPServerSSE with the FastMCP-backed MCPToolset, which
+# infers the transport from the URL — MCP_URL ends in /sse, so SSE is used.
+postgres_server = MCPToolset(config.MCP_URL)
 
 
 _difficulty_map = {
