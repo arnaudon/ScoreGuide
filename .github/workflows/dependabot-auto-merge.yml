@@ -1,0 +1,92 @@
+name: Dependabot auto-merge
+
+# Merges dependabot PRs once CI is green, skipping major bumps.
+#
+# Why `workflow_run` rather than the usual `pull_request` + `gh pr merge --auto`:
+# GitHub's native auto-merge must be enabled per repo AND needs a branch
+# protection rule to hold the PR back until checks pass. This repository is
+# public, but its `main` protection rule requires zero status checks, so
+# `--auto` would merge immediately, waiting for nothing. Re-checking every
+# check-run here gives a real gate without changing repo-wide policy (adding
+# required checks would also block your own PRs, which is your call to make).
+#
+# Second reason: workflows triggered by `pull_request` from dependabot get a
+# read-only GITHUB_TOKEN and cannot merge. `workflow_run` runs in the base repo
+# context, so the token below is writable.
+
+on:
+  workflow_run:
+    workflows: ["Test", "Frontend (Svelte)", "Docker Test Suite"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    # Only dependabot's own PR runs, and only when that run passed.
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge if every check is green and the bump is not major
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          # The triggering run only describes itself, so find the PR by head SHA.
+          pr=$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" \
+                 --jq '[.[] | select(.state == "open")][0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "No open PR for $HEAD_SHA — nothing to do."
+            exit 0
+          fi
+
+          title=$(gh pr view "$pr" --repo "$REPO" --json title --jq .title)
+          echo "PR #$pr: $title"
+
+          # Classify the bump from the title. Deliberately avoids a grep
+          # backreference — those are a GNU extension and not portable.
+          from_v=$(printf '%s' "$title" | sed -nE 's/.*[Ff]rom ([0-9][0-9.]*) to ([0-9][0-9.]*).*/\1/p')
+          to_v=$(printf '%s' "$title" | sed -nE 's/.*[Ff]rom ([0-9][0-9.]*) to ([0-9][0-9.]*).*/\2/p')
+
+          if [ -z "$from_v" ] || [ -z "$to_v" ]; then
+            # Grouped updates ("bump the npm-deps group with 5 updates") and
+            # multi-package bumps have no single version pair to compare.
+            echo "::notice::No single version pair in the title — leaving #$pr for review."
+            exit 0
+          fi
+          if [ "${from_v%%.*}" != "${to_v%%.*}" ]; then
+            # Major bumps are the ones that break code: in this project
+            # pydantic-ai 1.x -> 2.x silently removed MCPServerSSE, and
+            # starlette 0.x -> 1.x changed OpenAPI output. Those want a human.
+            echo "::notice::Major bump $from_v -> $to_v — leaving #$pr for review."
+            exit 0
+          fi
+          echo "Patch/minor bump $from_v -> $to_v — eligible."
+
+          # `workflow_run` fires once per workflow, and other workflows may still
+          # be running or may have failed. Gate on every check-run for this
+          # commit rather than trusting the one that woke us.
+          checks=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs" --paginate \
+                     --jq '.check_runs[] | select(.name != "auto-merge") | "\(.status):\(.conclusion // "pending")"')
+          echo "check-runs for $HEAD_SHA:"
+          printf '%s\n' "$checks" | sed 's/^/  /'
+
+          if printf '%s\n' "$checks" | grep -qv '^completed:'; then
+            echo "::notice::Checks still running — a later workflow_run will retry."
+            exit 0
+          fi
+          if printf '%s\n' "$checks" | grep -qvE '^completed:(success|skipped|neutral)$'; then
+            echo "::notice::Not every check succeeded — not merging."
+            exit 0
+          fi
+
+          gh pr merge "$pr" --repo "$REPO" --squash --delete-branch
+          echo "Merged #$pr."
