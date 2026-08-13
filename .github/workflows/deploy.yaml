@@ -45,6 +45,12 @@ jobs:
             echo "PUBLIC_SENTRY_ENVIRONMENT=production" >> .env
             echo "MCP_READONLY_PASSWORD=${{ secrets.MCP_READONLY_PASSWORD }}" >> .env
             echo "PGADMIN_DEFAULT_PASSWORD=${{ secrets.PGADMIN_DEFAULT_PASSWORD }}" >> .env
+            echo "FRONTEND_URL=https://scoreguide.ch" >> .env
+            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
+            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
+            echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
+            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
+            echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> .env
             docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build -d
             # Show what's actually running so deploy logs are diagnosable.
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'

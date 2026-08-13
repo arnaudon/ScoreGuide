@@ -67,6 +67,7 @@ All prompts are wrapped in `<user_request>…</user_request>` and every system p
 - `get_current_user` reads the `access_token` cookie — used for normal endpoints.
 - `get_current_user_from_token(token, session)` wrapped by `get_pdf_user` accepts the token as a query param because `<img>`/`<embed>` can't send cookies cross-origin — used only for `GET /pdf/{filename}`. Tests override all three (see `backend/tests/conftest.py`).
 - `get_admin_user` gates `/admin/*` routes on `User.role == "admin"`.
+- `POST /forgot-password` / `POST /reset-password` implement password reset without a DB-stored token table: the JWT embeds a `pwd_fp` (short digest of the current password hash), so resetting the password invalidates the token automatically. `/forgot-password` always returns the same generic message regardless of whether the email exists, to avoid account enumeration. Emails go through `app/email_utils.send_email`, which is opt-in via `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM`/`SMTP_PORT` — unset in dev/test, it just logs instead of sending. The reset link is built from `FRONTEND_URL`.
 
 **Storage (`backend/app/file_helper.py`).** Single `file_helper` module-level singleton switches between S3 and local disk based on `S3_ENDPOINT` presence. Local mode writes under `DATA_PATH` (compose mounts `./data:/app/data`). PDF download endpoint streams with `Cache-Control: public, max-age=86400, immutable`.
 
