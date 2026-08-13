@@ -403,7 +403,7 @@
 				</Table.Row>
 			{:else}
 				<Table.Row>
-					<Table.Cell colspan={columns.length + 1} class="text-center text-muted-foreground py-4">
+					<Table.Cell colspan={columns.length + 1} class="text-muted-foreground py-4 text-center">
 						{m.no_users_found()}
 					</Table.Cell>
 				</Table.Row>

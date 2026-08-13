@@ -19,22 +19,22 @@ Package name: `app`. Entry point: `app.main:app`.
 
 ```bash
 # Tests (99% coverage gate in pytest.ini)
-uv run --frozen --project backend --directory backend pytest
+uv run --frozen --directory backend pytest
 
 # Single test
-uv run --project backend --directory backend pytest tests/test_main.py::test_health_ok -q
+uv run --directory backend pytest tests/test_main.py::test_health_ok -q
 
 # Format / lint / type-check
 uv run --frozen ruff format --check backend
 uv run --frozen ruff check backend
-uv run --frozen --project backend --directory backend mypy .
+uv run --frozen --directory backend mypy .
 
 # Local dev (port 8000, --reload)
 ./scripts/run.sh
 
 # Alembic
-uv run --project backend --directory backend alembic revision --autogenerate -m "msg"
-uv run --project backend --directory backend alembic upgrade head
+uv run --directory backend alembic revision --autogenerate -m "msg"
+uv run --directory backend alembic upgrade head
 ```
 
 See `../CLAUDE.md` for architecture details (agent wiring, MCP SQL safety, credit flow).

@@ -24,7 +24,7 @@ repos:
         language: system
         types: [python]
         files: ^backend/.*\.py$
-        entry: uv run --frozen --project backend --directory backend mypy
+        entry: uv run --frozen --directory backend mypy
         pass_filenames: false
         args: ["."]
 
@@ -33,7 +33,7 @@ repos:
         language: system
         types: [python]
         files: ^shared/.*\.py$
-        entry: uv run --frozen --project shared --directory shared mypy
+        entry: uv run --frozen --directory shared mypy
         pass_filenames: false
         args: ["."]
 

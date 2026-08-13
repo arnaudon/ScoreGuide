@@ -14,8 +14,8 @@ SQLModel tables and pydantic response models shared between `backend/` and anyth
 Scoped to this workspace member (mirrors `.github/workflows/test.yml`):
 
 ```bash
-uv run --frozen --project shared --directory shared pytest
+uv run --frozen --directory shared pytest
 uv run --frozen ruff check shared
 uv run --frozen ruff format --check shared
-uv run --frozen --project shared --directory shared mypy .
+uv run --frozen --directory shared mypy .
 ```
