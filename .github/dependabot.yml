@@ -8,6 +8,9 @@ updates:
     groups:
       python-deps:
         patterns: ["*"]
+        # Majors arrive as their own PRs. Grouped with everything else, a single
+        # breaking major blocks every safe update in the batch.
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "npm"
     directory: "/frontend-svelte/ui"
@@ -17,12 +20,22 @@ updates:
     groups:
       npm-deps:
         patterns: ["*"]
+        # Majors arrive as their own PRs — see the ignores below for why grouping
+        # them was actively harmful here.
+        update-types: ["minor", "patch"]
     ignore:
       # svelte-check 4.7.5 declares peer typescript "^5.0.0 || ^6.0.0", so a
       # group bump that pulls TypeScript 7 makes `npm ci` fail outright with
       # ERESOLVE — it takes the whole group down with it (see #151). Hold TS at
       # 6.x until svelte-check widens the range, then drop this entry.
       - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # @tanstack/table-core v9 removed the row-model factory exports
+      # (getCoreRowModel, getSortedRowModel, getFilteredRowModel,
+      # getPaginationRowModel), so upgrading fails the production build with 17
+      # MISSING_EXPORT errors. That needs a code migration — tracked in #155.
+      # Remove this entry as part of that work.
+      - dependency-name: "@tanstack/table-core"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
