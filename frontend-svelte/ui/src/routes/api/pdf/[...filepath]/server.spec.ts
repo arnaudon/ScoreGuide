@@ -46,6 +46,11 @@ describe('GET /api/pdf/:filepath', () => {
 		expect(res.status).toBe(404);
 	});
 
+	function authHeader(fetch: ReturnType<typeof makeFetch>): string | null {
+		const init = fetch.mock.calls[0][1] as RequestInit;
+		return new Headers(init.headers).get('Authorization');
+	}
+
 	it('uses the cookie token when present, ignoring any URL fallback', async () => {
 		const fetch = makeFetch(async () => pdfResponse());
 		await GET(
@@ -56,7 +61,8 @@ describe('GET /api/pdf/:filepath', () => {
 				fetch
 			})
 		);
-		expect(fetch.mock.calls[0][0]).toContain('?token=cookieToken');
+		expect(fetch.mock.calls[0][0]).not.toContain('token=');
+		expect(authHeader(fetch)).toBe('Bearer cookieToken');
 	});
 
 	it('falls back to a URL token when the cookie is absent (legacy)', async () => {
@@ -69,7 +75,8 @@ describe('GET /api/pdf/:filepath', () => {
 				fetch
 			})
 		);
-		expect(fetch.mock.calls[0][0]).toContain('?token=urlOnly');
+		expect(fetch.mock.calls[0][0]).not.toContain('token=');
+		expect(authHeader(fetch)).toBe('Bearer urlOnly');
 	});
 
 	it('parses an embedded `?token=` segment inside the filepath param (PDF.js encoding)', async () => {
@@ -84,7 +91,9 @@ describe('GET /api/pdf/:filepath', () => {
 				fetch
 			})
 		);
-		expect(fetch.mock.calls[0][0]).toContain('/pdf/foo.pdf?token=fromPath');
+		expect(fetch.mock.calls[0][0]).toContain('/pdf/foo.pdf');
+		expect(fetch.mock.calls[0][0]).not.toContain('token=');
+		expect(authHeader(fetch)).toBe('Bearer fromPath');
 	});
 
 	it('streams the PDF + preserves Content-Length / Cache-Control on happy path', async () => {

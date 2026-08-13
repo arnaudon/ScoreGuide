@@ -15,8 +15,8 @@ class User(SQLModel, table=True):
     __tablename__ = "user"  # type: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True)
-    username: str
-    email: str | None = None
+    username: str = Field(unique=True, index=True)
+    email: str | None = Field(default=None, index=True)
     first_name: str | None = None
     last_name: str | None = None
     instrument: str | None = None

@@ -117,6 +117,19 @@ def test_get_pdf(client: TestClient):
     assert response.status_code == 200
 
 
+def test_get_pdf_not_owned(client: TestClient):
+    """GET /pdf 404s for files not referenced by one of the caller's scores."""
+    response = client.get("/pdf/someone_elses.pdf")
+    assert response.status_code == 404
+
+
+def test_get_pdf_owned_but_missing_on_disk(client: TestClient, test_scores: Scores):
+    """GET /pdf 404s when the score exists but the file doesn't."""
+    # score_2 is owned by the test user but score_2.pdf isn't in DATA_PATH
+    response = client.get(f"/pdf/{test_scores.scores[1].pdf_path}")
+    assert response.status_code == 404
+
+
 def test_upload_pdf(client: TestClient):
     """test upload pdf"""
     file = io.BytesIO(b"fake_score")
@@ -125,14 +138,39 @@ def test_upload_pdf(client: TestClient):
     assert response.status_code == 200
 
 
+def test_upload_pdf_too_large(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """POST /pdf rejects files above the size cap with 413."""
+    from app import config
+
+    monkeypatch.setattr(config, "MAX_PDF_MB", 0)
+    files = {"file": ("big.pdf", b"x" * 1024, "application/pdf")}
+    response = client.post("/pdf", files=files)
+    assert response.status_code == 413
+
+
 def test_delete_pdf(client: TestClient):
     """test delete pdf"""
     file = io.BytesIO(b"fake_score")
     files = {"file": ("fake_score.pdf", file.getvalue(), "application/pdf")}
-    client.post("/pdf", files=files)
-    response = client.delete("/pdf/fake_score.pdf")
+    upload = client.post("/pdf", files=files)
+    file_id = upload.json()["file_id"]
+
+    # deleting a PDF not referenced by one of the caller's scores is a 404
+    response = client.delete(f"/pdf/{file_id}")
+    assert response.status_code == 404
+
+    # once a score owned by the caller references it, deletion succeeds
+    score = Score(composer="c", title="t", pdf_path=file_id, user_id=0)
+    client.post("/scores", json=score.model_dump())
+    response = client.delete(f"/pdf/{file_id}")
     assert response.status_code == 200
-    response = client.delete("/pdf/fake_score_not_here.pdf")
+
+
+def test_run_main_agent_invalid_deps(client: TestClient):
+    """POST /agent rejects malformed deps payloads with 422 (no credit spent)."""
+    resp = client.post("/agent", json={"prompt": "p", "deps": "not-json"})
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Invalid deps payload"
 
 
 def test_configure_logging(monkeypatch: pytest.MonkeyPatch):

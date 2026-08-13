@@ -1,6 +1,5 @@
 """Backend main entry point."""
 
-import json
 import logging
 import os
 import uuid
@@ -13,7 +12,7 @@ import sentry_sdk
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
@@ -145,7 +144,8 @@ async def complete_score(
         try:
             return await run_complete_agent(score, model)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            logger.exception("complete_score failed")
+            raise HTTPException(status_code=500, detail="Agent execution failed") from e
 
 
 @app.put("/scores/{score_id}")
@@ -231,7 +231,8 @@ async def run_imslp_agent_api(
                 body.prompt, message_history=body.message_history, model=model
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            logger.exception("imslp agent failed")
+            raise HTTPException(status_code=500, detail="Agent execution failed") from e
 
 
 @app.post("/agent")
@@ -246,16 +247,23 @@ async def run_main_agent(
     setting = await session.get(Setting, "model_main")
     model = setting.value if setting else os.getenv("MODEL", "test")
 
+    # Validate before consuming a credit so malformed payloads don't debit.
+    try:
+        scores = Scores.model_validate_json(body.deps)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail="Invalid deps payload") from e
+
     async with consume_credit(current_user.id, session):
         try:
             return await run_agent(
                 body.prompt,
                 message_history=body.message_history,
-                deps=Deps(user=current_user, scores=Scores(**json.loads(body.deps))),
+                deps=Deps(user=current_user, scores=scores),
                 model=model,
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            logger.exception("main agent failed")
+            raise HTTPException(status_code=500, detail="Agent execution failed") from e
 
 
 @app.get("/admin/model", dependencies=[Depends(get_admin_user)])
@@ -292,15 +300,43 @@ def set_active_model(body: ModelsUpdate, session: Session = Depends(get_session)
     return {"message": "Models updated", "models": body.models}
 
 
-def get_pdf_user(token: str = "", session: Session = Depends(get_session)):  # pragma: no cover
-    """Dependency for PDF endpoints - accepts token as query param."""
+def get_pdf_user(  # pragma: no cover
+    request: Request, token: str = "", session: Session = Depends(get_session)
+):
+    """Dependency for PDF endpoints.
+
+    Prefers the ``Authorization: Bearer`` header (used by the SvelteKit
+    proxy); falls back to a ``token`` query param for legacy viewer URLs,
+    since ``<img>``/``<embed>`` can't send headers or cross-origin cookies.
+    """
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth.removeprefix("Bearer ")
     return get_current_user_from_token(token, session)
 
 
+def _get_owned_score_by_pdf(filename: str, user: User, session: Session) -> Score:
+    """Return the caller's score referencing this PDF, or raise 404."""
+    score = session.exec(
+        select(Score).where(Score.user_id == user.id, Score.pdf_path == filename)
+    ).first()
+    if score is None:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    return score
+
+
 @app.get("/pdf/{filename}")
-def get_pdf(filename: str, _user=Depends(get_pdf_user)):
-    """Get the url of a pdf file."""
-    obj = file_helper.download_pdf(filename)
+def get_pdf(
+    filename: str,
+    user: User = Depends(get_pdf_user),
+    session: Session = Depends(get_session),
+):
+    """Stream a pdf file owned by the current user."""
+    _get_owned_score_by_pdf(filename, user, session)
+    try:
+        obj = file_helper.download_pdf(filename)
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(status_code=404, detail="PDF not found") from e
     return StreamingResponse(
         obj["Body"],
         media_type="application/pdf",
@@ -313,17 +349,25 @@ def upload_pdf(file: UploadFile = File(...)):
     """Upload a pdf file."""
     if file.content_type != "application/pdf":  # pragma: no cover
         raise HTTPException(status_code=400, detail="Only PDFs allowed")
+    if file.size is not None and file.size > config.MAX_PDF_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="PDF too large")
     try:
         file_id = f"{uuid.uuid4().hex}.pdf"
         file_helper.upload_pdf(file_id, file.file)
         return {"message": "Upload successful", "file_id": file_id}
 
     except Exception as e:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        logger.exception("pdf upload failed")
+        raise HTTPException(status_code=500, detail="Upload failed") from e
 
 
-@app.delete("/pdf/{filename}", dependencies=[Depends(get_current_user)])
-def delete_pdf(filename: str):
-    """Delete a pdf file."""
+@app.delete("/pdf/{filename}")
+def delete_pdf(
+    filename: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Session = Depends(get_session),
+):
+    """Delete a pdf file owned by the current user."""
+    _get_owned_score_by_pdf(filename, current_user, session)
     file_helper.delete_pdf(filename)
     return {"message": "Delete successful"}

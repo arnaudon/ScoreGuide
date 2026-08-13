@@ -33,6 +33,15 @@ class FileHelper:
             ),
         )
 
+    @staticmethod
+    def _local_path(filename) -> Path:
+        """Resolve filename under DATA_PATH, rejecting path traversal."""
+        base = Path(str(os.getenv("DATA_PATH"))).resolve()
+        path = (base / filename).resolve()
+        if path == base or not path.is_relative_to(base):
+            raise ValueError(f"invalid filename: {filename!r}")
+        return path
+
     def upload_pdf(self, filename, file):
         """Upload a pdf file."""
         if self.s3_client:  # pragma: no cover
@@ -44,7 +53,7 @@ class FileHelper:
                 ContentDisposition="inline",
             )
         else:
-            path = Path(str(os.getenv("DATA_PATH"))) / filename
+            path = self._local_path(filename)
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "wb") as f:
                 shutil.copyfileobj(file, f)
@@ -55,14 +64,13 @@ class FileHelper:
             self.s3_client.delete_object(Bucket=self.bucket, Key=filename)
         else:
             with contextlib.suppress(FileNotFoundError):
-                os.remove(Path(str(os.getenv("DATA_PATH"))) / filename)
+                os.remove(self._local_path(filename))
 
     def download_pdf(self, filename):
         """Download a pdf file from S3."""
         if self.s3_client:  # pragma: no cover
             return self.s3_client.get_object(Bucket=self.bucket, Key=filename)
-        path = Path(str(os.getenv("DATA_PATH"))) / filename
-        return {"Body": open(path, "rb")}
+        return {"Body": open(self._local_path(filename), "rb")}
 
 
 file_helper = FileHelper()

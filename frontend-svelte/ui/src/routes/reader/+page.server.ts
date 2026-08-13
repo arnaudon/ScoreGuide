@@ -9,7 +9,9 @@ export const load: PageServerLoad = async ({ cookies }) => {
 
 	const lastScoreId = cookies.get('last_score_id');
 
-	if (lastScoreId) {
+	// Only numeric ids — the cookie is client-controlled, so don't let it
+	// inject path segments into the redirect target.
+	if (lastScoreId && /^\d+$/.test(lastScoreId)) {
 		redirect(303, `/reader/${lastScoreId}`);
 	}
 

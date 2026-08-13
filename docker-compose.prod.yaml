@@ -7,9 +7,11 @@ services:
     restart: always
     environment:
       - DB_HOST=db
-      - DB_USER=${POSTGRES_USER:-postgres}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - DB_NAME=${POSTGRES_DB:-postgres}
+      # No defaults on purpose: a partially-populated .env should fail
+      # loudly instead of silently falling back to postgres/postgres.
+      - DB_USER=${POSTGRES_USER:?}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?}
+      - DB_NAME=${POSTGRES_DB:?}
       - AUTH_TYPE=scram-sha-256
       - POOL_MODE=transaction
       - MAX_CLIENT_CONN=1000
@@ -21,8 +23,10 @@ services:
     image: dpage/pgadmin4
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      # Set both in .env (deploy.yaml writes them from GitHub secrets).
+      # No password default: pgadmin must not come up with admin/admin.
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@scoreguide.ch}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?}
     depends_on:
       - db
 
@@ -42,8 +46,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "8000:8000"
-      - "5050:5050"
+      # Loopback only: the backend and pgadmin are plain-HTTP admin/debug
+      # surfaces — reach them through an SSH tunnel, not the public internet.
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:5050:5050"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
@@ -59,7 +65,7 @@ services:
   backend:
     restart: always
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@pgbouncer:5432/${POSTGRES_DB:-postgres}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@pgbouncer:5432/${POSTGRES_DB:?}
     depends_on:
       - pgbouncer
 

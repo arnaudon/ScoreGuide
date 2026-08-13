@@ -8,13 +8,13 @@ import os
 import httpx
 import requests
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, func, select, text
 
 from app.agent import run_imslp_complete_agent
 from app.db import engine, get_session
-from app.users import get_admin_user
+from app.users import get_admin_user, get_current_user
 from shared.scores import IMSLP
 from shared.settings import Setting
 
@@ -212,8 +212,19 @@ def empty(session: Session = Depends(get_session)):
     session.commit()
 
 
-@router.get("/scores_by_ids")
+@router.get("/scores_by_ids", dependencies=[Depends(get_current_user)])
 def get_by_ids(score_ids: str, session: Session = Depends(get_session)):
     """Get scores by ids."""
+    detail = "score_ids must be a JSON array of at most 500 integers"
+    try:
+        ids = json.loads(score_ids)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=422, detail=detail) from e
+    if (
+        not isinstance(ids, list)
+        or len(ids) > 500
+        or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)
+    ):
+        raise HTTPException(status_code=422, detail=detail)
 
-    return session.exec(select(IMSLP).where(IMSLP.id.in_(json.loads(score_ids)))).all()
+    return session.exec(select(IMSLP).where(IMSLP.id.in_(ids))).all()

@@ -121,7 +121,11 @@ export const actions: Actions = {
 	},
 	update: async ({ request, cookies, fetch }) => {
 		const data = await request.formData();
-		const maxPages = data.get('max_pages') || '300';
+		// Clamp to a sane integer — the value lands in the backend URL path.
+		const maxPages = Math.min(
+			10000,
+			Math.max(1, parseInt(data.get('max_pages')?.toString() || '300', 10) || 300)
+		);
 		const token = cookies.get('access_token');
 		const api = apiFetch(fetch, token);
 		await api(`/imslp/start/${maxPages}`, { method: 'POST' });

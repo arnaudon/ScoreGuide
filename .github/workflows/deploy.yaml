@@ -4,10 +4,13 @@ on:
   push:
     branches: [ main ] 
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 2000 
+    timeout-minutes: 2000
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -20,7 +23,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           command_timeout: 30m
           script: |
-            set -euxo pipefail
+            # No -x: this script handles secrets, don't trace them into logs.
+            set -euo pipefail
             docker network inspect web >/dev/null 2>&1 || docker network create web
             cd /home/debian/ScoreGuide
             git pull origin main
@@ -39,6 +43,8 @@ jobs:
             echo "PUBLIC_SENTRY_DSN=${{ secrets.PUBLIC_SENTRY_DSN }}" >> .env
             echo "SENTRY_ENVIRONMENT=production" >> .env
             echo "PUBLIC_SENTRY_ENVIRONMENT=production" >> .env
+            echo "MCP_READONLY_PASSWORD=${{ secrets.MCP_READONLY_PASSWORD }}" >> .env
+            echo "PGADMIN_DEFAULT_PASSWORD=${{ secrets.PGADMIN_DEFAULT_PASSWORD }}" >> .env
             docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build -d
             # Show what's actually running so deploy logs are diagnosable.
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
@@ -51,9 +57,12 @@ jobs:
               docker exec postgres_db pg_isready >/dev/null 2>&1 && break
               sleep 2
             done
-            # Ensure the mcp_readonly role exists on the existing data volume.
-            # Idempotent DO + IF NOT EXISTS block — safe to re-run every deploy.
-            docker exec -i postgres_db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+            # Ensure the mcp_readonly role exists on the existing data volume
+            # and rotate its password to the current secret. Idempotent —
+            # safe to re-run every deploy. The password rides in via env so
+            # it never appears on a command line.
+            docker exec -i -e MCP_READONLY_PASSWORD="${{ secrets.MCP_READONLY_PASSWORD }}" postgres_db \
+              sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v mcp_password="${MCP_READONLY_PASSWORD:-readonly}"' \
               < infrastructure/mcp-readonly.sql
             # run alembic migration
             docker exec --workdir /app/backend backend alembic upgrade head
