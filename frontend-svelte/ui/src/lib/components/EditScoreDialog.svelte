@@ -167,8 +167,7 @@
 						id="edit-short-description"
 						name="short_description"
 						bind:value={shortDescription}
-						class={textareaClass}
-					></textarea>
+						class={textareaClass}></textarea>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-long-description" class="text-sm font-medium"
@@ -179,8 +178,7 @@
 						name="long_description"
 						bind:value={longDescription}
 						rows={5}
-						class={textareaClass}
-					></textarea>
+						class={textareaClass}></textarea>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-notable-interpreters" class="text-sm font-medium"
