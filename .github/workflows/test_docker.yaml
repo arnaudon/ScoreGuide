@@ -11,9 +11,18 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+      # Dependabot (and fork) pull requests cannot read repository secrets —
+      # dependabot has its own separate secret store — so these arrive empty and
+      # the postgres image refuses to initialise:
+      #   Error: Database is uninitialized and superuser password is not specified.
+      # That failed this job on every dependabot PR while passing on main. The
+      # job only ever needs a throwaway database, so fall back to fixed local
+      # values. docker-compose.yaml has no defaults for these three (unlike
+      # MCP_READONLY_PASSWORD, which defaults to `readonly`), which is why the
+      # fallback belongs here.
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER || 'postgres' }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'postgres' }}
 
     steps:
       - name: Checkout code
