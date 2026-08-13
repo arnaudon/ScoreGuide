@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 2000
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Deploy to Infomaniak via SSH
         uses: appleboy/ssh-action@v1.2.5
