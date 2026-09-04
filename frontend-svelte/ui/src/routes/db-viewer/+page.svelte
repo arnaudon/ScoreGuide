@@ -37,6 +37,7 @@
 	let imslpSheetOpen = $state(false);
 	let uploading = $state(false);
 	let recompleting = $state(false);
+	let recompleteError = $state<string | null>(null);
 	let sheetOpen = $state(false);
 	let editOpen = $state(false);
 	let manualFiles = $state<FileList | undefined>();
@@ -262,7 +263,14 @@
 
 <div class="p-8">
 	<div class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-4">
-		<h2 class="text-fancy-title mb-4 text-lg font-semibold">{m.add_new_score()}</h2>
+		<div class="mb-4 flex items-center justify-between gap-2">
+			<h2 class="text-fancy-title text-lg font-semibold">{m.add_new_score()}</h2>
+			{#if data.user?.credits !== undefined}
+				<span class="text-muted-foreground text-sm font-medium">
+					{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
+				</span>
+			{/if}
+		</div>
 		<Tabs.Root value="manual" class="w-full">
 			<Tabs.List class="mb-4">
 				<Tabs.Trigger value="manual">{m.manual_upload()}</Tabs.Trigger>
@@ -426,10 +434,10 @@
 			</Tabs.Content>
 		</Tabs.Root>
 		{#if form?.error}
-			<p class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
+			<p role="alert" class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
 		{/if}
 		{#if form?.scoreAdded}
-			<p class="mt-4 text-sm font-medium text-green-600 dark:text-green-400">
+			<p role="status" class="mt-4 text-sm font-medium text-green-600 dark:text-green-400">
 				{m.score_added_success()}
 			</p>
 		{/if}
@@ -541,6 +549,7 @@
 							: ''}"
 						onclick={() => {
 							selectedScoreId = row.original.id;
+							recompleteError = null;
 							sheetOpen = true;
 						}}
 					>
@@ -642,10 +651,13 @@
 					action="?/recomplete"
 					use:enhance={() => {
 						recompleting = true;
+						recompleteError = null;
 						return async ({ update, result }) => {
 							recompleting = false;
 							if (result.type === 'success') {
 								await invalidateAll();
+							} else if (result.type === 'failure') {
+								recompleteError = (result.data?.error as string) || m.failed_to_complete_score();
 							}
 							await update({ reset: false });
 						};
@@ -658,6 +670,16 @@
 					<Button type="submit" variant="secondary" class="w-full" disabled={recompleting}>
 						{recompleting ? m.running_agent() : m.rerun_complete_agent()}
 					</Button>
+					<!-- Rendered inside the Sheet, not the page's own form?.error banner,
+					     since that banner sits behind this overlay while it's open. -->
+					{#if recompleteError}
+						<p role="alert" class="text-destructive mt-2 text-sm font-medium">{recompleteError}</p>
+					{/if}
+					{#if data.user?.credits !== undefined}
+						<p class="text-muted-foreground mt-1 text-center text-xs">
+							{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
+						</p>
+					{/if}
 				</form>
 				<form
 					method="POST"

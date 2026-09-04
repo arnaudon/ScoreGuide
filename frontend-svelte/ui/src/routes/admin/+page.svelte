@@ -24,10 +24,38 @@
 	import type { AdminUser } from '$lib/types.js';
 	import * as m from '$lib/paraglide/messages.js';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 
 	let selectedUser = $state<AdminUser | null>(null);
 	let editDialogOpen = $state(false);
+	let savingModels = $state(false);
+
+	// The model dropdowns intentionally accept any pydantic-ai model string
+	// (the backend doesn't restrict it — see backend/app/main.py's
+	// set_active_model), so this list is just the common presets, not a
+	// whitelist. If the DB is already set to something outside this list
+	// (e.g. changed via a migration or direct DB edit), we inject it as an
+	// extra option below instead of silently dropping the select back to
+	// the first preset — otherwise hitting Save without touching the
+	// dropdown would silently overwrite a working setting.
+	const MODEL_PRESETS = [
+		{ value: 'google:gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+		{ value: 'google:gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+		{ value: 'google:gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+		{ value: 'google:gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview' }
+	];
+	const DEFAULT_MODEL = 'google:gemini-2.5-flash';
+
+	function optionsFor(current: string) {
+		if (current && !MODEL_PRESETS.some((o) => o.value === current)) {
+			return [...MODEL_PRESETS, { value: current, label: current }];
+		}
+		return MODEL_PRESETS;
+	}
+
+	function isSelected(current: string, value: string) {
+		return current === value || (!current && value === DEFAULT_MODEL);
+	}
 
 	function openEditDialog(user: AdminUser) {
 		selectedUser = user;
@@ -165,135 +193,54 @@
 	<div class="bg-card text-card-foreground shadow-card rounded-md border p-6">
 		<h2 class="text-fancy-title mb-2 text-xl font-semibold">{m.agent_configuration()}</h2>
 		<p class="text-muted-foreground mb-4">{m.agent_configuration_desc()}</p>
-		<form method="POST" action="?/set_models" use:enhance class="flex flex-col gap-4">
+		{#snippet modelSelect(idName: string, label: string, current: string)}
 			<div class="space-y-2">
-				<label for="model_main" class="text-sm leading-none font-medium"
-					>{m.main_agent_model()}</label
-				>
+				<label for={idName} class="text-sm leading-none font-medium">{label}</label>
 				<select
-					id="model_main"
-					name="model_main"
+					id={idName}
+					name={idName}
 					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
 				>
-					<option
-						value="google-gla:gemini-2.5-flash-lite"
-						selected={data.activeModels.main === 'google-gla:gemini-2.5-flash-lite'}
-						>Gemini 2.5 Flash Lite</option
-					>
-					<option
-						value="google-gla:gemini-2.5-flash"
-						selected={data.activeModels.main === 'google-gla:gemini-2.5-flash' ||
-							data.activeModels.main === ''}>Gemini 2.5 Flash</option
-					>
-					<option
-						value="google-gla:gemini-2.5-pro"
-						selected={data.activeModels.main === 'google-gla:gemini-2.5-pro'}>Gemini 2.5 Pro</option
-					>
-					<option
-						value="google-gla:gemini-3-pro-preview"
-						selected={data.activeModels.main === 'google-gla:gemini-3-pro-preview'}
-						>Gemini 3 Pro Preview</option
-					>
+					{#each optionsFor(current) as opt (opt.value)}
+						<option value={opt.value} selected={isSelected(current, opt.value)}>{opt.label}</option>
+					{/each}
 				</select>
 			</div>
-			<div class="space-y-2">
-				<label for="model_imslp" class="text-sm leading-none font-medium"
-					>{m.imslp_agent_model()}</label
-				>
-				<select
-					id="model_imslp"
-					name="model_imslp"
-					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
-				>
-					<option
-						value="google-gla:gemini-2.5-flash-lite"
-						selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash-lite'}
-						>Gemini 2.5 Flash Lite</option
-					>
-					<option
-						value="google-gla:gemini-2.5-flash"
-						selected={data.activeModels.imslp === 'google-gla:gemini-2.5-flash' ||
-							data.activeModels.imslp === ''}>Gemini 2.5 Flash</option
-					>
-					<option
-						value="google-gla:gemini-2.5-pro"
-						selected={data.activeModels.imslp === 'google-gla:gemini-2.5-pro'}
-						>Gemini 2.5 Pro</option
-					>
-					<option
-						value="google-gla:gemini-3-pro-preview"
-						selected={data.activeModels.imslp === 'google-gla:gemini-3-pro-preview'}
-						>Gemini 3 Pro Preview</option
-					>
-				</select>
-			</div>
-			<div class="space-y-2">
-				<label for="model_complete" class="text-sm leading-none font-medium"
-					>{m.complete_agent_model()}</label
-				>
-				<select
-					id="model_complete"
-					name="model_complete"
-					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
-				>
-					<option
-						value="google-gla:gemini-2.5-flash-lite"
-						selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash-lite'}
-						>Gemini 2.5 Flash Lite</option
-					>
-					<option
-						value="google-gla:gemini-2.5-flash"
-						selected={data.activeModels.complete === 'google-gla:gemini-2.5-flash' ||
-							data.activeModels.complete === ''}>Gemini 2.5 Flash</option
-					>
-					<option
-						value="google-gla:gemini-2.5-pro"
-						selected={data.activeModels.complete === 'google-gla:gemini-2.5-pro'}
-						>Gemini 2.5 Pro</option
-					>
-					<option
-						value="google-gla:gemini-3-pro-preview"
-						selected={data.activeModels.complete === 'google-gla:gemini-3-pro-preview'}
-						>Gemini 3 Pro Preview</option
-					>
-				</select>
-			</div>
-			<div class="space-y-2">
-				<label for="model_imslp_complete" class="text-sm leading-none font-medium"
-					>IMSLP Complete Agent Model</label
-				>
-				<select
-					id="model_imslp_complete"
-					name="model_imslp_complete"
-					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
-				>
-					<option
-						value="google-gla:gemini-2.5-flash-lite"
-						selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-flash-lite'}
-						>Gemini 2.5 Flash Lite</option
-					>
-					<option
-						value="google-gla:gemini-2.5-flash"
-						selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-flash' ||
-							data.activeModels.imslp_complete === ''}>Gemini 2.5 Flash</option
-					>
-					<option
-						value="google-gla:gemini-2.5-pro"
-						selected={data.activeModels.imslp_complete === 'google-gla:gemini-2.5-pro'}
-						>Gemini 2.5 Pro</option
-					>
-					<option
-						value="google-gla:gemini-3-pro-preview"
-						selected={data.activeModels.imslp_complete === 'google-gla:gemini-3-pro-preview'}
-						>Gemini 3 Pro Preview</option
-					>
-				</select>
-			</div>
+		{/snippet}
+		<form
+			method="POST"
+			action="?/set_models"
+			class="flex flex-col gap-4"
+			use:enhance={() => {
+				savingModels = true;
+				return async ({ update }) => {
+					savingModels = false;
+					await update();
+				};
+			}}
+		>
+			{@render modelSelect('model_main', m.main_agent_model(), data.activeModels.main)}
+			{@render modelSelect('model_imslp', m.imslp_agent_model(), data.activeModels.imslp)}
+			{@render modelSelect('model_complete', m.complete_agent_model(), data.activeModels.complete)}
+			{@render modelSelect(
+				'model_imslp_complete',
+				m.imslp_complete_agent_model(),
+				data.activeModels.imslp_complete
+			)}
+			{#if form?.formId === 'models' && form?.error}
+				<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
+			{/if}
+			{#if form?.formId === 'models' && form?.success}
+				<p role="status" class="text-sm font-medium text-green-600 dark:text-green-400">
+					{m.models_updated_success()}
+				</p>
+			{/if}
 			<button
-				class="ring-offset-background focus-visible:ring-ring bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center self-start rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+				class="ring-offset-background focus-visible:ring-ring bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center self-start rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
 				type="submit"
+				disabled={savingModels}
 			>
-				{m.save()}
+				{savingModels ? m.saving() : m.save()}
 			</button>
 		</form>
 	</div>

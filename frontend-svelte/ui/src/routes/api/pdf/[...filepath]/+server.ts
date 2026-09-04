@@ -12,7 +12,7 @@ import { apiFetch } from '$lib/server/fetchApi.js';
  * URL is accepted but no longer required (and is still forwarded as a
  * header, not a query param).
  */
-export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
+export const GET: RequestHandler = async ({ params, url, cookies, fetch, request }) => {
 	const pathWithQuery = params.filepath;
 	let filename = pathWithQuery;
 	let urlToken: string | null;
@@ -38,8 +38,16 @@ export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 
 	const api = apiFetch(fetch, token);
 
+	// Forward the incoming Range header so the backend's partial-content
+	// support (206) reaches PDF.js — without this, every range request
+	// PDF.js makes to prerender upcoming pages re-downloads the whole file,
+	// which is what makes page turns feel slow.
+	const rangeHeader = request.headers.get('Range');
+
 	try {
-		const response = await api(`/pdf/${filename}`);
+		const response = await api(`/pdf/${filename}`, {
+			headers: rangeHeader ? { Range: rangeHeader } : {}
+		});
 
 		if (!response.ok) {
 			return new Response(response.body, {
@@ -53,15 +61,14 @@ export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 
 		const headers = new Headers();
 		headers.set('Content-Type', 'application/pdf');
-		if (response.headers.has('Content-Length')) {
-			headers.set('Content-Length', response.headers.get('Content-Length')!);
-		}
-		if (response.headers.has('Cache-Control')) {
-			headers.set('Cache-Control', response.headers.get('Cache-Control')!);
+		for (const name of ['Content-Length', 'Cache-Control', 'Accept-Ranges', 'Content-Range']) {
+			if (response.headers.has(name)) {
+				headers.set(name, response.headers.get(name)!);
+			}
 		}
 
 		return new Response(response.body, {
-			status: 200,
+			status: response.status,
 			headers: headers
 		});
 	} catch (error) {
