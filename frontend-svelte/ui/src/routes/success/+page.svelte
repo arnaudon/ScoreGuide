@@ -290,7 +290,7 @@
 									href={value as string}
 									target="_blank"
 									rel="external noopener noreferrer"
-									class="text-blue-500 hover:underline"
+									class="text-primary hover:underline"
 								>
 									Watch on YouTube
 								</a>
