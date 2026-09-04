@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -126,6 +127,25 @@ def add_score(
     session.commit()
     session.refresh(db_score)
     return db_score
+
+
+@app.get("/scores/{score_id}")
+def get_score(
+    score_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Session = Depends(get_session),
+):
+    """Get a single score owned by the current user.
+
+    Used by the reader page instead of fetching the whole library and
+    filtering client-side.
+    """
+    score = session.exec(
+        select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
+    ).first()
+    if score is None:
+        raise HTTPException(status_code=404, detail="Score not found")
+    return score
 
 
 @app.post("/complete_score")
@@ -325,22 +345,69 @@ def _get_owned_score_by_pdf(filename: str, user: User, session: Session) -> Scor
     return score
 
 
+_RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
+
+
+def _parse_range(range_header: str | None, file_size: int) -> tuple[int, int] | None:
+    """Parse a single-range ``Range`` header into an inclusive ``(start, end)`` pair.
+
+    Returns ``None`` for a missing, malformed, multi-range, or out-of-bounds
+    header, so the caller can fall back to a normal full-file 200 response.
+    """
+    if not range_header:
+        return None
+    match = _RANGE_RE.match(range_header)
+    if not match:
+        return None
+    start_s, end_s = match.groups()
+    if not start_s and not end_s:
+        return None
+    if not start_s:
+        # Suffix range (e.g. "bytes=-500"): the last N bytes.
+        length = int(end_s)
+        start, end = max(file_size - length, 0), file_size - 1
+    else:
+        start = int(start_s)
+        end = int(end_s) if end_s else file_size - 1
+    end = min(end, file_size - 1)
+    if start < 0 or start > end:
+        return None
+    return start, end
+
+
 @app.get("/pdf/{filename}")
 def get_pdf(
     filename: str,
+    request: Request,
     user: User = Depends(get_pdf_user),
     session: Session = Depends(get_session),
 ):
-    """Stream a pdf file owned by the current user."""
+    """Stream a pdf file owned by the current user.
+
+    Honors HTTP ``Range`` requests so the PDF.js viewer can progressively
+    fetch and prerender pages instead of waiting on the whole file — this is
+    what makes page turns in the reader fast once the document is open.
+    """
     _get_owned_score_by_pdf(filename, user, session)
     try:
-        obj = file_helper.download_pdf(filename)
+        size = file_helper.get_size(filename)
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=404, detail="PDF not found") from e
+
+    headers = {"Cache-Control": "public, max-age=86400, immutable", "Accept-Ranges": "bytes"}
+    byte_range = _parse_range(request.headers.get("range"), size)
+
+    if byte_range is None:
+        obj = file_helper.download_pdf(filename)
+        headers["Content-Length"] = str(size)
+        return StreamingResponse(obj["Body"], media_type="application/pdf", headers=headers)
+
+    start, end = byte_range
+    obj = file_helper.download_pdf(filename, byte_range=byte_range)
+    headers["Content-Length"] = str(end - start + 1)
+    headers["Content-Range"] = f"bytes {start}-{end}/{size}"
     return StreamingResponse(
-        obj["Body"],
-        media_type="application/pdf",
-        headers={"Cache-Control": "public, max-age=86400, immutable"},
+        obj["Body"], status_code=206, media_type="application/pdf", headers=headers
     )
 
 

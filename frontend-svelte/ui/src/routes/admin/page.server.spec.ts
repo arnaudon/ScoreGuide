@@ -157,6 +157,36 @@ describe('set_models / update / empty / cancel actions', () => {
 		expect(body).toEqual({ models: { main: 'a', imslp: 'b', complete: 'c', imslp_complete: 'd' } });
 	});
 
+	it('set_models returns success on the happy path', async () => {
+		const fetch = makeFetch();
+		const result = await actions.set_models(
+			event({
+				request: fakeRequest({ model_main: 'a' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toEqual({ formId: 'models', success: true });
+	});
+
+	it('set_models fails with the backend error when the save is rejected', async () => {
+		const fetch = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ detail: 'nope' }), {
+					status: 400,
+					headers: { 'Content-Type': 'application/json' }
+				})
+		);
+		const result = await actions.set_models(
+			event({
+				request: fakeRequest({ model_main: 'a' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({ status: 400, data: { formId: 'models', error: 'nope' } });
+	});
+
 	it('update hits /imslp/start with the max_pages from the form (default 300)', async () => {
 		const fetch = makeFetch();
 		await actions.update(

@@ -10,6 +10,13 @@
 	function setLanguage(lang: 'en' | 'fr') {
 		setLocale(lang);
 	}
+
+	// `/` only matches the exact home route; every other nav target also
+	// matches its own sub-routes (e.g. /reader/[id] keeps "PDF Viewer" active).
+	function isActive(href: string) {
+		const path = page.url.pathname;
+		return href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
+	}
 </script>
 
 <Sidebar.Root>
@@ -22,28 +29,28 @@
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
 					<Sidebar.MenuItem>
-						<Sidebar.MenuButton>
+						<Sidebar.MenuButton isActive={isActive('/')}>
 							{#snippet child({ props })}
 								<a href={resolve('/')} {...props}>{m.nav_home()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
 					<Sidebar.MenuItem>
-						<Sidebar.MenuButton>
+						<Sidebar.MenuButton isActive={isActive('/db-viewer')}>
 							{#snippet child({ props })}
 								<a href={resolve('/db-viewer')} {...props}>{m.nav_db_viewer()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
 					<Sidebar.MenuItem>
-						<Sidebar.MenuButton>
+						<Sidebar.MenuButton isActive={isActive('/reader')}>
 							{#snippet child({ props })}
 								<a href={resolve('/reader')} {...props}>{m.nav_pdf_viewer()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
 					<Sidebar.MenuItem>
-						<Sidebar.MenuButton>
+						<Sidebar.MenuButton isActive={isActive('/account')}>
 							{#snippet child({ props })}
 								<a href={resolve('/account')} {...props}>{m.nav_account()}</a>
 							{/snippet}
@@ -51,7 +58,7 @@
 					</Sidebar.MenuItem>
 					{#if page.data.isAdmin}
 						<Sidebar.MenuItem>
-							<Sidebar.MenuButton>
+							<Sidebar.MenuButton isActive={isActive('/admin')}>
 								{#snippet child({ props })}
 									<a href={resolve('/admin')} {...props}>{m.nav_admin()}</a>
 								{/snippet}

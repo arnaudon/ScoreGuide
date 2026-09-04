@@ -4,7 +4,6 @@ import { load, actions } from './+page.server.js';
 import { makeCookies, makeFetch, fakeRequest, jsonResponse, event } from '../../test-helpers.js';
 
 const SCORE = { id: 7, title: 'Sonata', composer: 'Beethoven' };
-const OTHER = { id: 99, title: 'Other', composer: 'X' };
 
 describe('reader/[id] load', () => {
 	let errSpy: ReturnType<typeof vi.spyOn>;
@@ -22,11 +21,12 @@ describe('reader/[id] load', () => {
 		expect(fetch).not.toHaveBeenCalled();
 	});
 
-	it('returns the matching score and persists last_score_id when found', async () => {
-		const fetch = vi.fn(async () => jsonResponse([OTHER, SCORE]));
+	it('fetches /scores/{id} directly and persists last_score_id when found', async () => {
+		const fetch = makeFetch(async () => jsonResponse(SCORE));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
 		expect(result).toEqual({ score: SCORE });
+		expect(fetch.mock.calls[0][0]).toContain('/scores/7');
 		expect(cookies.set).toHaveBeenCalledWith(
 			'last_score_id',
 			'7',
@@ -35,7 +35,7 @@ describe('reader/[id] load', () => {
 	});
 
 	it('does not leak `token` into the page data', async () => {
-		const fetch = vi.fn(async () => jsonResponse([SCORE]));
+		const fetch = vi.fn(async () => jsonResponse(SCORE));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = (await load(event({ cookies, fetch, params: { id: '7' } }))) as Record<
 			string,
@@ -44,15 +44,15 @@ describe('reader/[id] load', () => {
 		expect('token' in result).toBe(false);
 	});
 
-	it('returns score: undefined when id not in list, and does NOT set last_score_id', async () => {
-		const fetch = vi.fn(async () => jsonResponse([OTHER]));
+	it('returns score: null when the id is not found (404), and does NOT set last_score_id', async () => {
+		const fetch = vi.fn(async () => new Response(null, { status: 404 }));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: undefined });
+		expect(result).toEqual({ score: null });
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
 
-	it('returns score: null when /scores responds non-OK', async () => {
+	it('returns score: null when /scores/{id} responds non-OK', async () => {
 		const fetch = vi.fn(async () => new Response(null, { status: 500 }));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));

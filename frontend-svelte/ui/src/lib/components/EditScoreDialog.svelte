@@ -30,38 +30,37 @@
 	];
 	const DIFFICULTIES: Difficulty[] = ['easy', 'moderate', 'intermediate', 'advanced', 'expert'];
 
-	let title = $state('');
-	let composer = $state('');
-	let year = $state(1750);
-	let period = $state<Period>('Classical');
-	let genre = $state('');
-	let form = $state('');
-	let style = $state('');
-	let scoreKey = $state('');
-	let instrumentation = $state('');
-	let shortDescription = $state('');
-	let longDescription = $state('');
-	let youtubeUrl = $state('');
-	let difficulty = $state<Difficulty>('moderate');
-	let notableInterpreters = $state('');
+	function fieldsFromScore(s: Score | null | undefined) {
+		return {
+			title: s?.title ?? '',
+			composer: s?.composer ?? '',
+			year: s?.year ?? 1750,
+			period: (s?.period ?? 'Classical') as Period,
+			genre: s?.genre ?? '',
+			form: s?.form ?? '',
+			style: s?.style ?? '',
+			scoreKey: s?.key ?? '',
+			instrumentation: s?.instrumentation ?? '',
+			shortDescription: s?.short_description ?? '',
+			longDescription: s?.long_description ?? '',
+			youtubeUrl: s?.youtube_url ?? '',
+			difficulty: (s?.difficulty ?? 'moderate') as Difficulty,
+			notableInterpreters: s?.notable_interpreters ?? ''
+		};
+	}
+
+	// Single object instead of 14 separate $state vars, so adding a field to
+	// the form only means touching fieldsFromScore() — not two places that
+	// are easy to forget to keep in sync. Seeded with defaults (not `score`
+	// itself) so this stays a plain initial value rather than a reactive
+	// read — the $effect below is what actually syncs it to `score`.
+	let fields = $state(fieldsFromScore(undefined));
 	let saving = $state(false);
+	let saveError = $state<string | null>(null);
 
 	$effect(() => {
 		if (score) {
-			title = score.title ?? '';
-			composer = score.composer ?? '';
-			year = score.year ?? 1750;
-			period = score.period ?? 'Classical';
-			genre = score.genre ?? '';
-			form = score.form ?? '';
-			style = score.style ?? '';
-			scoreKey = score.key ?? '';
-			instrumentation = score.instrumentation ?? '';
-			shortDescription = score.short_description ?? '';
-			longDescription = score.long_description ?? '';
-			youtubeUrl = score.youtube_url ?? '';
-			difficulty = score.difficulty ?? 'moderate';
-			notableInterpreters = score.notable_interpreters ?? '';
+			fields = fieldsFromScore(score);
 		}
 	});
 
@@ -84,11 +83,14 @@
 				class="mt-6 flex flex-col gap-4"
 				use:enhance={() => {
 					saving = true;
+					saveError = null;
 					return async ({ update, result }) => {
 						saving = false;
 						if (result.type === 'success') {
 							await invalidateAll();
 							open = false;
+						} else if (result.type === 'failure') {
+							saveError = (result.data?.error as string) || m.failed_to_save_changes();
 						}
 						await update({ reset: false });
 					};
@@ -98,11 +100,11 @@
 
 				<div class="space-y-2">
 					<label for="edit-title" class="text-sm font-medium">{m.label_title()}</label>
-					<Input id="edit-title" name="title" bind:value={title} required />
+					<Input id="edit-title" name="title" bind:value={fields.title} required />
 				</div>
 				<div class="space-y-2">
 					<label for="edit-composer" class="text-sm font-medium">{m.label_composer()}</label>
-					<Input id="edit-composer" name="composer" bind:value={composer} required />
+					<Input id="edit-composer" name="composer" bind:value={fields.composer} required />
 				</div>
 				<div class="space-y-2">
 					<label for="edit-year" class="text-sm font-medium">{m.label_year()}</label>
@@ -113,12 +115,12 @@
 						step="1"
 						min={-999}
 						max={CURRENT_YEAR + 1}
-						bind:value={year}
+						bind:value={fields.year}
 					/>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-period" class="text-sm font-medium">{m.label_period()}</label>
-					<select id="edit-period" name="period" bind:value={period} class={selectClass}>
+					<select id="edit-period" name="period" bind:value={fields.period} class={selectClass}>
 						{#each PERIODS as p (p)}
 							<option value={p}>{p}</option>
 						{/each}
@@ -126,32 +128,36 @@
 				</div>
 				<div class="space-y-2">
 					<label for="edit-genre" class="text-sm font-medium">{m.label_genre()}</label>
-					<Input id="edit-genre" name="genre" bind:value={genre} />
+					<Input id="edit-genre" name="genre" bind:value={fields.genre} />
 				</div>
 				<div class="space-y-2">
 					<label for="edit-form" class="text-sm font-medium">{m.label_form()}</label>
-					<Input id="edit-form" name="form" bind:value={form} />
+					<Input id="edit-form" name="form" bind:value={fields.form} />
 				</div>
 				<div class="space-y-2">
 					<label for="edit-style" class="text-sm font-medium">{m.label_style()}</label>
-					<Input id="edit-style" name="style" bind:value={style} />
+					<Input id="edit-style" name="style" bind:value={fields.style} />
 				</div>
 				<div class="space-y-2">
 					<label for="edit-key" class="text-sm font-medium">{m.label_key_signature()}</label>
-					<Input id="edit-key" name="key" bind:value={scoreKey} />
+					<Input id="edit-key" name="key" bind:value={fields.scoreKey} />
 				</div>
 				<div class="space-y-2">
 					<label for="edit-instrumentation" class="text-sm font-medium"
 						>{m.label_instrumentation()}</label
 					>
-					<Input id="edit-instrumentation" name="instrumentation" bind:value={instrumentation} />
+					<Input
+						id="edit-instrumentation"
+						name="instrumentation"
+						bind:value={fields.instrumentation}
+					/>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-difficulty" class="text-sm font-medium">{m.label_difficulty()}</label>
 					<select
 						id="edit-difficulty"
 						name="difficulty"
-						bind:value={difficulty}
+						bind:value={fields.difficulty}
 						class={selectClass}
 					>
 						{#each DIFFICULTIES as d (d)}
@@ -166,7 +172,7 @@
 					<textarea
 						id="edit-short-description"
 						name="short_description"
-						bind:value={shortDescription}
+						bind:value={fields.shortDescription}
 						class={textareaClass}></textarea>
 				</div>
 				<div class="space-y-2">
@@ -176,7 +182,7 @@
 					<textarea
 						id="edit-long-description"
 						name="long_description"
-						bind:value={longDescription}
+						bind:value={fields.longDescription}
 						rows={5}
 						class={textareaClass}></textarea>
 				</div>
@@ -187,13 +193,17 @@
 					<Input
 						id="edit-notable-interpreters"
 						name="notable_interpreters"
-						bind:value={notableInterpreters}
+						bind:value={fields.notableInterpreters}
 					/>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-youtube-url" class="text-sm font-medium">{m.label_youtube_url()}</label>
-					<Input id="edit-youtube-url" name="youtube_url" bind:value={youtubeUrl} />
+					<Input id="edit-youtube-url" name="youtube_url" bind:value={fields.youtubeUrl} />
 				</div>
+
+				{#if saveError}
+					<p role="alert" class="text-destructive text-sm font-medium">{saveError}</p>
+				{/if}
 
 				<Sheet.Footer class="mt-4">
 					<Button type="submit" disabled={saving}>

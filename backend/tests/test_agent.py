@@ -174,41 +174,41 @@ async def test_run_complete_agent_success(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_complete_agent_http_error_429(monkeypatch):
-    """Test run_complete_agent with a 429 HTTP error."""
+    """Test run_complete_agent propagates a 429 HTTP error instead of swallowing it."""
     mock_agent_run = AsyncMock(side_effect=ModelHTTPError(429, "error"))
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = mock_agent_run
     mock_agent_class = MagicMock(return_value=mock_agent_instance)
     monkeypatch.setattr("app.agent.Agent", mock_agent_class)
     score = Score(title="test", composer="test")
-    result = await agent.run_complete_agent(score)
-    assert result == score
+    with pytest.raises(ModelHTTPError):
+        await agent.run_complete_agent(score)
 
 
 @pytest.mark.asyncio
 async def test_run_complete_agent_http_error_other(monkeypatch):
-    """Test run_complete_agent with a non-429 HTTP error."""
+    """Test run_complete_agent propagates a non-429 HTTP error instead of swallowing it."""
     mock_agent_run = AsyncMock(side_effect=ModelHTTPError(500, "error"))
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = mock_agent_run
     mock_agent_class = MagicMock(return_value=mock_agent_instance)
     monkeypatch.setattr("app.agent.Agent", mock_agent_class)
     score = Score(title="test", composer="test")
-    result = await agent.run_complete_agent(score)
-    assert result == score
+    with pytest.raises(ModelHTTPError):
+        await agent.run_complete_agent(score)
 
 
 @pytest.mark.asyncio
 async def test_run_complete_agent_exception(monkeypatch):
-    """Test run_complete_agent with a generic exception."""
+    """Test run_complete_agent propagates a generic exception instead of swallowing it."""
     mock_agent_run = AsyncMock(side_effect=Exception("error"))
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = mock_agent_run
     mock_agent_class = MagicMock(return_value=mock_agent_instance)
     monkeypatch.setattr("app.agent.Agent", mock_agent_class)
     score = Score(title="test", composer="test")
-    result = await agent.run_complete_agent(score)
-    assert result == score
+    with pytest.raises(Exception, match="error"):
+        await agent.run_complete_agent(score)
 
 
 @pytest.mark.asyncio

@@ -13,21 +13,18 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 
 	const api = apiFetch(fetch, token);
 	try {
-		const response = await api('/scores');
+		const response = await api(`/scores/${params.id}`);
 
 		if (response.ok) {
-			const scores = (await response.json()) as Score[];
-			const score = scores.find((s) => s.id === Number(params.id));
+			const score = (await response.json()) as Score;
 
-			if (score) {
-				cookies.set('last_score_id', params.id, {
-					path: '/',
-					httpOnly: true,
-					secure: !dev,
-					sameSite: 'lax',
-					maxAge: 60 * 60 * 24 * 30 // 30 days
-				});
-			}
+			cookies.set('last_score_id', params.id, {
+				path: '/',
+				httpOnly: true,
+				secure: !dev,
+				sameSite: 'lax',
+				maxAge: 60 * 60 * 24 * 30 // 30 days
+			});
 
 			return { score };
 		}

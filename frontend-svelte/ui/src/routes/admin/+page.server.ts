@@ -113,11 +113,20 @@ export const actions: Actions = {
 			imslp_complete: data.get('model_imslp_complete')?.toString() || ''
 		};
 		const api = apiFetch(fetch, token);
-		await api('/admin/model', {
+		const res = await api('/admin/model', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ models })
 		});
+
+		if (!res.ok) {
+			const result = await res.json().catch(() => ({}));
+			return fail(res.status, {
+				formId: 'models',
+				error: result.detail || 'Failed to save models.'
+			});
+		}
+		return { formId: 'models', success: true };
 	},
 	update: async ({ request, cookies, fetch }) => {
 		const data = await request.formData();

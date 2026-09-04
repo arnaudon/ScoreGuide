@@ -9,6 +9,7 @@
 
 	let { form }: PageProps = $props();
 	let isRegister = $state(false);
+	let submitting = $state(false);
 </script>
 
 <div class="flex h-full items-center justify-center pt-10 pb-4">
@@ -35,7 +36,13 @@
 			method="POST"
 			action={isRegister ? '?/register' : '?/login'}
 			class="space-y-4"
-			use:enhance
+			use:enhance={() => {
+				submitting = true;
+				return async ({ update }) => {
+					submitting = false;
+					await update();
+				};
+			}}
 		>
 			<div class="space-y-2">
 				<label for="username" class="text-sm leading-none font-medium">{m.username()}</label>
@@ -112,7 +119,13 @@
 				</p>
 			{/if}
 
-			<Button type="submit" class="w-full">{isRegister ? m.sign_up() : m.login()}</Button>
+			<Button type="submit" class="w-full" disabled={submitting}>
+				{#if submitting}
+					{isRegister ? m.signing_up() : m.logging_in()}
+				{:else}
+					{isRegister ? m.sign_up() : m.login()}
+				{/if}
+			</Button>
 		</form>
 
 		<div class="mt-4 text-center text-sm">
