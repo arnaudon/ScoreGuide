@@ -277,15 +277,8 @@ async def run_complete_agent(score: Score, model: str | None = None):
         tools=[duckduckgo_search_tool()],
     )
     prompt = f"Find the information about music piece {score.title} composed by {score.composer}."
-    try:
-        res = await agent.run(_wrap_user_prompt(prompt))
-        return res.output
-    except ModelHTTPError:
-        logger.exception("complete agent HTTP error; returning input score unchanged")
-        return score
-    except Exception:
-        logger.exception("complete agent failed; returning input score unchanged")
-        return score
+    res = await agent.run(_wrap_user_prompt(prompt))
+    return res.output
 
 
 async def run_imslp_complete_agent(entry_json: str, model: str | None = None) -> ScoreBase:
