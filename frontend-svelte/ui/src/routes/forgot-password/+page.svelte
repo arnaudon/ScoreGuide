@@ -21,7 +21,7 @@
 		</h2>
 
 		{#if form?.message}
-			<p role="status" class="text-sm font-medium text-green-600 dark:text-green-400">
+			<p role="status" class="text-success text-sm font-medium">
 				{form.message}
 			</p>
 		{:else}

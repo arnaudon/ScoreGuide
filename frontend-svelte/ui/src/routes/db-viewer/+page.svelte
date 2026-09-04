@@ -429,7 +429,7 @@
 			<p class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
 		{/if}
 		{#if form?.scoreAdded}
-			<p class="mt-4 text-sm font-medium text-green-600 dark:text-green-400">
+			<p class="text-success mt-4 text-sm font-medium">
 				{m.score_added_success()}
 			</p>
 		{/if}
@@ -616,7 +616,7 @@
 									href={value}
 									target="_blank"
 									rel="noopener noreferrer"
-									class="text-blue-500 hover:underline"
+									class="text-primary hover:underline"
 								>
 									Watch on YouTube
 								</a>
@@ -709,7 +709,7 @@
 									href={value as string}
 									target="_blank"
 									rel="external noopener noreferrer"
-									class="text-blue-500 hover:underline"
+									class="text-primary hover:underline"
 								>
 									{m.view_on_imslp()}
 								</a>
@@ -731,7 +731,7 @@
 						href={agentSelectedScore.permlink}
 						target="_blank"
 						rel="external noopener noreferrer"
-						class="break-all text-blue-500 hover:underline">{agentSelectedScore.permlink}</a
+						class="text-primary break-all hover:underline">{agentSelectedScore.permlink}</a
 					>
 				</p>
 				<p class="text-muted-foreground text-sm">
