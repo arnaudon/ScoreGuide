@@ -10,6 +10,12 @@ scoreguide.ch {
 }
 
 gardenai.scoreguide.ch {
+	# Developer docs: GardenAI's MkDocs site (docs_garden, nginx on :80).
+	# Its nginx serves /docs/ itself, so the prefix is kept.
+	redir /docs /docs/ 308
+	handle /docs/* {
+		reverse_proxy docs_garden:80
+	}
 	handle /api/* {
 		uri strip_prefix /api
 		reverse_proxy backend_garden:8000
