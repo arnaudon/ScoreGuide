@@ -215,7 +215,10 @@
 				savingModels = true;
 				return async ({ update }) => {
 					savingModels = false;
-					await update();
+					// Don't reset: form.reset() restores the server-rendered defaults,
+					// leaving selects showing values that aren't in the DB, which the
+					// next Save would then write back.
+					await update({ reset: false });
 				};
 			}}
 		>

@@ -440,6 +440,11 @@
 			<p role="status" class="text-success mt-4 text-sm font-medium">
 				{m.score_added_success()}
 			</p>
+			{#if form?.completionFailed}
+				<p role="status" class="text-muted-foreground mt-1 text-sm">
+					{m.score_completion_failed()}
+				</p>
+			{/if}
 		{/if}
 	</div>
 

@@ -84,11 +84,11 @@ export const actions: Actions = {
 				body: JSON.stringify(initialScoreData)
 			});
 
-			if (!completeRes.ok) {
-				return fail(completeRes.status, { error: 'Failed to complete score data with agent' });
-			}
-
-			let scoreData = await completeRes.json();
+			// If the agent fails (or the user is out of credits), still save the
+			// score with the user's data so the uploaded PDF isn't orphaned; it
+			// can be re-completed later.
+			const completionFailed = !completeRes.ok;
+			let scoreData = completionFailed ? initialScoreData : await completeRes.json();
 
 			// Handle case where agent returns a JSON string instead of an object
 			if (typeof scoreData === 'string') {
@@ -123,7 +123,7 @@ export const actions: Actions = {
 				return fail(scoreRes.status, { error: 'Failed to save score' });
 			}
 
-			return { success: true, scoreAdded: true };
+			return { success: true, scoreAdded: true, completionFailed };
 		} catch (error) {
 			console.error('Upload error:', error);
 			return fail(500, { error: 'Server error when contacting backend' });

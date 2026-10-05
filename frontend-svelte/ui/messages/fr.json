@@ -190,5 +190,6 @@
 	"language_switch": "Langue",
 	"language_switch_to_en": "Passer à l'anglais",
 	"language_switch_to_fr": "Passer au français",
-	"cookie_banner_label": "Consentement aux cookies"
+	"cookie_banner_label": "Consentement aux cookies",
+	"score_completion_failed": "L'assistant n'a pas pu compléter les métadonnées ; vous pouvez le relancer depuis le menu de la partition."
 }
