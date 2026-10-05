@@ -106,10 +106,10 @@
 				</div>
 
 				{#if form?.form === 'profile' && form?.error}
-					<p class="text-destructive text-sm font-medium">{form.error}</p>
+					<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
 				{/if}
 				{#if form?.form === 'profile' && form?.success}
-					<p class="text-success text-sm font-medium">
+					<p role="status" class="text-success text-sm font-medium">
 						{m.profile_updated_success()}
 					</p>
 				{/if}
@@ -162,10 +162,10 @@
 				</div>
 
 				{#if form?.form === 'password' && form?.error}
-					<p class="text-destructive text-sm font-medium">{form.error}</p>
+					<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
 				{/if}
 				{#if form?.form === 'password' && form?.success}
-					<p class="text-success text-sm font-medium">
+					<p role="status" class="text-success text-sm font-medium">
 						{m.password_updated_success()}
 					</p>
 				{/if}
@@ -196,7 +196,7 @@
 				}}
 			>
 				{#if form?.form === 'delete' && form?.error}
-					<p class="text-destructive mb-4 text-sm font-medium">{form.error}</p>
+					<p role="alert" class="text-destructive mb-4 text-sm font-medium">{form.error}</p>
 				{/if}
 				<Button
 					type="submit"

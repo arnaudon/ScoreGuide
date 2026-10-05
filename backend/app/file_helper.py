@@ -66,11 +66,47 @@ class FileHelper:
             with contextlib.suppress(FileNotFoundError):
                 os.remove(self._local_path(filename))
 
-    def download_pdf(self, filename):
-        """Download a pdf file from S3."""
+    def get_size(self, filename) -> int:
+        """Return the size in bytes of a stored pdf, for building Range responses."""
         if self.s3_client:  # pragma: no cover
-            return self.s3_client.get_object(Bucket=self.bucket, Key=filename)
-        return {"Body": open(self._local_path(filename), "rb")}
+            return self.s3_client.head_object(Bucket=self.bucket, Key=filename)["ContentLength"]
+        return self._local_path(filename).stat().st_size
+
+    def download_pdf(self, filename, byte_range: tuple[int, int] | None = None):
+        """Download a pdf file, optionally only the ``(start, end)`` inclusive byte range.
+
+        Range support lets PDF.js fetch and prerender only the pages it needs
+        instead of downloading the whole file before it can show anything.
+        """
+        if self.s3_client:  # pragma: no cover
+            kwargs = {"Bucket": self.bucket, "Key": filename}
+            if byte_range is not None:
+                start, end = byte_range
+                kwargs["Range"] = f"bytes={start}-{end}"
+            return self.s3_client.get_object(**kwargs)
+
+        # Deliberately outlives this function — StreamingResponse reads and
+        # closes it (or _bounded_reader does, below), not a `with` block here.
+        f = open(self._local_path(filename), "rb")  # noqa: SIM115
+        if byte_range is None:
+            return {"Body": f}
+        start, end = byte_range
+        f.seek(start)
+        return {"Body": _bounded_reader(f, end - start + 1)}
+
+
+def _bounded_reader(f, length: int, chunk_size: int = 64 * 1024):
+    """Yield at most ``length`` bytes from an open file handle, then close it."""
+    remaining = length
+    try:
+        while remaining > 0:
+            chunk = f.read(min(chunk_size, remaining))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+            yield chunk
+    finally:
+        f.close()
 
 
 file_helper = FileHelper()

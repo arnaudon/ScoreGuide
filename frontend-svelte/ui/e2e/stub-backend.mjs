@@ -45,6 +45,18 @@ const server = createServer((req, res) => {
 	if (url.pathname === '/scores' && req.method === 'GET') {
 		return json(res, 200, []);
 	}
+	const scoreMatch = url.pathname.match(/^\/scores\/(\d+)$/);
+	if (scoreMatch && req.method === 'GET') {
+		if (scoreMatch[1] === '1') {
+			return json(res, 200, {
+				id: 1,
+				title: 'Moonlight Sonata',
+				composer: 'Beethoven',
+				pdf_path: 'moonlight.pdf'
+			});
+		}
+		return json(res, 404, { detail: 'Score not found' });
+	}
 	return json(res, 404, { detail: `stub: no handler for ${req.method} ${url.pathname}` });
 });
 

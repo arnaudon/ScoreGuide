@@ -2,15 +2,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GET } from './+server.js';
 import { makeCookies, makeFetch, event } from '../../../test-helpers.js';
 
-function pdfResponse(status = 200, body = '%PDF-1.4') {
+function pdfResponse(status = 200, body = '%PDF-1.4', extraHeaders: Record<string, string> = {}) {
 	return new Response(body, {
 		status,
 		headers: {
 			'Content-Type': 'application/pdf',
 			'Content-Length': String(body.length),
-			'Cache-Control': 'public, max-age=86400, immutable'
+			'Cache-Control': 'public, max-age=86400, immutable',
+			...extraHeaders
 		}
 	});
+}
+
+function req(url: string, headers: Record<string, string> = {}) {
+	return new Request(url, { headers });
 }
 
 describe('GET /api/pdf/:filepath', () => {
@@ -27,6 +32,7 @@ describe('GET /api/pdf/:filepath', () => {
 				params: { filepath: 'score.pdf' },
 				url: new URL('http://x/api/pdf/score.pdf'),
 				cookies: makeCookies(),
+				request: req('http://x/api/pdf/score.pdf'),
 				fetch
 			})
 		);
@@ -40,6 +46,7 @@ describe('GET /api/pdf/:filepath', () => {
 				params: { filepath: '' },
 				url: new URL('http://x/api/pdf/'),
 				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/'),
 				fetch: vi.fn()
 			})
 		);
@@ -58,6 +65,7 @@ describe('GET /api/pdf/:filepath', () => {
 				params: { filepath: 'score.pdf' },
 				url: new URL('http://x/api/pdf/score.pdf?token=urlToken'),
 				cookies: makeCookies({ access_token: 'cookieToken' }),
+				request: req('http://x/api/pdf/score.pdf?token=urlToken'),
 				fetch
 			})
 		);
@@ -72,6 +80,7 @@ describe('GET /api/pdf/:filepath', () => {
 				params: { filepath: 'score.pdf' },
 				url: new URL('http://x/api/pdf/score.pdf?token=urlOnly'),
 				cookies: makeCookies(),
+				request: req('http://x/api/pdf/score.pdf?token=urlOnly'),
 				fetch
 			})
 		);
@@ -88,6 +97,7 @@ describe('GET /api/pdf/:filepath', () => {
 				params: { filepath: 'foo.pdf?token=fromPath' },
 				url: new URL('http://x/api/pdf/foo.pdf'),
 				cookies: makeCookies(),
+				request: req('http://x/api/pdf/foo.pdf'),
 				fetch
 			})
 		);
@@ -103,6 +113,7 @@ describe('GET /api/pdf/:filepath', () => {
 				params: { filepath: 'score.pdf' },
 				url: new URL('http://x/api/pdf/score.pdf'),
 				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/score.pdf'),
 				fetch
 			})
 		);
@@ -125,6 +136,7 @@ describe('GET /api/pdf/:filepath', () => {
 				params: { filepath: 'missing.pdf' },
 				url: new URL('http://x/api/pdf/missing.pdf'),
 				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/missing.pdf'),
 				fetch
 			})
 		);
@@ -140,10 +152,62 @@ describe('GET /api/pdf/:filepath', () => {
 				params: { filepath: 'score.pdf' },
 				url: new URL('http://x/api/pdf/score.pdf'),
 				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/score.pdf'),
 				fetch
 			})
 		);
 		expect(res.status).toBe(500);
 		expect(errSpy).toHaveBeenCalled();
+	});
+
+	it('forwards an incoming Range header to the backend', async () => {
+		const fetch = makeFetch(async () => pdfResponse());
+		await GET(
+			event({
+				params: { filepath: 'score.pdf' },
+				url: new URL('http://x/api/pdf/score.pdf'),
+				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/score.pdf', { Range: 'bytes=0-9' }),
+				fetch
+			})
+		);
+		const init = fetch.mock.calls[0][1] as RequestInit;
+		expect(new Headers(init.headers).get('Range')).toBe('bytes=0-9');
+	});
+
+	it('sends no Range header to the backend when the request has none', async () => {
+		const fetch = makeFetch(async () => pdfResponse());
+		await GET(
+			event({
+				params: { filepath: 'score.pdf' },
+				url: new URL('http://x/api/pdf/score.pdf'),
+				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/score.pdf'),
+				fetch
+			})
+		);
+		const init = fetch.mock.calls[0][1] as RequestInit;
+		expect(new Headers(init.headers).get('Range')).toBeNull();
+	});
+
+	it('passes through a 206 partial-content response with its range headers', async () => {
+		const fetch = makeFetch(async () =>
+			pdfResponse(206, '%PDF', {
+				'Content-Range': 'bytes 0-3/1000',
+				'Accept-Ranges': 'bytes'
+			})
+		);
+		const res = await GET(
+			event({
+				params: { filepath: 'score.pdf' },
+				url: new URL('http://x/api/pdf/score.pdf'),
+				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/score.pdf', { Range: 'bytes=0-3' }),
+				fetch
+			})
+		);
+		expect(res.status).toBe(206);
+		expect(res.headers.get('Content-Range')).toBe('bytes 0-3/1000');
+		expect(res.headers.get('Accept-Ranges')).toBe('bytes');
 	});
 });

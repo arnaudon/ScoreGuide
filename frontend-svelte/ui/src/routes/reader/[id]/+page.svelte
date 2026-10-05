@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import EditScoreDialog from '$lib/components/EditScoreDialog.svelte';
 	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
@@ -10,11 +11,18 @@
 	let sheetOpen = $state(false);
 	let editOpen = $state(false);
 	let iframeEl: HTMLIFrameElement | undefined = $state();
+	// Tracks which viewer URL has actually fired `onload`, rather than a
+	// plain boolean, so navigating to a different score's PDF while this
+	// component stays mounted correctly goes back to "loading" instead of
+	// keeping the previous document's loaded state.
+	let loadedUrl = $state('');
 
 	function enterPresentationMode() {
-		if (iframeEl?.contentWindow?.document) {
-			const button = iframeEl.contentWindow.document.getElementById('presentationMode');
-			button?.click();
+		const button = iframeEl?.contentWindow?.document?.getElementById('presentationMode');
+		if (button) {
+			button.click();
+		} else {
+			console.error('Presentation mode control not found in the PDF viewer.');
 		}
 	}
 
@@ -51,27 +59,34 @@
 	let viewerUrl = $derived(
 		pdfUrl ? `/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}` : ''
 	);
+	let pdfLoaded = $derived(viewerUrl !== '' && loadedUrl === viewerUrl);
 </script>
 
-<div class="h-full w-full p-4">
+<div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
 	{#if data.score}
-		<div class="mb-4 flex items-center justify-between">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 			<div>
 				<h1 class="text-fancy-title text-foreground text-2xl font-bold">{data.score.title}</h1>
 				<p class="text-muted-foreground">{data.score.composer}</p>
 			</div>
-			<div class="flex gap-2">
-				<Button variant="outline" onclick={enterPresentationMode}>{m.presentation_mode()}</Button>
+			<div class="flex flex-wrap gap-2">
+				<Button variant="outline" onclick={enterPresentationMode} disabled={!pdfLoaded}>
+					{m.presentation_mode()}
+				</Button>
 				<Button variant="outline" onclick={() => (sheetOpen = true)}>{m.view_details()}</Button>
 				<Button variant="outline" onclick={() => (editOpen = true)}>{m.edit_score()}</Button>
 			</div>
 		</div>
 
-		<div class="bg-card shadow-card h-[calc(100vh-8rem)] rounded-md border">
+		<div class="bg-card shadow-card relative min-h-0 flex-1 rounded-md border">
 			{#if viewerUrl}
+				{#if !pdfLoaded}
+					<Skeleton class="absolute inset-0 rounded-md" />
+				{/if}
 				<iframe
 					bind:this={iframeEl}
 					src={viewerUrl}
+					onload={() => (loadedUrl = viewerUrl)}
 					class="h-full w-full rounded-md border-0"
 					title="PDF Viewer"
 					allowfullscreen

@@ -111,10 +111,25 @@ def test_add_play_wrong_id(client: TestClient):
     response = client.get("/scores").json()
 
 
+def test_get_single_score(client: TestClient, test_scores: Scores):
+    """GET /scores/{id} returns the owned score, used by the reader page."""
+    response = client.get("/scores/1")
+    assert response.status_code == 200
+    assert response.json()["title"] == test_scores.scores[0].title
+
+
+def test_get_single_score_not_found(client: TestClient):
+    """GET /scores/{id} 404s for an id that doesn't exist or isn't owned."""
+    response = client.get("/scores/999")
+    assert response.status_code == 404
+
+
 def test_get_pdf(client: TestClient):
     """test get pdf"""
     response = client.get("/pdf/real_score.pdf")
     assert response.status_code == 200
+    assert response.headers["accept-ranges"] == "bytes"
+    assert "content-range" not in response.headers
 
 
 def test_get_pdf_not_owned(client: TestClient):
@@ -128,6 +143,51 @@ def test_get_pdf_owned_but_missing_on_disk(client: TestClient, test_scores: Scor
     # score_2 is owned by the test user but score_2.pdf isn't in DATA_PATH
     response = client.get(f"/pdf/{test_scores.scores[1].pdf_path}")
     assert response.status_code == 404
+
+
+def test_get_pdf_range(client: TestClient):
+    """A Range request returns 206 with just the requested bytes.
+
+    This is what lets the PDF.js viewer stream and prerender pages instead
+    of downloading the whole file up front.
+    """
+    full = client.get("/pdf/real_score.pdf")
+    size = len(full.content)
+
+    response = client.get("/pdf/real_score.pdf", headers={"Range": "bytes=0-9"})
+    assert response.status_code == 206
+    assert response.headers["content-range"] == f"bytes 0-9/{size}"
+    assert response.headers["content-length"] == "10"
+    assert response.content == full.content[:10]
+
+
+def test_get_pdf_range_suffix(client: TestClient):
+    """A suffix Range request (last N bytes) is honored."""
+    full = client.get("/pdf/real_score.pdf")
+    size = len(full.content)
+
+    response = client.get("/pdf/real_score.pdf", headers={"Range": "bytes=-10"})
+    assert response.status_code == 206
+    assert response.headers["content-range"] == f"bytes {size - 10}-{size - 1}/{size}"
+    assert response.content == full.content[-10:]
+
+
+def test_get_pdf_range_invalid_falls_back_to_full(client: TestClient):
+    """A malformed Range header is ignored and the full file is returned."""
+    response = client.get("/pdf/real_score.pdf", headers={"Range": "not-a-range"})
+    assert response.status_code == 200
+
+
+def test_get_pdf_range_empty_falls_back_to_full(client: TestClient):
+    """A ``bytes=-`` header (no start, no end) is ignored."""
+    response = client.get("/pdf/real_score.pdf", headers={"Range": "bytes=-"})
+    assert response.status_code == 200
+
+
+def test_get_pdf_range_start_after_end_falls_back_to_full(client: TestClient):
+    """An out-of-order range (start past end) is ignored."""
+    response = client.get("/pdf/real_score.pdf", headers={"Range": "bytes=100-5"})
+    assert response.status_code == 200
 
 
 def test_upload_pdf(client: TestClient):

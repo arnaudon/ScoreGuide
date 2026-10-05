@@ -147,7 +147,7 @@
 		</form>
 
 		{#if form?.error}
-			<p class="text-destructive mt-2 text-sm">{form.error}</p>
+			<p role="alert" class="text-destructive mt-2 text-sm">{form.error}</p>
 		{/if}
 
 		<div class="text-muted-foreground mt-4 flex items-center justify-between text-sm">
