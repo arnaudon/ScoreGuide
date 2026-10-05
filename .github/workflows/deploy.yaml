@@ -7,6 +7,12 @@ on:
 permissions:
   contents: read
 
+# Serialize deploys: several merges in a row used to start parallel builds on
+# the VPS, which starved each other and hit the SSH command timeout.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
