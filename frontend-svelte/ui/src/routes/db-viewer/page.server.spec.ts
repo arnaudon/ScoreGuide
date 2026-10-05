@@ -96,10 +96,32 @@ describe('upload action', () => {
 				fetch
 			})
 		);
-		expect(result).toEqual({ success: true, scoreAdded: true });
+		expect(result).toEqual({ success: true, scoreAdded: true, completionFailed: false });
 		// 3rd call is POST /scores with `source: 'manual'` + pdf_path
 		const lastBody = JSON.parse(fetch.mock.calls[2][1]!.body as string);
 		expect(lastBody).toMatchObject({ pdf_path: 'final.pdf', source: 'manual' });
+	});
+
+	it('still saves the score with user data when the agent fails', async () => {
+		const fetch = makeFetch()
+			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' })) // POST /pdf
+			.mockResolvedValueOnce(new Response(null, { status: 500 })) // POST /complete_score
+			.mockResolvedValueOnce(jsonResponse({ id: 1 })); // POST /scores
+		const result = await actions.upload(
+			event({
+				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile() }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toEqual({ success: true, scoreAdded: true, completionFailed: true });
+		const lastBody = JSON.parse(fetch.mock.calls[2][1]!.body as string);
+		expect(lastBody).toEqual({
+			title: 't',
+			composer: 'c',
+			pdf_path: 'final.pdf',
+			source: 'manual'
+		});
 	});
 
 	it('fails when /pdf upload returns non-OK', async () => {
