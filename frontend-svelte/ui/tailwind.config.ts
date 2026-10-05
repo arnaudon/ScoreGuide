@@ -36,6 +36,10 @@ const config = {
 					DEFAULT: 'hsl(var(--destructive) / <alpha-value>)',
 					foreground: 'hsl(var(--destructive-foreground) / <alpha-value>)'
 				},
+				success: {
+					DEFAULT: 'hsl(var(--success) / <alpha-value>)',
+					foreground: 'hsl(var(--success-foreground) / <alpha-value>)'
+				},
 				muted: {
 					DEFAULT: 'hsl(var(--muted) / <alpha-value>)',
 					foreground: 'hsl(var(--muted-foreground) / <alpha-value>)'
@@ -73,7 +77,8 @@ const config = {
 				sm: 'calc(var(--radius) - 4px)'
 			},
 			fontFamily: {
-				sans: ['EB Garamond', ...fontFamily.sans]
+				sans: ['Figtree', ...fontFamily.sans],
+				serif: ['EB Garamond', ...fontFamily.serif]
 			}
 		}
 	},
