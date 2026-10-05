@@ -231,7 +231,7 @@
 				<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
 			{/if}
 			{#if form?.formId === 'models' && form?.success}
-				<p role="status" class="text-sm font-medium text-green-600 dark:text-green-400">
+				<p role="status" class="text-success text-sm font-medium">
 					{m.models_updated_success()}
 				</p>
 			{/if}

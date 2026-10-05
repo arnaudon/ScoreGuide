@@ -109,7 +109,7 @@
 					<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
 				{/if}
 				{#if form?.form === 'profile' && form?.success}
-					<p role="status" class="text-sm font-medium text-green-600 dark:text-green-400">
+					<p role="status" class="text-success text-sm font-medium">
 						{m.profile_updated_success()}
 					</p>
 				{/if}
@@ -165,7 +165,7 @@
 					<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
 				{/if}
 				{#if form?.form === 'password' && form?.success}
-					<p role="status" class="text-sm font-medium text-green-600 dark:text-green-400">
+					<p role="status" class="text-success text-sm font-medium">
 						{m.password_updated_success()}
 					</p>
 				{/if}
