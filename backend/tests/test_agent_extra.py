@@ -69,7 +69,8 @@ async def test_run_agent_exception(monkeypatch, test_scores, test_user):
 @pytest.mark.anyio
 async def test_run_complete_agent_model_http_error(monkeypatch):
     """
-    Test error handling in run_complete_agent.
+    Test that run_complete_agent propagates a ModelHTTPError instead of
+    swallowing it and silently returning the input score unchanged.
     """
 
     # Patch Agent.run to raise ModelHTTPError(429)
@@ -85,5 +86,5 @@ async def test_run_complete_agent_model_http_error(monkeypatch):
 
     monkeypatch.setattr(agent.Agent, "run", fail)
     score = Score(composer="Test", title="T", pdf_path="", user_id=1)
-    out = await agent.run_complete_agent(score)
-    assert isinstance(out, Score)
+    with pytest.raises(agent.ModelHTTPError):
+        await agent.run_complete_agent(score)
