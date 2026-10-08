@@ -20,7 +20,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import config, imslp, users
+from app import config, imslp, sections, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
 from app.credits import consume_credit
 from app.db import get_async_session, get_session
@@ -103,6 +103,7 @@ app.add_middleware(
 
 app.include_router(users.router, tags=["users"])
 app.include_router(imslp.router, tags=["imslp"])
+app.include_router(sections.router, tags=["sections"])
 
 
 @app.get("/health")
@@ -203,6 +204,7 @@ def delete_score(
         select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
     ).first()
     if score is not None:
+        sections.delete_sections(score.id, session)  # type: ignore[arg-type]
         session.delete(score)
     session.commit()
 

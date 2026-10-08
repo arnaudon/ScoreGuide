@@ -29,6 +29,10 @@ dependencies = [
     "httpx>=0.28.1",
     "slowapi>=0.1.9",
     "sentry-sdk[fastapi]>=2.0.0",
+    "pypdfium2>=4.30",
+    "pypdf>=5.0",
+    "pillow>=11.0",
+    "numpy>=2.0",
 ]
 
 [dependency-groups]
