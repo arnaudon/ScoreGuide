@@ -191,5 +191,14 @@
 	"language_switch_to_en": "Passer à l'anglais",
 	"language_switch_to_fr": "Passer au français",
 	"cookie_banner_label": "Consentement aux cookies",
-	"score_completion_failed": "L'assistant n'a pas pu compléter les métadonnées ; vous pouvez le relancer depuis le menu de la partition."
+	"score_completion_failed": "L'assistant n'a pas pu compléter les métadonnées ; vous pouvez le relancer depuis le menu de la partition.",
+	"toc_contents": "Sommaire",
+	"toc_desc": "Pièces et mouvements de cette partition. Cliquez pour y accéder.",
+	"toc_running": "Création du sommaire… cela peut prendre quelques minutes pour les gros volumes.",
+	"toc_error": "Impossible de créer le sommaire.",
+	"toc_empty": "Pas encore de sommaire.",
+	"toc_generate": "Générer le sommaire",
+	"toc_regenerate": "Régénérer",
+	"toc_page": "p. {page}",
+	"toc_incipit_alt": "Premières mesures de {title}"
 }

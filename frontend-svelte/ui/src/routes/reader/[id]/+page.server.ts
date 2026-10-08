@@ -3,7 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
 import { apiFetch } from '$lib/server/fetchApi.js';
 import { buildScoreUpdatePayload } from '$lib/server/scoreUpdate.js';
-import type { Score } from '$lib/types.js';
+import type { Score, SectionsResponse } from '$lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 	const token = cookies.get('access_token');
@@ -26,16 +26,50 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 				maxAge: 60 * 60 * 24 * 30 // 30 days
 			});
 
-			return { score };
+			return { score, toc: await loadSections(api, params.id) };
 		}
 	} catch (error) {
 		console.error('Failed to fetch score:', error);
 	}
 
-	return { score: null };
+	return { score: null, toc: EMPTY_TOC };
 };
 
+const EMPTY_TOC: SectionsResponse = { status: 'none', sections: [] };
+
+/** The table of contents is optional: never fail the page over it. */
+async function loadSections(
+	api: ReturnType<typeof apiFetch>,
+	id: string
+): Promise<SectionsResponse> {
+	try {
+		const res = await api(`/scores/${id}/sections`);
+		if (res.ok) return (await res.json()) as SectionsResponse;
+	} catch (error) {
+		console.error('Failed to fetch sections:', error);
+	}
+	return EMPTY_TOC;
+}
+
 export const actions: Actions = {
+	generate_toc: async ({ cookies, params, fetch }) => {
+		const token = cookies.get('access_token');
+		if (!token) {
+			return fail(401, { error: 'Unauthorized' });
+		}
+		try {
+			const res = await apiFetch(fetch, token)(`/scores/${params.id}/sections/generate`, {
+				method: 'POST'
+			});
+			if (!res.ok) {
+				return fail(res.status, { tocError: true });
+			}
+			return { tocStarted: true };
+		} catch (error) {
+			console.error('Generate TOC error:', error);
+			return fail(500, { tocError: true });
+		}
+	},
 	update_score: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {

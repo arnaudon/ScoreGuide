@@ -4,6 +4,28 @@ import { load, actions } from './+page.server.js';
 import { makeCookies, makeFetch, fakeRequest, jsonResponse, event } from '../../test-helpers.js';
 
 const SCORE = { id: 7, title: 'Sonata', composer: 'Beethoven' };
+const TOC = {
+	status: 'ready',
+	sections: [
+		{
+			id: 1,
+			score_id: 7,
+			position: 0,
+			title: 'Allegro',
+			page: 1,
+			source: 'ocr',
+			incipit_path: 'x.png'
+		}
+	]
+};
+const EMPTY_TOC = { status: 'none', sections: [] };
+
+/** Backend stub: score at /scores/{id}, table of contents at /scores/{id}/sections. */
+function scoreAndToc(toc: () => Promise<Response> = async () => jsonResponse(TOC)) {
+	return makeFetch(async (url: string) =>
+		url.endsWith('/sections') ? toc() : jsonResponse(SCORE)
+	);
+}
 
 describe('reader/[id] load', () => {
 	let errSpy: ReturnType<typeof vi.spyOn>;
@@ -22,16 +44,33 @@ describe('reader/[id] load', () => {
 	});
 
 	it('fetches /scores/{id} directly and persists last_score_id when found', async () => {
-		const fetch = makeFetch(async () => jsonResponse(SCORE));
+		const fetch = scoreAndToc();
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: SCORE });
+		expect(result).toEqual({ score: SCORE, toc: TOC });
 		expect(fetch.mock.calls[0][0]).toContain('/scores/7');
 		expect(cookies.set).toHaveBeenCalledWith(
 			'last_score_id',
 			'7',
 			expect.objectContaining({ httpOnly: true, sameSite: 'lax' })
 		);
+	});
+
+	it('still shows the score when the table of contents fails to load', async () => {
+		const cookies = makeCookies({ access_token: 'tok' });
+		const notOk = scoreAndToc(async () => new Response(null, { status: 500 }));
+		expect(await load(event({ cookies, fetch: notOk, params: { id: '7' } }))).toEqual({
+			score: SCORE,
+			toc: EMPTY_TOC
+		});
+		const thrown = scoreAndToc(async () => {
+			throw new Error('down');
+		});
+		expect(await load(event({ cookies, fetch: thrown, params: { id: '7' } }))).toEqual({
+			score: SCORE,
+			toc: EMPTY_TOC
+		});
+		expect(errSpy).toHaveBeenCalled();
 	});
 
 	it('does not leak `token` into the page data', async () => {
@@ -48,7 +87,7 @@ describe('reader/[id] load', () => {
 		const fetch = vi.fn(async () => new Response(null, { status: 404 }));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: null });
+		expect(result).toEqual({ score: null, toc: EMPTY_TOC });
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
 
@@ -56,7 +95,7 @@ describe('reader/[id] load', () => {
 		const fetch = vi.fn(async () => new Response(null, { status: 500 }));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: null });
+		expect(result).toEqual({ score: null, toc: EMPTY_TOC });
 	});
 
 	it('returns score: null and logs when fetch throws', async () => {
@@ -65,7 +104,7 @@ describe('reader/[id] load', () => {
 		});
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: null });
+		expect(result).toEqual({ score: null, toc: EMPTY_TOC });
 		expect(errSpy).toHaveBeenCalled();
 	});
 });
@@ -138,5 +177,44 @@ describe('reader/[id] update_score action', () => {
 			})
 		);
 		expect(result).toMatchObject({ status: 404 });
+	});
+});
+
+describe('reader/[id] generate_toc action', () => {
+	let errSpy: ReturnType<typeof vi.spyOn>;
+	beforeEach(() => {
+		errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+	});
+	afterEach(() => errSpy.mockRestore());
+
+	it('fails 401 when not authenticated', async () => {
+		const result = await actions.generate_toc(
+			event({ cookies: makeCookies(), fetch: vi.fn(), params: { id: '7' } })
+		);
+		expect(result).toMatchObject({ status: 401 });
+	});
+
+	it('POSTs the generate endpoint', async () => {
+		const fetch = makeFetch(async () => jsonResponse({ status: 'running', sections: [] }, 202));
+		const result = await actions.generate_toc(
+			event({ cookies: makeCookies({ access_token: 'tok' }), fetch, params: { id: '7' } })
+		);
+		expect(result).toEqual({ tocStarted: true });
+		expect(fetch.mock.calls[0][0]).toContain('/scores/7/sections/generate');
+		expect(fetch.mock.calls[0][1]!.method).toBe('POST');
+	});
+
+	it('reports backend failures and network errors', async () => {
+		const cookies = makeCookies({ access_token: 'tok' });
+		const notOk = vi.fn(async () => new Response(null, { status: 429 }));
+		expect(
+			await actions.generate_toc(event({ cookies, fetch: notOk, params: { id: '7' } }))
+		).toMatchObject({ status: 429, data: { tocError: true } });
+		const thrown = vi.fn(async () => {
+			throw new Error('down');
+		});
+		expect(
+			await actions.generate_toc(event({ cookies, fetch: thrown, params: { id: '7' } }))
+		).toMatchObject({ status: 500, data: { tocError: true } });
 	});
 });
