@@ -37,6 +37,13 @@ TEMPO_RE = re.compile(
     r"sarabande|courante|gigue|allemande|gavotte|bourr[ée]e|air|aria|polonaise)\b",
     re.IGNORECASE,
 )
+# Plain tempo words: unlike dance/form names they also mark tempo changes
+# inside a movement, so on their own they need more evidence (see _find_starts).
+TEMPO_ONLY_RE = re.compile(
+    r"\b(allegr\w*|adagi\w*|andant\w*|prest\w*|larg\w*|lento|moderato|vivace|grave|"
+    r"maestoso|tempo di \w+)\b",
+    re.IGNORECASE,
+)
 PIECE_RE = re.compile(
     r"\b(sonat\w*|partita|suite|pr[ée]lud\w*|pr[äa]ludium|fug\w*|invention\w*|[ée]tude\w*|"
     r"nocturne|mazurka|waltz|valse|impromptu|variat\w*|var\.\s*\d+|movement|satz|ballade|"
@@ -181,6 +188,19 @@ def page_systems(gray: np.ndarray) -> list[System]:
     return group_systems(find_staves(gray), gray < INK)
 
 
+def ends_with_double_bar(ink: np.ndarray, system: System) -> bool:
+    """Does the system end with a double or final barline (‖ or thin+thick)?
+
+    A movement or piece ends with one; an ordinary system ends with a single
+    thin barline. Looks at full-height ink columns in the last few pixels.
+    """
+    w = ink.shape[1]
+    x0, x1 = max(0, system.right - 10), min(w, system.right + 4)
+    cov = ink[system.top : system.bottom + 1, x0:x1].mean(axis=0)
+    runs = _row_runs(cov > 0.8)
+    return len(runs) >= 2 or any(b - a + 1 >= 3 for a, b in runs)
+
+
 def crop_incipit(gray: np.ndarray, system: System) -> bytes:
     """Crop one system (with room for ledger lines / tempo marks) as PNG."""
     h, w = gray.shape
@@ -247,6 +267,8 @@ OCR_UPSCALE = 2
 OCR_MIN_CONF = 55
 # A page with this many OCR headings is an index/contents page (see _find_starts).
 INDEX_PAGE_MIN_HEADINGS = 4
+# A tempo-only heading must start within this fraction of the system width.
+TEMPO_START_FRACTION = 0.3
 ROMAN_RE = re.compile(r"^(?=[IVXL])(X{0,3})(IX|IV|V?I{0,3})\.?$")
 TOKEN_RE = re.compile(r"^[^\W_][\w'’.,()\-]*$")
 
@@ -258,12 +280,20 @@ def _heading_band(system: System, prev_bottom: int) -> tuple[int, int]:
     return top, max(top, system.top - int(0.15 * staff_h))
 
 
-def ocr_headings(gray: np.ndarray, systems: list[System]) -> list[str]:
+@dataclass
+class OcrText:
+    """OCR'd text above a system and where it starts horizontally (pixels)."""
+
+    text: str = ""
+    left: int = 0
+
+
+def ocr_headings(gray: np.ndarray, systems: list[System]) -> list[OcrText]:
     """OCR the band above every system of a page in one Tesseract call.
 
     The bands are stacked into a single image (one process per page instead
     of per system) and the recognised words are mapped back by y position.
-    Returns one string per system ("" when nothing legible).
+    Returns one entry per system (empty text when nothing legible).
     """
     if not systems:
         return []
@@ -296,7 +326,7 @@ def ocr_headings(gray: np.ndarray, systems: list[System]) -> list[str]:
             preexec_fn=lambda: os.nice(19),
         ).stdout.decode("utf-8", "replace")
     except (OSError, subprocess.SubprocessError):  # pragma: no cover - no tesseract
-        return [""] * len(systems)
+        return [OcrText() for _ in systems]
 
     words: list[list[tuple[int, int, str]]] = [[] for _ in systems]
     for row in out.splitlines()[1:]:
@@ -308,7 +338,10 @@ def ocr_headings(gray: np.ndarray, systems: list[System]) -> list[str]:
             if a <= top < b:
                 words[k].append((top // 8, left, cols[11].strip()))
                 break
-    return [" ".join(t for _, _, t in sorted(ws)) for ws in words]
+    return [
+        OcrText(" ".join(t for _, _, t in sorted(ws)), min((x for _, x, _ in ws), default=0))
+        for ws in words
+    ]
 
 
 def _known(word: str) -> bool:
@@ -354,6 +387,14 @@ def is_heading(text: str) -> bool:
     too often OCR debris from stems, barlines and fingerings.
     """
     return bool(text and (PIECE_RE.search(text) or TEMPO_RE.search(text)))
+
+
+def is_tempo_only(text: str) -> bool:
+    """A heading that is just a tempo word (no piece/dance/form name)."""
+    stripped = TEMPO_ONLY_RE.sub("", text)
+    return bool(TEMPO_ONLY_RE.search(text)) and not (
+        PIECE_RE.search(stripped) or TEMPO_RE.search(stripped)
+    )
 
 
 # --- outline ---------------------------------------------------------------
@@ -418,7 +459,21 @@ class _PageInfo:
     shape: tuple[int, ...]
     systems: list[System]
     lines: list[TextLine]
-    ocr: list[str] = field(default_factory=list)  # heading text above each system
+    ocr: list[OcrText] = field(default_factory=list)  # heading text above each system
+    # Per system: does it end with a double/final barline?
+    final_bar: list[bool] = field(default_factory=list)
+
+
+def _tempo_opens(ocr: OcrText, system: System, prev_final: bool) -> bool:
+    """Can a bare tempo word above ``system`` open a new movement?
+
+    Only when the previous system closed with a double/final barline and the
+    word sits above the start of this system: tempo changes inside a
+    movement are printed over a later bar, usually without a final barline.
+    """
+    return prev_final and ocr.left - system.left < TEMPO_START_FRACTION * (
+        system.right - system.left
+    )
 
 
 def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]]:
@@ -432,15 +487,27 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
     repeated = {k for k, c in counts.items() if n >= 4 and c > n * 0.4}
 
     starts: list[tuple[_PageInfo, int, str, str]] = []
+    # Whether the previous system (in reading order) ended a piece; the very
+    # first system of the document trivially follows "an end".
+    prev_final = True
     for info in (p for p in pages if p.systems):
         h, _ = info.shape
+        ends = info.final_bar or [False] * len(info.systems)
         lines = [ln for ln in info.lines if _norm(ln.text) not in repeated]
         title = heading_for(lines, info.systems[0].top / h)
         if title:
             starts.append((info, 0, title, "text"))
+            prev_final = ends[-1]
             continue
-        page_starts = [(j, clean_title(text)) for j, text in enumerate(info.ocr)]
-        page_starts = [(j, t) for j, t in page_starts if is_heading(t)]
+        page_starts = []
+        for j, ocr in enumerate(info.ocr):
+            title = clean_title(ocr.text)
+            if is_heading(title) and (
+                not is_tempo_only(title) or _tempo_opens(ocr, info.systems[j], prev_final)
+            ):
+                page_starts.append((j, title))
+            prev_final = ends[j]
+        prev_final = ends[-1]
         if len(page_starts) >= INDEX_PAGE_MIN_HEADINGS:
             # A page where nearly every system has a heading is an edition's
             # index of incipits / contents page, not music to navigate to.
@@ -480,7 +547,9 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
             lines = text_lines(page)
             # Scans have no text layer: read the headings with OCR instead.
             ocr = ocr_headings(gray, systems) if systems and not lines else []
-            pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr))
+            ink = gray < INK
+            final_bar = [ends_with_double_bar(ink, s) for s in systems]
+            pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr, final_bar))
 
         # Pass 2: re-render only the pages that need an incipit crop.
         sections: list[DetectedSection] = []

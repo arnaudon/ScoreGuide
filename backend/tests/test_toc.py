@@ -14,11 +14,20 @@ from app import toc
 DATA = Path(__file__).parent / "data" / "toc"
 
 
-def _page(systems: int = 2, staves_per_system: int = 2, width: int = 800, height: int = 1000):
-    """A white page with ``systems`` systems of joined 5-line staves."""
+def _page(
+    systems: int = 2,
+    staves_per_system: int = 2,
+    width: int = 800,
+    height: int = 1000,
+    final: tuple[int, ...] = (),
+):
+    """A white page with ``systems`` systems of joined 5-line staves.
+
+    Systems whose index is in ``final`` end with a thin+thick final barline.
+    """
     img = np.full((height, width), 255, dtype=np.uint8)
     y = 120
-    for _ in range(systems):
+    for k in range(systems):
         sys_top = y
         for _ in range(staves_per_system):
             for line in range(5):
@@ -26,8 +35,16 @@ def _page(systems: int = 2, staves_per_system: int = 2, width: int = 800, height
             y += 80
         # Left system barline joining the staves of this system.
         img[sys_top : y - 40, 60] = 0
+        if k in final:
+            img[sys_top : y - 40, 733] = 0
+            img[sys_top : y - 40, 736:740] = 0
         y += 80
     return img
+
+
+def _ocr(*texts: str, left: int = 60):
+    """Fake ocr_headings result: one entry per system, at the system start."""
+    return [toc.OcrText(t, left) for t in texts]
 
 
 def _pdf_from_pages(*arrays: np.ndarray) -> bytes:
@@ -149,7 +166,9 @@ def test_ocr_headings_maps_words_to_systems(monkeypatch):
         )
 
     monkeypatch.setattr(toc.subprocess, "run", fake_run)
-    assert toc.ocr_headings(gray, systems) == ["Allegro", "Menuetto"]
+    heads = toc.ocr_headings(gray, systems)
+    assert [h.text for h in heads] == ["Allegro", "Menuetto"]
+    assert heads[0].left == 0 and heads[1].left == 5  # word x / upscale
     assert len(calls) == 1
     assert toc.ocr_headings(gray, []) == []
 
@@ -158,7 +177,7 @@ def test_extract_sections_scanned(monkeypatch):
     """Scans: title/blank pages are skipped, OCR headings open sections."""
     blank = np.full((1000, 800), 255, dtype=np.uint8)
     data = _pdf_from_pages(blank, _page(), _page(), _page())
-    page_heads = iter([["", "garbage"], ["Menuetto", ""], ["", ""]])
+    page_heads = iter([_ocr("", "garbage"), _ocr("Menuetto", ""), _ocr("", "")])
     monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
 
     sections = toc.extract_sections(data)
@@ -173,7 +192,7 @@ def test_extract_sections_scanned(monkeypatch):
 def test_index_pages_are_skipped(monkeypatch):
     """A page where (almost) every system has a heading is an incipit index."""
     data = _pdf_from_pages(_page(systems=4, staves_per_system=1), _page())
-    page_heads = iter([["Allegro", "Vivace", "Adagio", "Presto"], ["Menuetto", ""]])
+    page_heads = iter([_ocr("Sonata", "Aria", "Rondo", "Menuetto"), _ocr("Menuetto", "")])
     monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
     sections = toc.extract_sections(data)
     assert [(s.page, s.title) for s in sections] == [(2, "Menuetto")]
@@ -206,7 +225,7 @@ def test_junk_outline_is_ignored(monkeypatch):
     writer.write(buf)
     assert toc.outline_sections(buf.getvalue()) == []
 
-    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: ["" for _ in systems])
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: _ocr(*["" for _ in systems]))
     assert [s.source for s in toc.extract_sections(buf.getvalue())] == ["layout"]
 
 
@@ -225,3 +244,44 @@ def test_extract_sections_engraved_text_layer():
     assert sections[0].page == 1
     assert sections[0].source == "text"
     assert "Movement" in sections[0].title
+
+
+def test_ends_with_double_bar():
+    gray = _page(systems=2, final=(1,))
+    ink = gray < toc.INK
+    first, second = toc.page_systems(gray)
+    assert not toc.ends_with_double_bar(ink, first)
+    assert toc.ends_with_double_bar(ink, second)
+
+
+@pytest.mark.parametrize(
+    ("text", "tempo_only"),
+    [
+        ("Allegro", True),
+        ("Adagio. Largo", True),
+        ("Allegro moderato", True),
+        ("Menuetto. Allegretto", False),
+        ("Variatio 3. Allegro", False),
+        ("Sonata No. 2 — Presto", False),
+        ("Rondo", False),
+    ],
+)
+def test_is_tempo_only(text, tempo_only):
+    assert toc.is_tempo_only(text) is tempo_only
+
+
+def test_tempo_heading_needs_final_barline_and_start_position(monkeypatch):
+    """Bare tempo words open a movement only after a final barline, at the start."""
+    # Page 1: first system opens the piece; second ends with a final barline.
+    # Page 2: "Adagio" after the final barline → new movement; "Allegro" after
+    #         a plain barline → tempo change; "Presto" printed mid-system → no.
+    data = _pdf_from_pages(_page(systems=2, final=(1,)), _page(systems=3))
+    page_heads = iter(
+        [
+            _ocr("", ""),
+            [toc.OcrText("Adagio", 60), toc.OcrText("Allegro", 60), toc.OcrText("Presto", 500)],
+        ]
+    )
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
+    sections = toc.extract_sections(data)
+    assert [(s.page, s.title) for s in sections] == [(1, "1"), (2, "Adagio")]
