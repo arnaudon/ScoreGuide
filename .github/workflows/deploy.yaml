@@ -58,6 +58,9 @@ jobs:
             echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
             echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> .env
             docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build -d
+            # Apply Caddyfile changes; `up` leaves an unchanged caddy container alone.
+            docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml \
+              exec -T caddy caddy reload --config /etc/caddy/Caddyfile
             # Show what's actually running so deploy logs are diagnosable.
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
             echo "--- frontend logs (tail 40) ---"
