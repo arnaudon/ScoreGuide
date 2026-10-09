@@ -196,9 +196,8 @@
 	"toc_desc": "Pieces and movements in this score. Click one to jump to it.",
 	"toc_running": "Building the table of contents… this can take a few minutes for long volumes.",
 	"toc_error": "Couldn't build the table of contents.",
-	"toc_empty": "No table of contents yet.",
-	"toc_generate": "Generate table of contents",
-	"toc_regenerate": "Regenerate",
+	"toc_empty": "No table of contents yet — it's built automatically when a score is uploaded.",
 	"toc_page": "p. {page}",
-	"toc_incipit_alt": "Opening bars of {title}"
+	"toc_incipit_alt": "Opening bars of {title}",
+	"toc_rebuild": "Rebuild table of contents"
 }

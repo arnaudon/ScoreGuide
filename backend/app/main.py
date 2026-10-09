@@ -10,7 +10,7 @@ from logging import getLogger
 from typing import Annotated
 
 import sentry_sdk
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ValidationError
@@ -120,13 +120,16 @@ def health(session: Session = Depends(get_session)):
 def add_score(
     score: ScoreCreate,
     current_user: Annotated[User, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """Add a score to the db."""
+    """Add a score to the db, and start building its table of contents."""
     db_score = Score(**score.model_dump(), user_id=current_user.id)
     session.add(db_score)
     session.commit()
     session.refresh(db_score)
+    if db_score.pdf_path:
+        sections.schedule_generation(db_score, background_tasks, session)
     return db_score
 
 

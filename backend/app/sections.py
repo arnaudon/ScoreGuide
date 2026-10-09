@@ -98,6 +98,20 @@ def generate_sections(score_id: int, pdf_path: str, engine: Engine) -> None:
             _jobs[score_id] = "error"
 
 
+def schedule_generation(score: Score, background_tasks: BackgroundTasks, session: Session) -> None:
+    """Queue a (re)generation for ``score`` unless one is already running.
+
+    Called when a score is created with a PDF and from the Rebuild button.
+    """
+    if score.id is None or _jobs.get(score.id) == "running":
+        return
+    _jobs[score.id] = "running"
+    # The job outlives this request's session: hand it the engine instead.
+    engine = session.get_bind()
+    assert isinstance(engine, Engine)
+    background_tasks.add_task(generate_sections, score.id, score.pdf_path, engine)
+
+
 @router.get("/scores/{score_id}/sections")
 def get_sections(
     score_id: int,
@@ -124,12 +138,7 @@ def start_generation(
     score = _owned_score(score_id, current_user, session)
     if not score.pdf_path:
         raise HTTPException(status_code=400, detail="Score has no PDF")
-    if _jobs.get(score_id) != "running":
-        _jobs[score_id] = "running"
-        # The job outlives this request's session: hand it the engine instead.
-        engine = session.get_bind()
-        assert isinstance(engine, Engine)
-        background_tasks.add_task(generate_sections, score_id, score.pdf_path, engine)
+    schedule_generation(score, background_tasks, session)
     return SectionsResponse(status="running", sections=_sections(score_id, session))
 
 
