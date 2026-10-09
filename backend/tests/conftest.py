@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import db
+from app import db, sections
 from app.main import app, get_pdf_user
 from app.users import get_current_user
 from shared.scores import Score, Scores
@@ -32,6 +32,13 @@ def cleanup_test_pdfs():
         if os.path.basename(file) != "real_score.pdf":
             with contextlib.suppress(OSError):
                 os.remove(file)
+
+
+@pytest.fixture(autouse=True)
+def no_toc_generation(monkeypatch):
+    """Creating a score queues table-of-contents generation; skip the real
+    PDF processing everywhere except the tests that exercise it."""
+    monkeypatch.setattr(sections, "generate_sections", lambda *args: None)
 
 
 @pytest.fixture(name="db_file")

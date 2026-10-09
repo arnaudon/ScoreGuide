@@ -196,9 +196,8 @@
 	"toc_desc": "Pièces et mouvements de cette partition. Cliquez pour y accéder.",
 	"toc_running": "Création du sommaire… cela peut prendre quelques minutes pour les gros volumes.",
 	"toc_error": "Impossible de créer le sommaire.",
-	"toc_empty": "Pas encore de sommaire.",
-	"toc_generate": "Générer le sommaire",
-	"toc_regenerate": "Régénérer",
+	"toc_empty": "Pas encore de sommaire — il est créé automatiquement à l'ajout d'une partition.",
 	"toc_page": "p. {page}",
-	"toc_incipit_alt": "Premières mesures de {title}"
+	"toc_incipit_alt": "Premières mesures de {title}",
+	"toc_rebuild": "Reconstruire le sommaire"
 }

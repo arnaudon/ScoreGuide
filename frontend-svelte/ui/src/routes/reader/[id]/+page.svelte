@@ -237,7 +237,7 @@
 					}}
 				>
 					<Button type="submit" variant="outline" class="w-full" disabled={tocStarting}>
-						{data.toc.sections.length ? m.toc_regenerate() : m.toc_generate()}
+						{m.toc_rebuild()}
 					</Button>
 				</form>
 			{/if}

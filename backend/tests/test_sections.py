@@ -11,11 +11,14 @@ from shared.scores import Score, Scores, ScoreSection
 from shared.user import User
 
 PNG = b"\x89PNG\r\n\x1a\nfake"
+# Captured before conftest's autouse fixture stubs it out for other tests.
+REAL_GENERATE = sections.generate_sections
 
 
 @pytest.fixture(autouse=True)
 def _isolate(monkeypatch, tmp_path):
     """Local storage in a temp dir, no rate limiting, clean job registry."""
+    monkeypatch.setattr(sections, "generate_sections", REAL_GENERATE)
     monkeypatch.setenv("DATA_PATH", str(tmp_path))
     (tmp_path / "real_score.pdf").write_bytes(b"%PDF-1.4 fake")
     limiter.enabled = False
@@ -162,3 +165,21 @@ def test_delete_score_removes_sections(
     session.expire_all()
     assert session.exec(select(ScoreSection).where(ScoreSection.score_id == score_id)).all() == []
     assert not stored[0].exists()
+
+
+def test_creating_a_score_with_a_pdf_builds_its_toc(client: TestClient, monkeypatch, tmp_path):
+    """Uploading = POST /scores with a pdf_path: the TOC is built right away."""
+    (tmp_path / "new.pdf").write_bytes(b"%PDF-1.4 new")
+    calls = _fake_extract(monkeypatch, [DetectedSection(title="Allegro", page=1, source="ocr")])
+
+    created = client.post("/scores", json={"title": "t", "composer": "c", "pdf_path": "new.pdf"})
+    assert created.status_code == 200
+    assert calls == [b"%PDF-1.4 new"]
+    toc = client.get(f"/scores/{created.json()['id']}/sections").json()
+    assert toc["status"] == "ready"
+    assert [s["title"] for s in toc["sections"]] == ["Allegro"]
+
+    # No PDF → nothing to build.
+    bare = client.post("/scores", json={"title": "t", "composer": "c"})
+    assert len(calls) == 1
+    assert client.get(f"/scores/{bare.json()['id']}/sections").json()["status"] == "none"
