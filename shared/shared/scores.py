@@ -68,6 +68,21 @@ class Score(ScoreBase, table=True):
     notable_interpreters: str = Field(default="")
 
 
+class ScoreSection(SQLModel, table=True):
+    """One entry of a score's table of contents (a piece or movement start)."""
+
+    __tablename__ = "score_section"  # type: ignore[reportAssignmentType]
+
+    id: int | None = Field(default=None, primary_key=True)
+    score_id: int = Field(foreign_key="score.id", index=True)
+    position: int = 0
+    title: str = Field(default="")
+    page: int = 1
+    # How the entry was found: outline | text | ocr | layout | manual
+    source: str = Field(default="")
+    incipit_path: str = Field(default="")
+
+
 class Scores(BaseModel):
     """Scores table"""
 

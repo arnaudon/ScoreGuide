@@ -45,6 +45,13 @@ WORKDIR /app
 
 EXPOSE 8000
 
+# Tesseract OCR reads piece/movement headings on scanned scores for the
+# table of contents (app/toc.py). Language packs cover typical score titles.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        tesseract-ocr tesseract-ocr-deu tesseract-ocr-fra tesseract-ocr-ita \
+    && rm -rf /var/lib/apt/lists/*
+
 # Run as a non-root user. uid 1000 matches the default first user on the
 # host so dev bind mounts (./backend, ./data) stay writable.
 RUN useradd --create-home --uid 1000 app

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
+	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
@@ -7,8 +9,10 @@
 	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import * as m from '$lib/paraglide/messages.js';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	let sheetOpen = $state(false);
+	let tocOpen = $state(false);
+	let tocStarting = $state(false);
 	let editOpen = $state(false);
 	let iframeEl: HTMLIFrameElement | undefined = $state();
 	// Tracks which viewer URL has actually fired `onload`, rather than a
@@ -25,6 +29,26 @@
 			console.error('Presentation mode control not found in the PDF viewer.');
 		}
 	}
+
+	type PdfViewerWindow = Window & { PDFViewerApplication?: { page: number } };
+
+	function goToPage(page: number) {
+		const viewer = (iframeEl?.contentWindow as PdfViewerWindow | null)?.PDFViewerApplication;
+		if (viewer) {
+			viewer.page = page;
+			tocOpen = false;
+		} else {
+			console.error('PDF viewer not ready for navigation.');
+		}
+	}
+
+	// While the table of contents is being generated in the background,
+	// refresh the page data every few seconds until it's done.
+	$effect(() => {
+		if (data.toc.status !== 'running') return;
+		const timer = setInterval(() => invalidateAll(), 4000);
+		return () => clearInterval(timer);
+	});
 
 	function translateKey(key: string) {
 		const map: Record<string, string> = {
@@ -72,6 +96,9 @@
 			<div class="flex flex-wrap gap-2">
 				<Button variant="outline" onclick={enterPresentationMode} disabled={!pdfLoaded}>
 					{m.presentation_mode()}
+				</Button>
+				<Button variant="outline" onclick={() => (tocOpen = true)}>
+					{m.toc_contents()}{data.toc.sections.length ? ` (${data.toc.sections.length})` : ''}
 				</Button>
 				<Button variant="outline" onclick={() => (sheetOpen = true)}>{m.view_details()}</Button>
 				<Button variant="outline" onclick={() => (editOpen = true)}>{m.edit_score()}</Button>
@@ -148,6 +175,73 @@
 				{/each}
 			</div>
 		{/if}
+	</Sheet.Content>
+</Sheet.Root>
+
+<Sheet.Root bind:open={tocOpen}>
+	<Sheet.Content side="left" class="w-full overflow-y-auto sm:max-w-md">
+		<Sheet.Header>
+			<Sheet.Title>{m.toc_contents()}</Sheet.Title>
+			<Sheet.Description>{m.toc_desc()}</Sheet.Description>
+		</Sheet.Header>
+
+		<div class="mt-4 flex flex-col gap-3 px-4 pb-6">
+			{#if data.toc.status === 'running'}
+				<p role="status" class="text-muted-foreground text-sm">{m.toc_running()}</p>
+			{:else if data.toc.status === 'error' || form?.tocError}
+				<p role="alert" class="text-destructive text-sm font-medium">{m.toc_error()}</p>
+			{/if}
+
+			{#if data.toc.sections.length}
+				<ol class="flex flex-col gap-2">
+					{#each data.toc.sections as section (section.id)}
+						<li>
+							<button
+								type="button"
+								onclick={() => goToPage(section.page)}
+								disabled={!pdfLoaded}
+								class="hover:bg-accent focus-visible:ring-ring flex w-full flex-col gap-1 rounded-md border p-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
+							>
+								<span class="flex items-baseline justify-between gap-2">
+									<span class="text-foreground text-sm font-semibold">{section.title}</span>
+									<span class="text-muted-foreground shrink-0 text-xs">
+										{m.toc_page({ page: section.page })}
+									</span>
+								</span>
+								{#if section.incipit_path}
+									<img
+										src={`/api/incipit/${section.score_id}/${section.id}`}
+										alt={m.toc_incipit_alt({ title: section.title })}
+										loading="lazy"
+										class="w-full rounded-sm bg-white dark:invert"
+									/>
+								{/if}
+							</button>
+						</li>
+					{/each}
+				</ol>
+			{:else if data.toc.status !== 'running'}
+				<p class="text-muted-foreground text-sm">{m.toc_empty()}</p>
+			{/if}
+
+			{#if data.toc.status !== 'running'}
+				<form
+					method="POST"
+					action="?/generate_toc"
+					use:enhance={() => {
+						tocStarting = true;
+						return async ({ update }) => {
+							tocStarting = false;
+							await update({ reset: false });
+						};
+					}}
+				>
+					<Button type="submit" variant="outline" class="w-full" disabled={tocStarting}>
+						{data.toc.sections.length ? m.toc_regenerate() : m.toc_generate()}
+					</Button>
+				</form>
+			{/if}
+		</div>
 	</Sheet.Content>
 </Sheet.Root>
 

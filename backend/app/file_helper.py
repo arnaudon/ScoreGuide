@@ -44,12 +44,16 @@ class FileHelper:
 
     def upload_pdf(self, filename, file):
         """Upload a pdf file."""
+        self.upload_file(filename, file, "application/pdf")
+
+    def upload_file(self, filename, file, content_type: str):
+        """Upload a file-like object under ``filename``."""
         if self.s3_client:  # pragma: no cover
             self.s3_client.put_object(
                 Bucket=self.bucket,
                 Key=filename,
                 Body=file,
-                ContentType="application/pdf",
+                ContentType=content_type,
                 ContentDisposition="inline",
             )
         else:
@@ -59,7 +63,7 @@ class FileHelper:
                 shutil.copyfileobj(file, f)
 
     def delete_pdf(self, filename):
-        """Delete a pdf file."""
+        """Delete a stored file (pdf or other)."""
         if self.s3_client:  # pragma: no cover
             self.s3_client.delete_object(Bucket=self.bucket, Key=filename)
         else:

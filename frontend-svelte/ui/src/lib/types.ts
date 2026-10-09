@@ -35,6 +35,23 @@ export interface Score {
 	notable_interpreters: string;
 }
 
+/** Matches `shared.scores.ScoreSection`: one table-of-contents entry. */
+export interface ScoreSection {
+	id: number;
+	score_id: number;
+	position: number;
+	title: string;
+	page: number;
+	source: string;
+	incipit_path: string;
+}
+
+/** Matches `app.sections.SectionsResponse`. */
+export interface SectionsResponse {
+	status: 'ready' | 'running' | 'error' | 'none';
+	sections: ScoreSection[];
+}
+
 /** Matches `shared.scores.IMSLP`. */
 export interface IMSLPScore {
 	id: number;
