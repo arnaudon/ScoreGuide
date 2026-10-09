@@ -79,6 +79,6 @@ All prompts are wrapped in `<user_request>…</user_request>` and every system p
 
 ## Deployment
 
-`.github/workflows/deploy.yaml` SSHes into the Infomaniak VPS on push to `main`, writes secrets into `.env`, and runs `docker-compose up --build -d` with both `docker-compose.yaml` + `docker-compose.prod.yaml`, then `alembic upgrade head` inside the backend container. Prod adds pgbouncer, pgadmin, s3 backup, and Caddy terminating TLS for `scoreguide.ch` (see `Caddyfile`).
+`.github/workflows/deploy.yaml` SSHes into the Infomaniak VPS on push to `main`, writes secrets into `.env`, and runs `docker-compose up --build -d` with both `docker-compose.yaml` + `docker-compose.prod.yaml`, then `alembic upgrade head` inside the backend container. Prod adds pgbouncer, pgadmin, s3 backup, and Caddy terminating TLS for `scoreguide.ch` and proxying `gardenai.scoreguide.ch` (see `caddy/Caddyfile`; the folder is mounted, and the deploy reloads Caddy so Caddyfile changes apply on merge).
 
 **Observability.** Sentry is opt-in via env vars: backend honours `SENTRY_DSN` (init in `app.main._init_sentry`); the Svelte app honours `SENTRY_DSN` server-side in `hooks.server.ts` and `PUBLIC_SENTRY_DSN` in `hooks.client.ts`. When neither is set (tests, most dev), init is a no-op and no network calls happen.

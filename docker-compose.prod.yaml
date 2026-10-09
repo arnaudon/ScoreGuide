@@ -69,7 +69,9 @@ services:
       - "127.0.0.1:8000:8000"
       - "127.0.0.1:5050:5050"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      # Mount the folder, not the file: git replaces Caddyfile on pull, and a
+      # single-file bind mount keeps showing the old copy until a restart.
+      - ./caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
