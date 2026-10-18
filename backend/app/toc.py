@@ -8,9 +8,13 @@ crops the first system of each as an incipit image:
 2. Otherwise, per page: staff systems are located on a low-res render, and a
    system opens a section when the text above it is a heading — read from the
    text layer on engraved PDFs, or with Tesseract OCR on scans.
+3. Barlines give context: a bare tempo word only opens a movement after a
+   double/final barline (tempo changes inside a movement don't), and a final
+   barline (thin + thick, not a repeat) opens the next system even when its
+   heading isn't legible.
 
-Pages without staves (title pages, prefaces) are skipped, and the first
-system with music always opens a section.
+Pages without staves (title pages, prefaces) and incipit index pages are
+skipped, and the first system with music always opens a section.
 """
 
 import io
@@ -29,7 +33,12 @@ RENDER_DPI = 100
 # Darkness threshold (0-255 grayscale) below which a pixel counts as ink.
 INK = 140
 # Fraction of the page width a pixel row must be inked to be a staff line.
-STAFF_LINE_FILL = 0.35
+STAFF_LINE_FILL = 0.25
+# Minimum horizontal run (px) for ink to count as part of a staff line.
+LINE_RUN_MIN = 24
+# Share of the gap between two staves a left barline/brace must cover for
+# them to be one system (scans break thin lines, so not 100%).
+JOIN_MIN_COVERAGE = 0.7
 
 TEMPO_RE = re.compile(
     r"\b(allegr\w*|adagi\w*|andant\w*|prest\w*|larg\w*|lento|moderato|vivace|grave|"
@@ -128,28 +137,103 @@ def _row_runs(mask: np.ndarray) -> list[tuple[int, int]]:
     return runs
 
 
+def _plain_staff(centers: list[float], i: int) -> bool:
+    """Five consecutive, roughly evenly spaced lines starting at ``i``."""
+    five = centers[i : i + 5]
+    if len(five) < 5:
+        return False
+    gaps = np.diff(five)
+    return bool(gaps.min() > 2 and gaps.max() <= gaps.min() * 1.5 + 1)
+
+
+def _staff_with_strays(centers: list[float], i: int, spacing: float) -> int | None:
+    """Index of the 5th line of a staff at ``i`` with the page's line spacing.
+
+    Beams and slurs can add stray "lines" (rows above the fill threshold)
+    inside a staff; the four other staff lines are looked for at multiples
+    of the page's known spacing, skipping strays.
+    """
+    tol = max(1.5, 0.2 * spacing)
+    last = i
+    for m in range(1, 5):
+        target = centers[i] + m * spacing
+        hits = [
+            k for k in range(last + 1, min(len(centers), i + 9)) if abs(centers[k] - target) <= tol
+        ]
+        if not hits:
+            return None
+        last = hits[0]
+    return last
+
+
+def _long_horizontal(ink: np.ndarray, length: int = LINE_RUN_MIN) -> np.ndarray:
+    """Ink pixels that are part of a horizontal run of at least ~``length``.
+
+    Staff lines are long horizontal runs; note heads, stems and accidentals
+    are short. Filtering them out keeps the five lines distinct in the row
+    projection even on dense, heavily inked scans.
+    """
+    h, w = ink.shape
+    if w <= length:
+        return ink
+    padded = np.pad(ink.astype(np.int32), ((0, 0), (1, 0)))
+    window = np.cumsum(padded, axis=1)
+    sums = window[:, length:] - window[:, :-length]  # window starting at x
+    full = np.pad((sums >= 0.9 * length).astype(np.int32), ((0, 0), (1, 0)))
+    starts = np.cumsum(full, axis=1)
+    x = np.arange(w)
+    lo = np.clip(x - length + 1, 0, sums.shape[1])
+    hi = np.clip(x + 1, 0, sums.shape[1])
+    # Pixel x is covered when any full window starting in [x-length+1, x] exists.
+    return ((starts[:, hi] - starts[:, lo]) > 0) & ink
+
+
 def find_staves(gray: np.ndarray) -> list[Staff]:
-    """Locate 5-line staves via the horizontal ink projection."""
+    """Locate 5-line staves on a page.
+
+    Two row projections are tried and the one finding more staves wins:
+    all ink (robust to scans whose staff lines are broken into short
+    pieces) and only long horizontal runs (keeps the lines distinct on
+    dense, heavily inked pages). False staves are rare either way thanks
+    to the five-evenly-spaced-lines check.
+    """
     ink = gray < INK
     _, w = ink.shape
-    fill = ink.sum(axis=1) / w
-    lines = [((a + b) / 2, a, b) for a, b in _row_runs(fill > STAFF_LINE_FILL)]
+    by_all = _staves_from_fill(ink, ink.sum(axis=1) / w)
+    by_long = _staves_from_fill(ink, _long_horizontal(ink).sum(axis=1) / w)
+    return by_long if len(by_long) > len(by_all) else by_all
+
+
+def _staves_from_fill(ink: np.ndarray, fill: np.ndarray) -> list[Staff]:
+    """Staves from a row projection (fraction of each row that is ink)."""
+    _, w = ink.shape
+    runs = _row_runs(fill > STAFF_LINE_FILL)
+    centers = [(a + b) / 2 for a, b in runs]
+
+    # Staff-line spacing of this page, from the cleanly detected staves.
+    spacings = [
+        (centers[i + 4] - centers[i]) / 4 for i in range(len(centers)) if _plain_staff(centers, i)
+    ]
+    spacing = float(np.median(spacings)) if spacings else 0.0
 
     staves: list[Staff] = []
     i = 0
-    while i + 4 < len(lines):
-        group = lines[i : i + 5]
-        gaps = np.diff([c for c, _, _ in group])
-        # Five evenly spaced lines → a staff.
-        if gaps.min() > 2 and gaps.max() <= gaps.min() * 1.5 + 1:
-            top, bottom = int(group[0][1]), int(group[-1][2])
-            row_xs = np.flatnonzero(ink[int(group[2][0])])
-            left = int(row_xs.min()) if row_xs.size else 0
-            right = int(row_xs.max()) if row_xs.size else w - 1
-            staves.append(Staff(top, bottom, left, right))
-            i += 5
+    while i + 4 < len(runs):
+        if _plain_staff(centers, i):
+            end: int | None = i + 4
+        elif spacing:
+            end = _staff_with_strays(centers, i, spacing)
         else:
+            end = None
+        if end is None:
             i += 1
+            continue
+        top, bottom = runs[i][0], runs[end][1]
+        row_xs = np.flatnonzero(ink[int((centers[i] + centers[end]) / 2)])
+        left = int(row_xs.min()) if row_xs.size else 0
+        right = int(row_xs.max()) if row_xs.size else w - 1
+        staves.append(Staff(int(top), int(bottom), left, right))
+        i = end + 1
     return staves
 
 
@@ -165,7 +249,7 @@ def _joined(ink: np.ndarray, a: Staff, b: Staff) -> bool:
     x0, x1 = max(0, left - 6), min(ink.shape[1], left + 10)
     gap = ink[a.bottom + 1 : b.top, x0:x1]
     # Best single column's coverage of the gap.
-    return bool(gap.size) and float(gap.mean(axis=0).max()) > 0.85
+    return bool(gap.size) and float(gap.mean(axis=0).max()) > JOIN_MIN_COVERAGE
 
 
 def group_systems(staves: list[Staff], ink: np.ndarray | None = None) -> list[System]:
@@ -188,17 +272,40 @@ def page_systems(gray: np.ndarray) -> list[System]:
     return group_systems(find_staves(gray), gray < INK)
 
 
-def ends_with_double_bar(ink: np.ndarray, system: System) -> bool:
-    """Does the system end with a double or final barline (‖ or thin+thick)?
+def barline_kind(ink: np.ndarray, system: System) -> str:
+    """Classify the barline that closes a system.
 
-    A movement or piece ends with one; an ordinary system ends with a single
-    thin barline. Looks at full-height ink columns in the last few pixels.
+    ``"final"`` (thin + thick: a piece ends), ``"repeat"`` (thick with repeat
+    dots before it: a section of a piece ends), ``"double"`` (two thin
+    lines) or ``"single"`` (an ordinary barline). Uses full-height ink
+    columns in the last few pixels and ink in the staff spaces just before
+    them (where repeat dots sit).
     """
     w = ink.shape[1]
     x0, x1 = max(0, system.right - 10), min(w, system.right + 4)
     cov = ink[system.top : system.bottom + 1, x0:x1].mean(axis=0)
     runs = _row_runs(cov > 0.8)
-    return len(runs) >= 2 or any(b - a + 1 >= 3 for a, b in runs)
+    thick = any(b - a + 1 >= 3 for a, b in runs)
+    if not runs or (len(runs) < 2 and not thick):
+        return "single"
+    # Repeat dots: ink in the 2nd and 3rd staff spaces, left of the barline.
+    bar_x = x0 + runs[0][0]
+    dots = 0
+    for st in system.staves:
+        space = (st.bottom - st.top) / 4
+        for k in (1.5, 2.5):
+            y = int(st.top + k * space)
+            box = ink[y - 1 : y + 2, max(0, bar_x - int(2 * space)) : max(0, bar_x - 1)]
+            # A dot is only ~2x2 px at the render resolution.
+            dots += int(box.sum()) >= 3
+    if dots >= max(2, len(system.staves)):
+        return "repeat"
+    return "final" if thick else "double"
+
+
+def ends_with_double_bar(ink: np.ndarray, system: System) -> bool:
+    """Does the system end with a double, final or repeat barline?"""
+    return barline_kind(ink, system) != "single"
 
 
 def crop_incipit(gray: np.ndarray, system: System) -> bytes:
@@ -265,8 +372,9 @@ TESSERACT_CMD = os.getenv("TESSERACT_CMD", "tesseract")
 OCR_LANGS = os.getenv("TOC_OCR_LANGS", "eng+deu+fra+ita")
 OCR_UPSCALE = 2
 OCR_MIN_CONF = 55
-# A page with this many OCR headings is an index/contents page (see _find_starts).
-INDEX_PAGE_MIN_HEADINGS = 4
+# A page with at least this many OCR headings, on at least half its systems,
+# is an index/contents page (see _find_starts).
+INDEX_PAGE_MIN_HEADINGS = 3
 # A tempo-only heading must start within this fraction of the system width.
 TEMPO_START_FRACTION = 0.3
 ROMAN_RE = re.compile(r"^(?=[IVXL])(X{0,3})(IX|IV|V?I{0,3})\.?$")
@@ -460,8 +568,8 @@ class _PageInfo:
     systems: list[System]
     lines: list[TextLine]
     ocr: list[OcrText] = field(default_factory=list)  # heading text above each system
-    # Per system: does it end with a double/final barline?
-    final_bar: list[bool] = field(default_factory=list)
+    # Per system: barline_kind() of its closing barline.
+    bar_kinds: list[str] = field(default_factory=list)
 
 
 def _tempo_opens(ocr: OcrText, system: System, prev_final: bool) -> bool:
@@ -476,6 +584,19 @@ def _tempo_opens(ocr: OcrText, system: System, prev_final: bool) -> bool:
     )
 
 
+def _split_half(system: System, prev_bottom: int | None) -> bool:
+    """Is ``system`` really the lower half of the previous one, split apart?
+
+    Staves of one system sit much closer together than consecutive systems;
+    when detection fails to join them, both halves end with the same final
+    barline, which must not count as a piece ending inside the system.
+    """
+    if prev_bottom is None:
+        return False
+    staff_h = system.staves[0].bottom - system.staves[0].top
+    return system.top - prev_bottom < 1.5 * staff_h
+
+
 def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]]:
     """Pick (page, system index, title, source) for every section start."""
     n = len(pages)
@@ -487,37 +608,49 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
     repeated = {k for k, c in counts.items() if n >= 4 and c > n * 0.4}
 
     starts: list[tuple[_PageInfo, int, str, str]] = []
-    # Whether the previous system (in reading order) ended a piece; the very
-    # first system of the document trivially follows "an end".
-    prev_final = True
-    for info in (p for p in pages if p.systems):
+    # Closing barline of the previous system in reading order. The first
+    # system of the document (and the first after front matter) follows "an
+    # end", so it always opens a section even without a legible heading.
+    prev_kind = "final"
+    prev_bottom: int | None = None  # previous system's bottom, same page only
+    for info in pages:
+        if not info.systems:
+            # Title/preface page: the music after it starts fresh.
+            prev_kind, prev_bottom = "final", None
+            continue
         h, _ = info.shape
-        ends = info.final_bar or [False] * len(info.systems)
+        kinds = info.bar_kinds or ["single"] * len(info.systems)
         lines = [ln for ln in info.lines if _norm(ln.text) not in repeated]
         title = heading_for(lines, info.systems[0].top / h)
         if title:
             starts.append((info, 0, title, "text"))
-            prev_final = ends[-1]
+            prev_kind, prev_bottom = kinds[-1], None
             continue
         page_starts = []
         for j, ocr in enumerate(info.ocr):
             title = clean_title(ocr.text)
             if is_heading(title) and (
-                not is_tempo_only(title) or _tempo_opens(ocr, info.systems[j], prev_final)
+                not is_tempo_only(title)
+                or _tempo_opens(ocr, info.systems[j], prev_kind != "single")
             ):
-                page_starts.append((j, title))
-            prev_final = ends[j]
-        prev_final = ends[-1]
-        if len(page_starts) >= INDEX_PAGE_MIN_HEADINGS:
-            # A page where nearly every system has a heading is an edition's
-            # index of incipits / contents page, not music to navigate to.
+                page_starts.append((j, title, "ocr"))
+            elif prev_kind == "final" and not _split_half(info.systems[j], prev_bottom):
+                # A final barline (thin + thick) closed the previous piece:
+                # this system opens the next one even if its heading (e.g. a
+                # bare number) wasn't legible.
+                page_starts.append((j, "", "layout"))
+            prev_kind = kinds[j]
+            prev_bottom = info.systems[j].bottom
+        prev_kind, prev_bottom = kinds[-1], None
+        headed = sum(1 for ocr in info.ocr if is_heading(clean_title(ocr.text)))
+        if headed >= INDEX_PAGE_MIN_HEADINGS and headed * 2 >= len(info.systems):
+            # A page where most systems have a heading is an edition's index
+            # of incipits / contents page, not music to navigate to; what
+            # follows it starts fresh, like after a title page.
+            prev_kind = "final"
             continue
-        for j, cleaned in page_starts:
-            starts.append((info, j, cleaned, "ocr"))
-        if not page_starts and not starts:
-            # The first system with music always opens a section, even when
-            # its heading isn't legible.
-            starts.append((info, 0, "", "layout"))
+        for j, cleaned, source in page_starts:
+            starts.append((info, j, cleaned, source))
     return starts
 
 
@@ -548,8 +681,8 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
             # Scans have no text layer: read the headings with OCR instead.
             ocr = ocr_headings(gray, systems) if systems and not lines else []
             ink = gray < INK
-            final_bar = [ends_with_double_bar(ink, s) for s in systems]
-            pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr, final_bar))
+            kinds = [barline_kind(ink, s) for s in systems]
+            pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr, kinds))
 
         # Pass 2: re-render only the pages that need an incipit crop.
         sections: list[DetectedSection] = []

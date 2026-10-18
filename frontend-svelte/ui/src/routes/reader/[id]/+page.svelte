@@ -1,18 +1,44 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { enhance } from '$app/forms';
+	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import EditScoreDialog from '$lib/components/EditScoreDialog.svelte';
+	import ScoreContents from '$lib/components/ScoreContents.svelte';
 	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
 	import * as m from '$lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
 	let sheetOpen = $state(false);
-	let tocOpen = $state(false);
-	let tocStarting = $state(false);
+	// Small screens: contents in a sheet. Larger screens: a side panel next
+	// to the score, open by default and collapsible (remembered per browser).
+	let tocSheetOpen = $state(false);
+	let tocPanelOpen = $state(true);
+	let currentPage = $state(0);
+	const TOC_PANEL_KEY = 'reader.tocPanelOpen';
+
+	onMount(() => {
+		try {
+			tocPanelOpen = localStorage.getItem(TOC_PANEL_KEY) !== 'false';
+		} catch {
+			// Storage unavailable (private mode…): keep the default.
+		}
+	});
+
+	function toggleContents() {
+		if (window.matchMedia('(min-width: 768px)').matches) {
+			tocPanelOpen = !tocPanelOpen;
+			try {
+				localStorage.setItem(TOC_PANEL_KEY, String(tocPanelOpen));
+			} catch {
+				// Not persisted; still toggled for this visit.
+			}
+		} else {
+			tocSheetOpen = true;
+		}
+	}
 	let editOpen = $state(false);
 	let iframeEl: HTMLIFrameElement | undefined = $state();
 	// Tracks which viewer URL has actually fired `onload`, rather than a
@@ -30,16 +56,36 @@
 		}
 	}
 
-	type PdfViewerWindow = Window & { PDFViewerApplication?: { page: number } };
+	type PdfViewerApp = {
+		page: number;
+		initializedPromise?: Promise<void>;
+		eventBus?: { on: (name: string, cb: (e: { pageNumber: number }) => void) => void };
+	};
+	type PdfViewerWindow = Window & { PDFViewerApplication?: PdfViewerApp };
+
+	function viewerApp(): PdfViewerApp | undefined {
+		return (iframeEl?.contentWindow as PdfViewerWindow | null)?.PDFViewerApplication;
+	}
 
 	function goToPage(page: number) {
-		const viewer = (iframeEl?.contentWindow as PdfViewerWindow | null)?.PDFViewerApplication;
+		const viewer = viewerApp();
 		if (viewer) {
 			viewer.page = page;
-			tocOpen = false;
+			currentPage = page;
+			tocSheetOpen = false;
 		} else {
 			console.error('PDF viewer not ready for navigation.');
 		}
+	}
+
+	// Follow the page shown in the viewer so the contents can highlight the
+	// section being read.
+	function onViewerLoad() {
+		loadedUrl = viewerUrl;
+		const viewer = viewerApp();
+		viewer?.initializedPromise?.then(() => {
+			viewer.eventBus?.on('pagechanging', (e) => (currentPage = e.pageNumber));
+		});
 	}
 
 	// While the table of contents is being generated in the background,
@@ -97,7 +143,7 @@
 				<Button variant="outline" onclick={enterPresentationMode} disabled={!pdfLoaded}>
 					{m.presentation_mode()}
 				</Button>
-				<Button variant="outline" onclick={() => (tocOpen = true)}>
+				<Button variant="outline" onclick={toggleContents} aria-expanded={tocPanelOpen}>
 					{m.toc_contents()}{data.toc.sections.length ? ` (${data.toc.sections.length})` : ''}
 				</Button>
 				<Button variant="outline" onclick={() => (sheetOpen = true)}>{m.view_details()}</Button>
@@ -105,24 +151,40 @@
 			</div>
 		</div>
 
-		<div class="bg-card shadow-card relative min-h-0 flex-1 rounded-md border">
-			{#if viewerUrl}
-				{#if !pdfLoaded}
-					<Skeleton class="absolute inset-0 rounded-md" />
-				{/if}
-				<iframe
-					bind:this={iframeEl}
-					src={viewerUrl}
-					onload={() => (loadedUrl = viewerUrl)}
-					class="h-full w-full rounded-md border-0"
-					title="PDF Viewer"
-					allowfullscreen
-				></iframe>
-			{:else}
-				<div class="text-muted-foreground flex h-full items-center justify-center">
-					{m.no_pdf_available()}
-				</div>
+		<div class="flex min-h-0 flex-1 gap-3">
+			{#if tocPanelOpen}
+				<aside
+					aria-label={m.toc_contents()}
+					class="bg-card shadow-card hidden w-64 shrink-0 overflow-y-auto rounded-md border p-3 md:block lg:w-72"
+				>
+					<ScoreContents
+						toc={data.toc}
+						error={!!form?.tocError}
+						canNavigate={pdfLoaded}
+						{currentPage}
+						onSelect={goToPage}
+					/>
+				</aside>
 			{/if}
+			<div class="bg-card shadow-card relative min-h-0 flex-1 rounded-md border">
+				{#if viewerUrl}
+					{#if !pdfLoaded}
+						<Skeleton class="absolute inset-0 rounded-md" />
+					{/if}
+					<iframe
+						bind:this={iframeEl}
+						src={viewerUrl}
+						onload={onViewerLoad}
+						class="h-full w-full rounded-md border-0"
+						title="PDF Viewer"
+						allowfullscreen
+					></iframe>
+				{:else}
+					<div class="text-muted-foreground flex h-full items-center justify-center">
+						{m.no_pdf_available()}
+					</div>
+				{/if}
+			</div>
 		</div>
 	{:else}
 		<div class="text-muted-foreground p-8 text-center">
@@ -178,69 +240,20 @@
 	</Sheet.Content>
 </Sheet.Root>
 
-<Sheet.Root bind:open={tocOpen}>
+<Sheet.Root bind:open={tocSheetOpen}>
 	<Sheet.Content side="left" class="w-full overflow-y-auto sm:max-w-md">
 		<Sheet.Header>
 			<Sheet.Title>{m.toc_contents()}</Sheet.Title>
 			<Sheet.Description>{m.toc_desc()}</Sheet.Description>
 		</Sheet.Header>
-
-		<div class="mt-4 flex flex-col gap-3 px-4 pb-6">
-			{#if data.toc.status === 'running'}
-				<p role="status" class="text-muted-foreground text-sm">{m.toc_running()}</p>
-			{:else if data.toc.status === 'error' || form?.tocError}
-				<p role="alert" class="text-destructive text-sm font-medium">{m.toc_error()}</p>
-			{/if}
-
-			{#if data.toc.sections.length}
-				<ol class="flex flex-col gap-2">
-					{#each data.toc.sections as section (section.id)}
-						<li>
-							<button
-								type="button"
-								onclick={() => goToPage(section.page)}
-								disabled={!pdfLoaded}
-								class="hover:bg-accent focus-visible:ring-ring flex w-full flex-col gap-1 rounded-md border p-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
-							>
-								<span class="flex items-baseline justify-between gap-2">
-									<span class="text-foreground text-sm font-semibold">{section.title}</span>
-									<span class="text-muted-foreground shrink-0 text-xs">
-										{m.toc_page({ page: section.page })}
-									</span>
-								</span>
-								{#if section.incipit_path}
-									<img
-										src={`/api/incipit/${section.score_id}/${section.id}`}
-										alt={m.toc_incipit_alt({ title: section.title })}
-										loading="lazy"
-										class="w-full rounded-sm bg-white dark:invert"
-									/>
-								{/if}
-							</button>
-						</li>
-					{/each}
-				</ol>
-			{:else if data.toc.status !== 'running'}
-				<p class="text-muted-foreground text-sm">{m.toc_empty()}</p>
-			{/if}
-
-			{#if data.toc.status !== 'running'}
-				<form
-					method="POST"
-					action="?/generate_toc"
-					use:enhance={() => {
-						tocStarting = true;
-						return async ({ update }) => {
-							tocStarting = false;
-							await update({ reset: false });
-						};
-					}}
-				>
-					<Button type="submit" variant="outline" class="w-full" disabled={tocStarting}>
-						{m.toc_rebuild()}
-					</Button>
-				</form>
-			{/if}
+		<div class="mt-4 px-4 pb-6">
+			<ScoreContents
+				toc={data.toc}
+				error={!!form?.tocError}
+				canNavigate={pdfLoaded}
+				{currentPage}
+				onSelect={goToPage}
+			/>
 		</div>
 	</Sheet.Content>
 </Sheet.Root>

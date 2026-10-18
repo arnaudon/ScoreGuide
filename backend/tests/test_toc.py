@@ -270,18 +270,82 @@ def test_is_tempo_only(text, tempo_only):
     assert toc.is_tempo_only(text) is tempo_only
 
 
-def test_tempo_heading_needs_final_barline_and_start_position(monkeypatch):
-    """Bare tempo words open a movement only after a final barline, at the start."""
+def test_tempo_heading_needs_final_barline(monkeypatch):
+    """Bare tempo words open a movement only after a double/final barline."""
     # Page 1: first system opens the piece; second ends with a final barline.
-    # Page 2: "Adagio" after the final barline → new movement; "Allegro" after
-    #         a plain barline → tempo change; "Presto" printed mid-system → no.
+    # Page 2: "Adagio" after the final barline → new movement; "Allegro"
+    #         after a plain barline → just a tempo change.
     data = _pdf_from_pages(_page(systems=2, final=(1,)), _page(systems=3))
-    page_heads = iter(
-        [
-            _ocr("", ""),
-            [toc.OcrText("Adagio", 60), toc.OcrText("Allegro", 60), toc.OcrText("Presto", 500)],
-        ]
-    )
+    page_heads = iter([_ocr("", ""), _ocr("Adagio", "Allegro", "")])
     monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
     sections = toc.extract_sections(data)
     assert [(s.page, s.title) for s in sections] == [(1, "1"), (2, "Adagio")]
+
+
+def test_tempo_printed_mid_system_is_a_tempo_change():
+    system = toc.page_systems(_page(systems=1))[0]
+    assert toc._tempo_opens(toc.OcrText("Adagio", system.left), system, True)
+    assert not toc._tempo_opens(toc.OcrText("Adagio", system.left + 400), system, True)
+    assert not toc._tempo_opens(toc.OcrText("Adagio", system.left), system, False)
+
+
+def test_final_barline_opens_next_system_without_heading(monkeypatch):
+    """After a final barline the next system opens a piece even without a
+    legible heading — but not the other half of a split system."""
+    data = _pdf_from_pages(_page(systems=3, staves_per_system=1, final=(0,)))
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: _ocr(*["" for _ in systems]))
+    assert [(s.page, s.source) for s in toc.extract_sections(data)] == [
+        (1, "layout"),
+        (1, "layout"),
+    ]
+    staff = toc.Staff(top=100, bottom=140, left=0, right=10)
+    assert toc._split_half(toc.System([staff]), prev_bottom=90)
+    assert not toc._split_half(toc.System([staff]), prev_bottom=None)
+
+
+def test_barline_kinds():
+    """Single, final (thin+thick), double (thin+thin) and repeat (dots)."""
+    gray = _page(systems=4, staves_per_system=1, final=(1, 2, 3))
+    staves = toc.find_staves(gray)
+    # system 2: make it a thin double bar; system 3: add repeat dots.
+    s2, s3 = staves[2], staves[3]
+    gray[s2.top : s2.bottom, 736:740] = 255
+    gray[s2.top : s2.bottom, 737] = 0
+    for st in (s3,):
+        for k in (1.5, 2.5):
+            y = int(st.top + k * 10)
+            gray[y - 1 : y + 1, 728:730] = 0
+    ink = gray < toc.INK
+    kinds = [toc.barline_kind(ink, s) for s in toc.page_systems(gray)]
+    assert kinds == ["single", "final", "double", "repeat"]
+    assert toc.ends_with_double_bar(ink, toc.page_systems(gray)[1])
+
+
+def test_staff_with_stray_line_is_still_found():
+    """A beam drawn across a staff adds a stray 'line'; the staff survives."""
+    gray = _page(systems=2, staves_per_system=2)
+    clean = toc.find_staves(gray)
+    s = clean[0]
+    gray[s.top + 5, 60:740] = 0  # stray row between lines 1 and 2
+    assert len(toc.find_staves(gray)) == len(clean)
+
+
+def test_stray_lines_without_page_spacing():
+    """With no clean staff on the page there is no spacing to search with."""
+    gray = np.full((300, 800), 255, dtype=np.uint8)
+    for y in (100, 104, 116, 120, 136, 140):  # uneven: never a plain staff
+        gray[y, 60:740] = 0
+    assert toc.find_staves(gray) == []
+
+
+def test_long_horizontal_on_narrow_image():
+    ink = np.ones((3, 5), dtype=bool)
+    assert toc._long_horizontal(ink, length=10) is ink
+
+
+def test_first_system_opens_even_when_heading_is_rejected(monkeypatch):
+    """A tempo word printed mid-system on the first music page is rejected,
+    but the first system still opens a section."""
+    data = _pdf_from_pages(_page(systems=1))
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: [toc.OcrText("Allegro", 600)])
+    assert [(s.page, s.source) for s in toc.extract_sections(data)] == [(1, "layout")]
