@@ -84,5 +84,11 @@
 	},
 	"keywords": [
 		"svelte"
-	]
+	],
+	"overrides": {
+		"cookie": "^0.7.2",
+		"svelte-eslint-parser": {
+			"postcss-selector-parser": "^7.1.6"
+		}
+	}
 }
