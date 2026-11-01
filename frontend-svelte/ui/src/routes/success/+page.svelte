@@ -292,7 +292,7 @@
 									rel="external noopener noreferrer"
 									class="text-primary hover:underline"
 								>
-									Watch on YouTube
+									{m.watch_on_youtube()}
 								</a>
 							{:else if isLocalizedField(key) && selectedScoreDetails}
 								{localizedField(selectedScoreDetails, key) || value || '-'}

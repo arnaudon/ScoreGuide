@@ -1,8 +1,9 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
 import { apiFetch } from '$lib/server/fetchApi.js';
 import type { Score, User } from '$lib/types.js';
+import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -41,8 +42,14 @@ export const actions: Actions = {
 		const question = data.get('question');
 		const messageHistoryRaw = data.get('message_history');
 
+		// The session can expire while the chat tab stays open: send the user to
+		// /login instead of showing the backend's 401 as a chat error.
+		if (!token) {
+			redirect(303, '/login');
+		}
+
 		if (!question) {
-			return fail(400, { error: 'Missing question' });
+			return fail(400, { error: m.err_missing_question() });
 		}
 
 		let messageHistory = null;
@@ -96,15 +103,24 @@ export const actions: Actions = {
 					scoreDetails,
 					scores: returnScores
 				};
+			} else if (response.status === 401) {
+				cookies.delete('access_token', {
+					path: '/',
+					httpOnly: true,
+					secure: !dev,
+					sameSite: 'lax'
+				});
+				redirect(303, '/login');
 			} else {
 				const result = await response.json().catch(() => ({}));
 				return fail(response.status, {
-					error: result.detail || `Failed to get response (${response.status})`
+					error: result.detail || m.err_agent_response({ status: response.status })
 				});
 			}
 		} catch (error) {
+			if (isRedirect(error)) throw error;
 			console.error('Agent error:', error);
-			return fail(500, { error: 'Server error when contacting backend' });
+			return fail(500, { error: m.err_backend_unreachable() });
 		}
 	}
 };

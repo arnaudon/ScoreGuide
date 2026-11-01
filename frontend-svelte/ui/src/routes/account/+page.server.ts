@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
 import { apiFetch } from '$lib/server/fetchApi.js';
+import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -24,7 +25,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 export const actions: Actions = {
 	update_profile: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
-		if (!token) return fail(401, { error: 'Unauthorized' });
+		if (!token) return fail(401, { error: m.err_unauthorized() });
 
 		const data = await request.formData();
 		const instrument = data.get('instrument');
@@ -44,7 +45,7 @@ export const actions: Actions = {
 			const result = await res.json();
 			return fail(res.status, {
 				form: 'profile',
-				error: result.detail || 'Failed to update profile'
+				error: result.detail || m.err_update_profile()
 			});
 		}
 
@@ -52,7 +53,7 @@ export const actions: Actions = {
 	},
 	update_password: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
-		if (!token) return fail(401, { error: 'Unauthorized' });
+		if (!token) return fail(401, { error: m.err_unauthorized() });
 
 		const data = await request.formData();
 		const current_password = data.get('current_password');
@@ -60,11 +61,11 @@ export const actions: Actions = {
 		const confirm_password = data.get('confirm_password');
 
 		if (!current_password || !new_password || !confirm_password) {
-			return fail(400, { form: 'password', error: 'All fields are required' });
+			return fail(400, { form: 'password', error: m.err_all_fields_required() });
 		}
 
 		if (new_password !== confirm_password) {
-			return fail(400, { form: 'password', error: 'New passwords do not match' });
+			return fail(400, { form: 'password', error: m.err_new_passwords_mismatch() });
 		}
 
 		const api = apiFetch(fetch, token);
@@ -81,7 +82,7 @@ export const actions: Actions = {
 			const result = await res.json();
 			return fail(res.status, {
 				form: 'password',
-				error: result.detail || 'Failed to update password'
+				error: result.detail || m.err_update_password()
 			});
 		}
 
@@ -90,13 +91,13 @@ export const actions: Actions = {
 
 	delete_account: async ({ cookies, fetch }) => {
 		const token = cookies.get('access_token');
-		if (!token) return fail(401, { error: 'Unauthorized' });
+		if (!token) return fail(401, { error: m.err_unauthorized() });
 
 		const api = apiFetch(fetch, token);
 		const res = await api('/user', { method: 'DELETE' });
 
 		if (!res.ok) {
-			return fail(res.status, { form: 'delete', error: 'Failed to delete account' });
+			return fail(res.status, { form: 'delete', error: m.err_delete_account() });
 		}
 
 		cookies.delete('access_token', { path: '/', httpOnly: true, secure: !dev, sameSite: 'lax' });

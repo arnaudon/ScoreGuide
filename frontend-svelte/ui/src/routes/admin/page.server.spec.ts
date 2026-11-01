@@ -212,3 +212,46 @@ describe('set_models / update / empty / cancel actions', () => {
 		expect(fetch.mock.calls[0][0]).toContain('/imslp/cancel');
 	});
 });
+
+describe('admin action failures are surfaced', () => {
+	const failing = () =>
+		makeFetch(async () => jsonResponse({ detail: 'A job is already running' }, 409));
+
+	it.each(['update', 'empty', 'cancel'] as const)(
+		'%s returns an imslp-tagged failure when the backend rejects it',
+		async (name) => {
+			const result = await actions[name](
+				event({
+					request: fakeRequest({}),
+					cookies: makeCookies({ access_token: 'tok' }),
+					fetch: failing()
+				})
+			);
+			expect(result).toMatchObject({
+				status: 409,
+				data: { formId: 'imslp', error: 'A job is already running' }
+			});
+		}
+	);
+
+	it('falls back to a status message when the IMSLP error has no detail', async () => {
+		const result = await actions.cancel(
+			event({
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch: makeFetch(async () => new Response('x', { status: 500 }))
+			})
+		);
+		expect(result).toMatchObject({ data: { error: 'IMSLP request failed (500).' } });
+	});
+
+	it('tags credit failures with formId "credits"', async () => {
+		const result = await actions.set_credits(
+			event({
+				request: fakeRequest({ user_id: '1', max_credits: '5' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch: failing()
+			})
+		);
+		expect(result).toMatchObject({ data: { formId: 'credits' } });
+	});
+});

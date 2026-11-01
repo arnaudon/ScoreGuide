@@ -395,4 +395,66 @@ describe('recomplete action', () => {
 		expect(fetch.mock.calls[1][1]!.method).toBe('PUT');
 		expect(fetch.mock.calls[1][0]).toContain('/scores/7');
 	});
+
+	it("surfaces the backend's reason when /complete_score fails (e.g. out of credits)", async () => {
+		const fetch = makeFetch(async () => jsonResponse({ detail: 'Not enough credits' }, 402));
+		const result = await actions.recomplete(
+			event({
+				request: fakeRequest({ id: '7', title: 't', composer: 'c' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({ status: 402, data: { error: 'Not enough credits' } });
+	});
+
+	it('falls back to a generic message when /complete_score sends no detail', async () => {
+		const fetch = makeFetch(async () => new Response('boom', { status: 500 }));
+		const result = await actions.recomplete(
+			event({
+				request: fakeRequest({ id: '7', title: 't', composer: 'c' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({
+			status: 500,
+			data: { error: 'Failed to complete score data with agent' }
+		});
+	});
+});
+
+describe('upload completion error', () => {
+	it('passes the completion failure reason through with the saved score', async () => {
+		const fetch = makeFetch()
+			.mockResolvedValueOnce(jsonResponse({ filename: 'f.pdf' })) // POST /pdf
+			.mockResolvedValueOnce(jsonResponse({ detail: 'Not enough credits' }, 402)) // /complete_score
+			.mockResolvedValueOnce(jsonResponse({ id: 1 })); // POST /scores
+		const result = await actions.upload(
+			event({
+				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile() }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({
+			success: true,
+			completionFailed: true,
+			completionError: 'Not enough credits'
+		});
+	});
+});
+
+describe('ask_agent errors are tagged for the chat', () => {
+	it('tags failures with formId "agent" so the page banner does not repeat them', async () => {
+		const fetch = makeFetch(async () => jsonResponse({ detail: 'Not enough credits' }, 402));
+		const result = await actions.ask_agent(
+			event({
+				request: fakeRequest({ question: 'q' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({ data: { formId: 'agent' } });
+	});
 });

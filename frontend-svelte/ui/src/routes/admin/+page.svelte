@@ -282,6 +282,10 @@
 			</form>
 		</div>
 
+		{#if form?.formId === 'imslp' && form?.error}
+			<p role="alert" class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
+		{/if}
+
 		{#if data.progress?.status === 'processing' || data.progress?.status === 'cancelling'}
 			<div class="bg-muted/50 mt-6 rounded-md border p-4">
 				<div class="mb-2 flex justify-between">

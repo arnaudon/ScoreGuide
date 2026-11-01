@@ -4,6 +4,7 @@ import { dev } from '$app/environment';
 import { apiFetch } from '$lib/server/fetchApi.js';
 import { buildScoreUpdatePayload } from '$lib/server/scoreUpdate.js';
 import type { Score, User } from '$lib/types.js';
+import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -40,7 +41,7 @@ export const actions: Actions = {
 	upload: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {
-			return fail(401, { error: 'Unauthorized' });
+			return fail(401, { error: m.err_unauthorized() });
 		}
 
 		const data = await request.formData();
@@ -49,7 +50,7 @@ export const actions: Actions = {
 		const file = data.get('file') as File;
 
 		if (!title || !composer || !file || file.size === 0) {
-			return fail(400, { error: 'Missing required fields' });
+			return fail(400, { error: m.err_missing_fields() });
 		}
 
 		const api = apiFetch(fetch, token);
@@ -65,7 +66,7 @@ export const actions: Actions = {
 			const uploadRes = await api('/pdf', { method: 'POST', body: formData });
 
 			if (!uploadRes.ok) {
-				return fail(uploadRes.status, { error: 'Failed to upload PDF' });
+				return fail(uploadRes.status, { error: m.err_upload_pdf() });
 			}
 
 			const uploadData = await uploadRes.json();
@@ -88,6 +89,8 @@ export const actions: Actions = {
 			// score with the user's data so the uploaded PDF isn't orphaned; it
 			// can be re-completed later.
 			const completionFailed = !completeRes.ok;
+			// Keep the backend's reason (e.g. "out of credits") so the user knows why.
+			const completionError = completionFailed ? await errorDetail(completeRes) : undefined;
 			let scoreData = completionFailed ? initialScoreData : await completeRes.json();
 
 			// Handle case where agent returns a JSON string instead of an object
@@ -120,19 +123,19 @@ export const actions: Actions = {
 			});
 
 			if (!scoreRes.ok) {
-				return fail(scoreRes.status, { error: 'Failed to save score' });
+				return fail(scoreRes.status, { error: m.err_save_score() });
 			}
 
-			return { success: true, scoreAdded: true, completionFailed };
+			return { success: true, scoreAdded: true, completionFailed, completionError };
 		} catch (error) {
 			console.error('Upload error:', error);
-			return fail(500, { error: 'Server error when contacting backend' });
+			return fail(500, { error: m.err_backend_unreachable() });
 		}
 	},
 	ask_agent: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {
-			return fail(401, { error: 'Unauthorized' });
+			return fail(401, { formId: 'agent', error: m.err_unauthorized() });
 		}
 
 		const data = await request.formData();
@@ -140,7 +143,7 @@ export const actions: Actions = {
 		const messageHistoryRaw = data.get('message_history');
 
 		if (!question) {
-			return fail(400, { error: 'Missing prompt' });
+			return fail(400, { formId: 'agent', error: m.err_missing_prompt() });
 		}
 
 		let messageHistory = null;
@@ -173,7 +176,7 @@ export const actions: Actions = {
 					console.error('Failed to parse imslp_agent error', e);
 					return {};
 				});
-				return fail(res.status, { error: result.detail || 'Failed to query agent' });
+				return fail(res.status, { formId: 'agent', error: result.detail || m.err_query_agent() });
 			}
 
 			const json = await res.json();
@@ -202,13 +205,13 @@ export const actions: Actions = {
 			};
 		} catch (error) {
 			console.error('Ask agent error:', error);
-			return fail(500, { error: 'Server error when contacting backend' });
+			return fail(500, { formId: 'agent', error: m.err_backend_unreachable() });
 		}
 	},
 	add_imslp: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {
-			return fail(401, { error: 'Unauthorized' });
+			return fail(401, { error: m.err_unauthorized() });
 		}
 
 		const data = await request.formData();
@@ -216,7 +219,7 @@ export const actions: Actions = {
 		const file = data.get('file') as File;
 
 		if (!imslp_id || !file || file.size === 0) {
-			return fail(400, { error: 'Missing IMSLP ID or PDF File' });
+			return fail(400, { error: m.err_missing_imslp_or_pdf() });
 		}
 
 		const api = apiFetch(fetch, token);
@@ -232,7 +235,7 @@ export const actions: Actions = {
 			const uploadRes = await api('/pdf', { method: 'POST', body: formData });
 
 			if (!uploadRes.ok) {
-				return fail(uploadRes.status, { error: 'Failed to upload PDF' });
+				return fail(uploadRes.status, { error: m.err_upload_pdf() });
 			}
 
 			const uploadData = await uploadRes.json();
@@ -243,12 +246,12 @@ export const actions: Actions = {
 			const imslpRes = await api(`/imslp/scores_by_ids?score_ids=${idsParam}`);
 
 			if (!imslpRes.ok) {
-				return fail(imslpRes.status, { error: 'Failed to fetch IMSLP score' });
+				return fail(imslpRes.status, { error: m.err_fetch_imslp() });
 			}
 
 			const imslpScores = await imslpRes.json();
 			if (!imslpScores || imslpScores.length === 0) {
-				return fail(404, { error: 'IMSLP score not found' });
+				return fail(404, { error: m.err_imslp_not_found() });
 			}
 
 			const imslpScore = imslpScores[0];
@@ -271,19 +274,19 @@ export const actions: Actions = {
 			});
 
 			if (!scoreRes.ok) {
-				return fail(scoreRes.status, { error: 'Failed to add score to database' });
+				return fail(scoreRes.status, { error: m.err_add_score() });
 			}
 
 			return { success: true, scoreAdded: true };
 		} catch (error) {
 			console.error('Add IMSLP error:', error);
-			return fail(500, { error: 'Server error when contacting backend' });
+			return fail(500, { error: m.err_backend_unreachable() });
 		}
 	},
 	recomplete: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {
-			return fail(401, { error: 'Unauthorized' });
+			return fail(401, { error: m.err_unauthorized() });
 		}
 
 		const data = await request.formData();
@@ -293,7 +296,7 @@ export const actions: Actions = {
 		const pdf_path = data.get('pdf_path');
 
 		if (!id || !title || !composer) {
-			return fail(400, { error: 'Missing required fields' });
+			return fail(400, { error: m.err_missing_fields() });
 		}
 
 		const api = apiFetch(fetch, token);
@@ -311,7 +314,9 @@ export const actions: Actions = {
 			});
 
 			if (!completeRes.ok) {
-				return fail(completeRes.status, { error: 'Failed to complete score data with agent' });
+				return fail(completeRes.status, {
+					error: (await errorDetail(completeRes)) || m.err_complete_score()
+				});
 			}
 
 			let scoreData = await completeRes.json();
@@ -342,26 +347,26 @@ export const actions: Actions = {
 			});
 
 			if (!updateRes.ok) {
-				return fail(updateRes.status, { error: 'Failed to update score' });
+				return fail(updateRes.status, { error: m.err_update_score() });
 			}
 
 			return { success: true };
 		} catch (error) {
 			console.error('Recomplete error:', error);
-			return fail(500, { error: 'Server error when contacting backend' });
+			return fail(500, { error: m.err_backend_unreachable() });
 		}
 	},
 	delete: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {
-			return fail(401, { error: 'Unauthorized' });
+			return fail(401, { error: m.err_unauthorized() });
 		}
 
 		const data = await request.formData();
 		const id = data.get('id');
 
 		if (!id) {
-			return fail(400, { error: 'Missing score ID' });
+			return fail(400, { error: m.err_missing_score_id() });
 		}
 
 		const api = apiFetch(fetch, token);
@@ -369,25 +374,25 @@ export const actions: Actions = {
 			const res = await api(`/scores/${id}`, { method: 'DELETE' });
 
 			if (!res.ok) {
-				return fail(res.status, { error: 'Failed to delete score' });
+				return fail(res.status, { error: m.err_delete_score() });
 			}
 
 			return { success: true };
 		} catch (error) {
 			console.error('Delete error:', error);
-			return fail(500, { error: 'Server error when contacting backend' });
+			return fail(500, { error: m.err_backend_unreachable() });
 		}
 	},
 	update_score: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {
-			return fail(401, { error: 'Unauthorized' });
+			return fail(401, { error: m.err_unauthorized() });
 		}
 
 		const data = await request.formData();
 		const id = data.get('id');
 		if (!id) {
-			return fail(400, { error: 'Missing score ID' });
+			return fail(400, { error: m.err_missing_score_id() });
 		}
 
 		const payload = buildScoreUpdatePayload(data);
@@ -401,13 +406,19 @@ export const actions: Actions = {
 			});
 
 			if (!res.ok) {
-				return fail(res.status, { error: 'Failed to update score' });
+				return fail(res.status, { error: m.err_update_score() });
 			}
 
 			return { success: true, scoreUpdated: true };
 		} catch (error) {
 			console.error('Update score error:', error);
-			return fail(500, { error: 'Server error when contacting backend' });
+			return fail(500, { error: m.err_backend_unreachable() });
 		}
 	}
 };
+
+/** The backend's `detail` message for a failed response, if it sent one. */
+async function errorDetail(res: Response): Promise<string | undefined> {
+	const body = await res.json().catch(() => ({}));
+	return typeof body?.detail === 'string' ? body.detail : undefined;
+}

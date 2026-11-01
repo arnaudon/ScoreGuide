@@ -38,6 +38,8 @@
 	let uploading = $state(false);
 	let recompleting = $state(false);
 	let recompleteError = $state<string | null>(null);
+	let deleteError = $state<string | null>(null);
+	let addImslpError = $state<string | null>(null);
 	let sheetOpen = $state(false);
 	let editOpen = $state(false);
 	let manualFiles = $state<FileList | undefined>();
@@ -333,7 +335,7 @@
 						: 'h-auto'} w-full"
 				>
 					<AgentChat
-						{form}
+						form={form?.formId === 'agent' ? form : null}
 						action="?/ask_agent"
 						title={m.imslp_search_help()}
 						placeholder={m.agent_placeholder_imslp()}
@@ -378,6 +380,7 @@
 														onclick={() => {
 															if (!uploading) {
 																agentSelectedScore = row.original;
+																addImslpError = null;
 																imslpSheetOpen = true;
 															}
 														}}
@@ -433,7 +436,8 @@
 				</div>
 			</Tabs.Content>
 		</Tabs.Root>
-		{#if form?.error}
+		<!-- Agent errors are shown by AgentChat itself, under its input. -->
+		{#if form?.error && form?.formId !== 'agent'}
 			<p role="alert" class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
 		{/if}
 		{#if form?.scoreAdded}
@@ -443,6 +447,7 @@
 			{#if form?.completionFailed}
 				<p role="status" class="text-muted-foreground mt-1 text-sm">
 					{m.score_completion_failed()}
+					{#if form?.completionError}({form.completionError}){/if}
 				</p>
 			{/if}
 		{/if}
@@ -555,6 +560,7 @@
 						onclick={() => {
 							selectedScoreId = row.original.id;
 							recompleteError = null;
+							deleteError = null;
 							sheetOpen = true;
 						}}
 					>
@@ -632,7 +638,7 @@
 									rel="noopener noreferrer"
 									class="text-primary hover:underline"
 								>
-									Watch on YouTube
+									{m.watch_on_youtube()}
 								</a>
 							{:else if isLocalizedField(key) && selectedScore}
 								{localizedField(selectedScore, key) || value || '-'}
@@ -690,17 +696,26 @@
 					method="POST"
 					action="?/delete"
 					use:enhance={() => {
+						deleteError = null;
 						return async ({ update, result }) => {
+							// Show failures inside the Sheet: the page banner is hidden behind it.
+							if (result.type === 'failure') {
+								deleteError = (result.data?.error as string) || m.err_delete_score();
+								return;
+							}
 							if (result.type === 'success') {
 								sheetOpen = false;
 								selectedScoreId = null;
 							}
-							update();
+							await update();
 						};
 					}}
 				>
 					<input type="hidden" name="id" value={selectedScore.id} />
 					<Button type="submit" variant="destructive" class="w-full">{m.delete_score()}</Button>
+					{#if deleteError}
+						<p role="alert" class="text-destructive mt-2 text-sm font-medium">{deleteError}</p>
+					{/if}
 				</form>
 			</div>
 		{/if}
@@ -770,12 +785,18 @@
 					enctype="multipart/form-data"
 					use:enhance={() => {
 						uploading = true;
-						return async ({ update }) => {
+						addImslpError = null;
+						return async ({ update, result }) => {
 							uploading = false;
+							// Keep the sheet, chosen score and PDF on failure so the user can retry.
+							if (result.type === 'failure') {
+								addImslpError = (result.data?.error as string) || m.err_add_score();
+								return;
+							}
 							agentSelectedScore = null;
 							imslpSheetOpen = false;
 							imslpFiles = undefined;
-							update();
+							await update();
 						};
 					}}
 					class="flex flex-col gap-4"
@@ -808,6 +829,9 @@
 					<Button type="submit" disabled={uploading} class="w-full">
 						{uploading ? m.adding() : m.add_score()}
 					</Button>
+					{#if addImslpError}
+						<p role="alert" class="text-destructive text-sm font-medium">{addImslpError}</p>
+					{/if}
 				</form>
 			</div>
 		{/if}

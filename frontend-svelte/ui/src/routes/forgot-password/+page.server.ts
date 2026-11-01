@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { apiFetch } from '$lib/server/fetchApi.js';
+import * as m from '$lib/paraglide/messages.js';
 
 export const actions: Actions = {
 	default: async ({ request, fetch }) => {
@@ -8,7 +9,7 @@ export const actions: Actions = {
 		const email = data.get('email');
 
 		if (!email) {
-			return fail(400, { email: email?.toString(), error: 'Missing email' });
+			return fail(400, { email: email?.toString(), error: m.err_missing_email() });
 		}
 
 		const api = apiFetch(fetch, undefined);
@@ -19,7 +20,7 @@ export const actions: Actions = {
 		});
 
 		if (!response.ok) {
-			let errorMsg = 'Something went wrong. Please try again.';
+			let errorMsg = m.err_something_went_wrong();
 			try {
 				const result = await response.json();
 				errorMsg = result.detail || errorMsg;

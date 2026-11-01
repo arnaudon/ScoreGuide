@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { dev } from '$app/environment';
 import { apiFetch } from '$lib/server/fetchApi.js';
+import * as m from '$lib/paraglide/messages.js';
 
 export const actions: Actions = {
 	login: async ({ request, cookies, fetch }) => {
@@ -11,7 +12,7 @@ export const actions: Actions = {
 		const remember = data.get('remember');
 
 		if (!username || !password) {
-			return fail(400, { username: username?.toString(), error: 'Missing username or password' });
+			return fail(400, { username: username?.toString(), error: m.err_missing_credentials() });
 		}
 
 		const body = new URLSearchParams();
@@ -29,7 +30,7 @@ export const actions: Actions = {
 			const result = await response.json();
 			return fail(response.status, {
 				username: username.toString(),
-				error: result.detail || 'Login failed'
+				error: result.detail || m.err_login_failed()
 			});
 		}
 
@@ -60,7 +61,7 @@ export const actions: Actions = {
 				username: username?.toString(),
 				email: email?.toString(),
 				instrument: instrument?.toString(),
-				error: 'Missing username, password or email'
+				error: m.err_missing_register_fields()
 			});
 		}
 
@@ -77,7 +78,7 @@ export const actions: Actions = {
 		});
 
 		if (!response.ok) {
-			let errorMsg = 'Registration failed';
+			let errorMsg = m.err_registration_failed();
 			try {
 				const result = await response.json();
 				errorMsg = result.detail || errorMsg;
@@ -117,7 +118,7 @@ export const actions: Actions = {
 			return {
 				username: username.toString(),
 				success: true,
-				message: 'Registration successful! Please log in.'
+				message: m.registration_success_login()
 			};
 		}
 	}

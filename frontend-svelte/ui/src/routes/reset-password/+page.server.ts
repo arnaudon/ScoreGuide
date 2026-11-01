@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '$lib/server/fetchApi.js';
+import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ url }) => {
 	return { token: url.searchParams.get('token') ?? '' };
@@ -14,15 +15,15 @@ export const actions: Actions = {
 		const confirmPassword = data.get('confirm_password');
 
 		if (!token) {
-			return fail(400, { token: '', error: 'Missing or invalid reset link' });
+			return fail(400, { token: '', error: m.err_invalid_reset_link() });
 		}
 
 		if (!newPassword || !confirmPassword) {
-			return fail(400, { token: token.toString(), error: 'Missing password' });
+			return fail(400, { token: token.toString(), error: m.err_missing_password() });
 		}
 
 		if (newPassword.toString() !== confirmPassword.toString()) {
-			return fail(400, { token: token.toString(), error: 'Passwords do not match' });
+			return fail(400, { token: token.toString(), error: m.err_passwords_mismatch() });
 		}
 
 		const api = apiFetch(fetch, undefined);
@@ -33,7 +34,7 @@ export const actions: Actions = {
 		});
 
 		if (!response.ok) {
-			let errorMsg = 'Something went wrong. Please try again.';
+			let errorMsg = m.err_something_went_wrong();
 			try {
 				const result = await response.json();
 				errorMsg = result.detail || errorMsg;

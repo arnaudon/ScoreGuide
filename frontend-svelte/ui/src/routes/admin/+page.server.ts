@@ -1,6 +1,7 @@
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '$lib/server/fetchApi.js';
+import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -64,7 +65,7 @@ export const actions: Actions = {
 		const userId = data.get('user_id');
 
 		if (!userId) {
-			return fail(400, { error: 'User ID is required.' });
+			return fail(400, { formId: 'credits', error: m.err_user_id_required() });
 		}
 
 		const api = apiFetch(fetch, token);
@@ -75,7 +76,10 @@ export const actions: Actions = {
 				console.error('Failed to parse refill_credits error', e);
 				return {};
 			});
-			return fail(res.status, { error: result.detail || 'Failed to refill credits.' });
+			return fail(res.status, {
+				formId: 'credits',
+				error: result.detail || m.err_refill_credits()
+			});
 		}
 	},
 	set_credits: async ({ request, cookies, fetch }) => {
@@ -85,7 +89,7 @@ export const actions: Actions = {
 		const max_credits = data.get('max_credits');
 
 		if (!userId || max_credits === null) {
-			return fail(400, { error: 'User ID and max credits are required.' });
+			return fail(400, { formId: 'credits', error: m.err_user_id_credits_required() });
 		}
 
 		const api = apiFetch(fetch, token);
@@ -100,7 +104,10 @@ export const actions: Actions = {
 				console.error('Failed to parse set_credits error', e);
 				return {};
 			});
-			return fail(res.status, { error: result.detail || 'Failed to update credits.' });
+			return fail(res.status, {
+				formId: 'credits',
+				error: result.detail || m.err_update_credits()
+			});
 		}
 	},
 	set_models: async ({ request, cookies, fetch }) => {
@@ -123,7 +130,7 @@ export const actions: Actions = {
 			const result = await res.json().catch(() => ({}));
 			return fail(res.status, {
 				formId: 'models',
-				error: result.detail || 'Failed to save models.'
+				error: result.detail || m.err_save_models()
 			});
 		}
 		return { formId: 'models', success: true };
@@ -137,16 +144,26 @@ export const actions: Actions = {
 		);
 		const token = cookies.get('access_token');
 		const api = apiFetch(fetch, token);
-		await api(`/imslp/start/${maxPages}`, { method: 'POST' });
+		return imslpResult(await api(`/imslp/start/${maxPages}`, { method: 'POST' }));
 	},
 	empty: async ({ cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		const api = apiFetch(fetch, token);
-		await api('/imslp/empty', { method: 'POST' });
+		return imslpResult(await api('/imslp/empty', { method: 'POST' }));
 	},
 	cancel: async ({ cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		const api = apiFetch(fetch, token);
-		await api('/imslp/cancel', { method: 'POST' });
+		return imslpResult(await api('/imslp/cancel', { method: 'POST' }));
 	}
 };
+
+/** Surface a failed IMSLP job call on the page instead of silently dropping it. */
+async function imslpResult(res: Response) {
+	if (res.ok) return;
+	const result = await res.json().catch(() => ({}));
+	return fail(res.status, {
+		formId: 'imslp',
+		error: result.detail || m.err_imslp_request({ status: res.status })
+	});
+}
