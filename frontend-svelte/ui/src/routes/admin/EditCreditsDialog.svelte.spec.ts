@@ -2,7 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import EditCreditsDialog from './EditCreditsDialog.svelte';
-import type { AdminUser } from '$lib/types.js';
+import type { AdminUser } from '#lib/types.js';
 
 function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
 	return {

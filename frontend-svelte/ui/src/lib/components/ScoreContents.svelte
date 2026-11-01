@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import type { SectionsResponse } from '$lib/types.js';
-	import * as m from '$lib/paraglide/messages.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import type { SectionsResponse } from '#lib/types.js';
+	import * as m from '#lib/paraglide/messages.js';
 
 	let {
 		toc,

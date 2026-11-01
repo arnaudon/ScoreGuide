@@ -1,6 +1,6 @@
 <script lang="ts">
 	import AgentChat from './AgentChat.svelte';
-	import type { User } from '$lib/types.js';
+	import type { User } from '#lib/types.js';
 
 	let {
 		title = 'Title',

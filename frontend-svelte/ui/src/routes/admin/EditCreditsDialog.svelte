@@ -1,11 +1,10 @@
 <script lang="ts">
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { enhance } from '$app/forms';
-	import type { SubmitFunction } from '@sveltejs/kit';
-	import * as m from '$lib/paraglide/messages.js';
-	import type { AdminUser } from '$lib/types.js';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { enhance, type SubmitFunction } from '$app/forms';
+	import * as m from '#lib/paraglide/messages.js';
+	import type { AdminUser } from '#lib/types.js';
 
 	let {
 		open = $bindable(false),

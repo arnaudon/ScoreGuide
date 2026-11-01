@@ -1,7 +1,7 @@
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { apiFetch } from '$lib/server/fetchApi.js';
-import * as m from '$lib/paraglide/messages.js';
+import { apiFetch } from '#lib/server/fetchApi.js';
+import * as m from '#lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');

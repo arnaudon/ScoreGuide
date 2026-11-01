@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { apiFetch } from '$lib/server/fetchApi.js';
+import { apiFetch } from '#lib/server/fetchApi.js';
 
 /**
  * Same-origin proxy for table-of-contents incipit images: `<img>` can't send

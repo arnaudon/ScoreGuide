@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { apiFetch } from '$lib/server/fetchApi.js';
-import * as m from '$lib/paraglide/messages.js';
+import { apiFetch } from '#lib/server/fetchApi.js';
+import * as m from '#lib/paraglide/messages.js';
 
 export const actions: Actions = {
 	default: async ({ request, fetch }) => {

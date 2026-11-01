@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import * as Table from '$lib/components/ui/table/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import {
 		type ColumnDef,
 		type PaginationState,
@@ -18,11 +18,11 @@
 		FlexRender,
 		createSvelteTable,
 		renderComponent
-	} from '$lib/components/ui/data-table/index.js';
+	} from '#lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
 	import EditCreditsDialog from './EditCreditsDialog.svelte';
-	import type { AdminUser } from '$lib/types.js';
-	import * as m from '$lib/paraglide/messages.js';
+	import type { AdminUser } from '#lib/types.js';
+	import * as m from '#lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
 

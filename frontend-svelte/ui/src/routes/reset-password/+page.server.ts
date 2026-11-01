@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { apiFetch } from '$lib/server/fetchApi.js';
-import * as m from '$lib/paraglide/messages.js';
+import { apiFetch } from '#lib/server/fetchApi.js';
+import * as m from '#lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ url }) => {
 	return { token: url.searchParams.get('token') ?? '' };

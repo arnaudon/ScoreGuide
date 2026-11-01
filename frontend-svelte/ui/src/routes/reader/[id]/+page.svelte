@@ -2,13 +2,13 @@
 	import type { PageProps } from './$types';
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import EditScoreDialog from '$lib/components/EditScoreDialog.svelte';
-	import ScoreContents from '$lib/components/ScoreContents.svelte';
-	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
-	import * as m from '$lib/paraglide/messages.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
+	import ScoreContents from '#lib/components/ScoreContents.svelte';
+	import { isLocalizedField, localizedField } from '#lib/i18n/score.js';
+	import * as m from '#lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
 	let sheetOpen = $state(false);

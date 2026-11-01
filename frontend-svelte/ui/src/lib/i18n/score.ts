@@ -1,5 +1,5 @@
-import type { Score, IMSLPScore } from '$lib/types.js';
-import { getLocale } from '$lib/paraglide/runtime.js';
+import type { Score, IMSLPScore } from '#lib/types.js';
+import { getLocale } from '#lib/paraglide/runtime.js';
 
 /**
  * Fields on `Score` (and only `Score`) that also have a `_fr` counterpart.
