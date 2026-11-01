@@ -20,7 +20,7 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 const event = (cookies: ReturnType<typeof makeCookies>, fetch: ReturnType<typeof vi.fn>) =>
-	({ cookies, fetch }) as never;
+	({ cookies, fetch, url: new URL('http://localhost/home') }) as never;
 
 describe('+layout.server load', () => {
 	let errSpy: ReturnType<typeof vi.spyOn>;
