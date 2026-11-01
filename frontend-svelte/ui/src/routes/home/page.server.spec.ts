@@ -163,3 +163,22 @@ describe('ask action', () => {
 		expect(errSpy).toHaveBeenCalled();
 	});
 });
+
+describe('ask action with an expired session', () => {
+	it('redirects to /login when there is no token', async () => {
+		const fetch = vi.fn();
+		await expect(
+			actions.ask(actionEvent(fakeRequest({ question: 'q' }), makeCookies(), fetch))
+		).rejects.toSatisfy((t: unknown) => isRedirect(t) && t.location === '/login');
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('clears the cookie and redirects to /login when the backend returns 401', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ detail: 'Not authenticated' }, 401));
+		const cookies = makeCookies({ access_token: 'expired' });
+		await expect(
+			actions.ask(actionEvent(fakeRequest({ question: 'q' }), cookies, fetch))
+		).rejects.toSatisfy((t: unknown) => isRedirect(t) && t.location === '/login');
+		expect(cookies.delete).toHaveBeenCalledWith('access_token', expect.any(Object));
+	});
+});

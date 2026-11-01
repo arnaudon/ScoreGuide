@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { AdminUser } from '$lib/types.js';
 
@@ -22,12 +23,26 @@
 		}
 	});
 
-	function closeOnSubmit() {
-		return async ({ update }: { update: () => Promise<void> }) => {
+	let error = $state<string | null>(null);
+
+	// Reset the error whenever the sheet is (re)opened for a user.
+	$effect(() => {
+		if (open) error = null;
+	});
+
+	// Only close once the backend accepted the change; otherwise keep the sheet
+	// open and show why, so a failed edit isn't silently lost.
+	const closeOnSuccess: SubmitFunction = () => {
+		error = null;
+		return async ({ result, update }) => {
+			if (result.type === 'failure') {
+				error = (result.data?.error as string | undefined) ?? m.failed_to_save_changes();
+				return;
+			}
 			open = false;
 			await update();
 		};
-	}
+	};
 </script>
 
 <Sheet.Root bind:open>
@@ -40,7 +55,7 @@
 		</Sheet.Header>
 		{#if user}
 			<div class="mt-4 space-y-6">
-				<form method="POST" action="?/set_credits" use:enhance={closeOnSubmit} class="space-y-4">
+				<form method="POST" action="?/set_credits" use:enhance={closeOnSuccess} class="space-y-4">
 					<input type="hidden" name="user_id" value={user.id} />
 					<div class="space-y-2">
 						<label for="max_credits" class="text-sm font-medium">{m.max_credits()}</label>
@@ -51,7 +66,11 @@
 					</Sheet.Footer>
 				</form>
 
-				<form method="POST" action="?/refill_credits" use:enhance={closeOnSubmit}>
+				{#if error}
+					<p role="alert" class="text-destructive text-sm font-medium">{error}</p>
+				{/if}
+
+				<form method="POST" action="?/refill_credits" use:enhance={closeOnSuccess}>
 					<input type="hidden" name="user_id" value={user.id} />
 					<Button
 						variant="outline"
