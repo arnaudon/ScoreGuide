@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
-	import * as m from '$lib/paraglide/messages.js';
+	import * as m from '#lib/paraglide/messages.js';
 
 	let { form }: PageProps = $props();
 	let isRegister = $state(false);
@@ -58,7 +58,7 @@
 				<div class="flex items-center justify-between">
 					<label for="password" class="text-sm leading-none font-medium">{m.password()}</label>
 					{#if !isRegister}
-						<a href={resolve('/forgot-password')} class="text-primary text-sm hover:underline"
+						<a href={resolve('forgot-password')} class="text-primary text-sm hover:underline"
 							>{m.forgot_password_link()}</a
 						>
 					{/if}

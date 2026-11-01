@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { apiFetch } from '$lib/server/fetchApi.js';
+import { apiFetch } from '#lib/server/fetchApi.js';
 
 /**
  * Same-origin PDF proxy. Reads the httpOnly `access_token` cookie set at

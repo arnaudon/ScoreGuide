@@ -1,11 +1,11 @@
 <script lang="ts">
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import * as m from '$lib/paraglide/messages.js';
-	import type { Score, Period, Difficulty } from '$lib/types.js';
+	import * as m from '#lib/paraglide/messages.js';
+	import type { Score, Period, Difficulty } from '#lib/types.js';
 
 	const CURRENT_YEAR = new Date().getFullYear();
 

@@ -1,9 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { dev } from '$app/environment';
-import { apiFetch } from '$lib/server/fetchApi.js';
-import { buildScoreUpdatePayload } from '$lib/server/scoreUpdate.js';
-import type { Score, SectionsResponse } from '$lib/types.js';
+import { dev } from '$app/env';
+import { apiFetch } from '#lib/server/fetchApi.js';
+import { buildScoreUpdatePayload } from '#lib/server/scoreUpdate.js';
+import type { Score, SectionsResponse } from '#lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 	const token = cookies.get('access_token');

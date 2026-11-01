@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { setLocale } from '$lib/paraglide/runtime';
-	import * as m from '$lib/paraglide/messages.js';
+	import { setLocale } from '#lib/paraglide/runtime.js';
+	import * as m from '#lib/paraglide/messages.js';
 
 	let { showLanguageToggle = false }: { showLanguageToggle?: boolean } = $props();
 
@@ -45,10 +45,11 @@
 				>alexis.arnaudon@scoreguide.ch</a
 			>.
 		</div>
+
 		<div class="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 md:w-1/3">
-			<a href={resolve('/terms')} class="hover:underline">{m.terms_of_service()}</a>
-			<a href={resolve('/privacy')} class="hover:underline">{m.privacy_policy()}</a>
-			<a href={resolve('/contact')} class="hover:underline">{m.contact()}</a>
+			<a href={resolve('terms')} class="hover:underline">{m.terms_of_service()}</a>
+			<a href={resolve('privacy')} class="hover:underline">{m.privacy_policy()}</a>
+			<a href={resolve('contact')} class="hover:underline">{m.contact()}</a>
 			<span>© 2026 Alexis Arnaudon</span>
 		</div>
 		<div class="hidden w-full md:block md:w-1/3"></div>

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
-	import * as m from '$lib/paraglide/messages.js';
+	import * as m from '#lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
 </script>
@@ -25,12 +25,12 @@
 				{form.message}
 			</p>
 			<div class="mt-4 text-center text-sm">
-				<a href={resolve('/login')} class="text-primary hover:underline">{m.back_to_login()}</a>
+				<a href={resolve('login')} class="text-primary hover:underline">{m.back_to_login()}</a>
 			</div>
 		{:else if !data.token}
 			<p role="alert" class="text-destructive text-sm font-medium">{m.invalid_reset_link()}</p>
 			<div class="mt-4 text-center text-sm">
-				<a href={resolve('/forgot-password')} class="text-primary hover:underline"
+				<a href={resolve('forgot-password')} class="text-primary hover:underline"
 					>{m.request_new_reset_link()}</a
 				>
 			</div>

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { locales, localizeHref } from '$lib/paraglide/runtime';
-	import * as m from '$lib/paraglide/messages.js';
+	import { locales, localizeHref } from '#lib/paraglide/runtime.js';
+	import * as m from '#lib/paraglide/messages.js';
 	import '../app.css';
-	import AppSidebar from '$lib/components/Sidebar.svelte';
-	import Footer from '$lib/components/Footer.svelte';
-	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import AppSidebar from '#lib/components/Sidebar.svelte';
+	import Footer from '#lib/components/Footer.svelte';
+	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
 

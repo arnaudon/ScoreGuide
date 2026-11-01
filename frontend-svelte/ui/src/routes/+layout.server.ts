@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { apiFetch } from '$lib/server/fetchApi.js';
+import { apiFetch } from '#lib/server/fetchApi.js';
 
 export const load: LayoutServerLoad = async ({ cookies, fetch, url }) => {
 	// Auth state only lives in a cookie, which SvelteKit doesn't track as a load

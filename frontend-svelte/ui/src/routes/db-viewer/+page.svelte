@@ -3,11 +3,11 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import * as Table from '$lib/components/ui/table/index.js';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import * as Tabs from '$lib/components/ui/tabs/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import * as Tabs from '#lib/components/ui/tabs/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 	import {
 		type ColumnDef,
 		type PaginationState,
@@ -22,14 +22,14 @@
 		FlexRender,
 		createSvelteTable,
 		renderComponent
-	} from '$lib/components/ui/data-table/index.js';
-	import type { Score, IMSLPScore } from '$lib/types.js';
-	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
-	import AgentChat from '$lib/components/AgentChat.svelte';
-	import EditScoreDialog from '$lib/components/EditScoreDialog.svelte';
+	} from '#lib/components/ui/data-table/index.js';
+	import type { Score, IMSLPScore } from '#lib/types.js';
+	import { isLocalizedField, localizedField } from '#lib/i18n/score.js';
+	import AgentChat from '#lib/components/AgentChat.svelte';
+	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import DataTableSortButton from './data-table-sort-button.svelte';
-	import { imslpAgentHistoryStore } from '$lib/stores/chat.svelte';
-	import * as m from '$lib/paraglide/messages.js';
+	import { imslpAgentHistoryStore } from '#lib/stores/chat.svelte.js';
+	import * as m from '#lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);

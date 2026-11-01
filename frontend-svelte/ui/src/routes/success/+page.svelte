@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import * as Table from '$lib/components/ui/table/index.js';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import AgentChat from '$lib/components/AgentChat.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { mainAgentHistoryStore } from '$lib/stores/chat.svelte';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import AgentChat from '#lib/components/AgentChat.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { mainAgentHistoryStore } from '#lib/stores/chat.svelte.js';
 	import {
 		type ColumnDef,
 		type PaginationState,
@@ -19,11 +19,11 @@
 		FlexRender,
 		createSvelteTable,
 		renderComponent
-	} from '$lib/components/ui/data-table/index.js';
+	} from '#lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
-	import type { Score } from '$lib/types.js';
-	import { isLocalizedField, localizedField } from '$lib/i18n/score.js';
-	import * as m from '$lib/paraglide/messages.js';
+	import type { Score } from '#lib/types.js';
+	import { isLocalizedField, localizedField } from '#lib/i18n/score.js';
+	import * as m from '#lib/paraglide/messages.js';
 
 	let { form, data } = $props();
 	let sheetOpen = $state(false);
@@ -143,7 +143,7 @@
 				answer: typeof textAns === 'string' ? textAns : JSON.stringify(textAns, null, 2),
 				score_id: scoreId,
 				scoreDetails: data.scoreDetails,
-				scores: scores
+				scores
 			},
 			rawHistory: answer.message_history as unknown[] | undefined
 		};
@@ -156,9 +156,11 @@
 			class="border-border bg-muted/50 text-muted-foreground mb-4 rounded-md border border-dashed p-4 text-center text-sm"
 		>
 			{m.empty_db_p1()}
-			<a href={resolve('/db-viewer')} class="text-primary font-medium hover:underline"
+
+			<a href={resolve('db-viewer')} class="text-primary font-medium hover:underline"
 				>{m.empty_db_link()}</a
 			>
+
 			{m.empty_db_p2()}
 		</div>
 	{/if}

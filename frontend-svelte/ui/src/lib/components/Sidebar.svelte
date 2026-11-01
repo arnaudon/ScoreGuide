@@ -1,10 +1,10 @@
 <script lang="ts">
-	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import DarkModeToggle from './DarkModeToggle.svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { setLocale } from '$lib/paraglide/runtime';
-	import * as m from '$lib/paraglide/messages.js';
+	import { setLocale } from '#lib/paraglide/runtime.js';
+	import * as m from '#lib/paraglide/messages.js';
 	import { enhance } from '$app/forms';
 
 	function setLanguage(lang: 'en' | 'fr') {
@@ -38,21 +38,21 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton isActive={isActive('/db-viewer')}>
 							{#snippet child({ props })}
-								<a href={resolve('/db-viewer')} {...props}>{m.nav_db_viewer()}</a>
+								<a href={resolve('db-viewer')} {...props}>{m.nav_db_viewer()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton isActive={isActive('/reader')}>
 							{#snippet child({ props })}
-								<a href={resolve('/reader')} {...props}>{m.nav_pdf_viewer()}</a>
+								<a href={resolve('reader')} {...props}>{m.nav_pdf_viewer()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton isActive={isActive('/account')}>
 							{#snippet child({ props })}
-								<a href={resolve('/account')} {...props}>{m.nav_account()}</a>
+								<a href={resolve('account')} {...props}>{m.nav_account()}</a>
 							{/snippet}
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
@@ -60,7 +60,7 @@
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton isActive={isActive('/admin')}>
 								{#snippet child({ props })}
-									<a href={resolve('/admin')} {...props}>{m.nav_admin()}</a>
+									<a href={resolve('admin')} {...props}>{m.nav_admin()}</a>
 								{/snippet}
 							</Sidebar.MenuButton>
 						</Sidebar.MenuItem>

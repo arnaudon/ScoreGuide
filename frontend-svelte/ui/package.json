@@ -36,7 +36,7 @@
 		"svelte": "^5.0.0"
 	},
 	"dependencies": {
-		"@sentry/sveltekit": "^11.5.0"
+		"@sentry/sveltekit": "^11.10.0"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.1.1",
@@ -47,8 +47,9 @@
 		"@internationalized/date": "^3.12.4",
 		"@lucide/svelte": "^1.63.0",
 		"@playwright/test": "^1.64.1",
-		"@sveltejs/adapter-node": "^5.5.7",
-		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/adapter-node": "^6.0.1",
+		"@sveltejs/kit": "^3.1.1",
+		"@sveltejs/load-config": "^0.2.2",
 		"@sveltejs/package": "^3.0.1",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@tailwindcss/forms": "^0.5.11",
@@ -56,7 +57,7 @@
 		"@tailwindcss/vite": "^4.3.3",
 		"@tanstack/table-core": "^8.21.3",
 		"@types/node": "^26.6.6",
-		"@vitest/browser-playwright": "^4.0.18",
+		"@vitest/browser-playwright": "^5.0.5",
 		"bits-ui": "^2.20.2",
 		"clsx": "^2.1.1",
 		"eslint": "^10.13.0",
@@ -79,16 +80,22 @@
 		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.72.1",
 		"vite": "^8.3.5",
-		"vitest": "^4.1.11",
+		"vitest": "^5.0.5",
 		"vitest-browser-svelte": "^3.1.0"
 	},
 	"keywords": [
 		"svelte"
 	],
 	"overrides": {
-		"cookie": "^0.7.2",
 		"svelte-eslint-parser": {
 			"postcss-selector-parser": "^7.1.6"
+		},
+		"runed": {
+			"@sveltejs/kit": "^3.1.1"
 		}
+	},
+	"imports": {
+		"#lib": "./src/lib/index.js",
+		"#lib/*": "./src/lib/*"
 	}
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as m from '$lib/paraglide/messages.js';
+	import * as m from '#lib/paraglide/messages.js';
 </script>
 
 <div class="mx-auto prose max-w-3xl px-4 py-12 text-center sm:px-6 lg:px-8 dark:prose-invert">

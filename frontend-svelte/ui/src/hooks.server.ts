@@ -1,24 +1,23 @@
-import { sequence } from '@sveltejs/kit/hooks';
-import { env } from '$env/dynamic/private';
-import type { Handle, HandleServerError } from '@sveltejs/kit';
+import { sequence, type Handle, type HandleServerError } from '@sveltejs/kit/hooks';
+import { SENTRY_DSN, SENTRY_ENVIRONMENT, SENTRY_TRACES_SAMPLE_RATE } from '$app/env/private';
 import * as Sentry from '@sentry/sveltekit';
-import { getTextDirection } from '$lib/paraglide/runtime';
-import { paraglideMiddleware } from '$lib/paraglide/server';
+import { getTextDirection } from '#lib/paraglide/runtime.js';
+import { paraglideMiddleware } from '#lib/paraglide/server.js';
 
 // Opt-in: if SENTRY_DSN isn't set, init is skipped and Sentry.sentryHandle
 // still short-circuits cleanly.
-if (env.SENTRY_DSN) {
+if (SENTRY_DSN) {
 	Sentry.init({
-		dsn: env.SENTRY_DSN,
-		environment: env.SENTRY_ENVIRONMENT ?? 'production',
-		tracesSampleRate: Number(env.SENTRY_TRACES_SAMPLE_RATE ?? '0.1')
+		dsn: SENTRY_DSN,
+		environment: SENTRY_ENVIRONMENT ?? 'production',
+		tracesSampleRate: Number(SENTRY_TRACES_SAMPLE_RATE ?? '0.1')
 	});
 }
 
+// The Paraglide strategy has no `url` entry, so the middleware never rewrites the
+// request (and Kit 3 makes `event.request` read-only); it only sets the locale.
 const handleParaglide: Handle = ({ event, resolve }) =>
-	paraglideMiddleware(event.request, ({ request, locale }) => {
-		event.request = request;
-
+	paraglideMiddleware(event.request, ({ locale }) => {
 		return resolve(event, {
 			transformPageChunk: ({ html }) =>
 				html
@@ -29,13 +28,7 @@ const handleParaglide: Handle = ({ event, resolve }) =>
 
 export const handle: Handle = sequence(Sentry.sentryHandle(), handleParaglide);
 
-const sentryError = Sentry.handleErrorWithSentry();
-export const handleError: HandleServerError = (input) => {
-	// 404s (and other 4xx) come almost entirely from scanner probes
-	// hitting /sitemaps.xml, /wp-admin, /.git/config, etc. Don't log or
-	// report them — SvelteKit already returns the right status code.
-	if (typeof input.status === 'number' && input.status >= 400 && input.status < 500) {
-		return;
-	}
-	return sentryError(input);
-};
+// Kit 3 passes every error here with a `kind`. Sentry only reports `unknown`
+// ones (bugs); app errors, validation errors and framework errors such as the 404s
+// from scanner probes (/wp-admin, /.git/config, ...) are skipped.
+export const handleError: HandleServerError = Sentry.handleErrorWithSentry();
