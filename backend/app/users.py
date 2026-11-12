@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
@@ -34,6 +34,8 @@ if not os.getenv("JWT_SECRET_KEY"):
     )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 1
+# "Keep me logged in" — must match the cookie maxAge set by the Svelte login action.
+REMEMBER_ME_EXPIRE_MINUTES = 60 * 24 * 30
 
 
 router = APIRouter(prefix="", tags=["users"])
@@ -189,9 +191,13 @@ def create_password_reset_token(user: User) -> str:
 def login_for_access_token(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    remember: Annotated[bool, Form()] = False,
     session: Session = Depends(get_session),
 ) -> Token:
-    """Login for access token."""
+    """Login for access token.
+
+    With ``remember=true`` the token lives 30 days instead of 1 day.
+    """
     user = authenticate_user(form_data.username, form_data.password, session)
     if not user:
         raise HTTPException(
@@ -205,7 +211,9 @@ def login_for_access_token(
     session.commit()
     session.refresh(user)
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(
+        minutes=REMEMBER_ME_EXPIRE_MINUTES if remember else ACCESS_TOKEN_EXPIRE_MINUTES
+    )
     access_token = create_access_token(
         data={"sub": user.username, "role": user.role},
         expires_delta=access_token_expires,

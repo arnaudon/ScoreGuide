@@ -18,6 +18,8 @@ export const actions: Actions = {
 		const body = new URLSearchParams();
 		body.append('username', username.toString());
 		body.append('password', password.toString());
+		const rememberMe = remember === 'on';
+		if (rememberMe) body.append('remember', 'true');
 
 		const api = apiFetch(fetch, undefined);
 		const response = await api('/token', {
@@ -36,7 +38,8 @@ export const actions: Actions = {
 
 		const tokenData = await response.json();
 
-		const maxAge = remember === 'on' ? 60 * 60 * 24 * 30 : 60 * 60 * 24; // 30 days or 1 day
+		// Must match the JWT lifetime issued by the backend (users.py REMEMBER_ME_EXPIRE_MINUTES).
+		const maxAge = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24; // 30 days or 1 day
 
 		cookies.set('access_token', tokenData.access_token, {
 			path: '/',

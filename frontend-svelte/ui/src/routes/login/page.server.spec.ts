@@ -81,6 +81,9 @@ describe('login action', () => {
 		expect(name).toBe('access_token');
 		expect(value).toBe('tok');
 		expect(opts).toMatchObject({ httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 });
+		const sent = (fetch.mock.calls[0] as unknown as [string, RequestInit])[1]
+			.body as URLSearchParams;
+		expect(sent.has('remember')).toBe(false);
 	});
 
 	it('sets cookie with 30-day maxAge when remember=on', async () => {
@@ -92,6 +95,10 @@ describe('login action', () => {
 			)
 		).rejects.toSatisfy((thrown: unknown) => isRedirect(thrown));
 		expect(cookies.set.mock.calls[0][2]).toMatchObject({ maxAge: 60 * 60 * 24 * 30 });
+		// backend must issue a matching 30-day token
+		const sent = (fetch.mock.calls[0] as unknown as [string, RequestInit])[1]
+			.body as URLSearchParams;
+		expect(sent.get('remember')).toBe('true');
 	});
 });
 

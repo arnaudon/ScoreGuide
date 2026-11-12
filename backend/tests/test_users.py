@@ -1,6 +1,6 @@
 """Tests for authentication and user utilities in app.users."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import jwt
@@ -111,6 +111,30 @@ def test_login_for_access_token_success(user_in_db: User, client: TestClient):
     data = response.json()
     assert data["token_type"] == "bearer"
     assert isinstance(data["access_token"], str)
+
+
+@pytest.mark.parametrize(
+    ("extra", "minutes"),
+    [
+        ({}, users.ACCESS_TOKEN_EXPIRE_MINUTES),
+        ({"remember": "false"}, users.ACCESS_TOKEN_EXPIRE_MINUTES),
+        ({"remember": "true"}, users.REMEMBER_ME_EXPIRE_MINUTES),
+    ],
+)
+def test_login_token_expiry_honours_remember(
+    user_in_db: User, client: TestClient, extra: dict, minutes: int
+):
+    """remember=true yields a 30-day token; otherwise 1 day."""
+    response = client.post(
+        "/token",
+        data={"username": user_in_db.username, "password": "secret", **extra},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    decoded = jwt.decode(token, users.SECRET_KEY, algorithms=[users.ALGORITHM])
+    lifetime = decoded["exp"] - datetime.now(UTC).timestamp()
+    assert abs(lifetime - minutes * 60) < 60
 
 
 def test_login_for_access_token_wrong_credentials(client: TestClient, user_in_db: User):
