@@ -246,5 +246,19 @@
 	"viewer_go_to_page": "Go to page",
 	"viewer_page_of": "{page} / {total}",
 	"viewer_pages_of": "{from}–{to} / {total}",
-	"viewer_close": "Close"
+	"viewer_close": "Close",
+	"annotate": "Annotate",
+	"annotate_done": "Done",
+	"tool_pen": "Pencil",
+	"tool_text": "Text note",
+	"tool_eraser": "Eraser",
+	"undo": "Undo",
+	"color_red": "Red",
+	"color_blue": "Blue",
+	"color_green": "Green",
+	"color_black": "Black",
+	"note_placeholder": "Write a note…",
+	"annotations_save_error": "Couldn't save your annotation. Check your connection and try again.",
+	"annotations_load_error": "Couldn't load your annotations.",
+	"dismiss": "Dismiss"
 }
