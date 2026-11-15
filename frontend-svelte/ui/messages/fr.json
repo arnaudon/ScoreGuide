@@ -47,7 +47,6 @@
 	"add_this_score": "Ajouter cette partition",
 	"download_pdf_imslp": "1. Téléchargez le PDF depuis IMSLP :",
 	"upload_pdf_below": "2. Chargez le PDF téléchargé ci-dessous :",
-	"presentation_mode": "Mode Présentation",
 	"view_details": "Détails",
 	"no_pdf_available": "Aucun PDF disponible pour cette partition.",
 	"score_not_found": "Partition introuvable.",
@@ -237,5 +236,15 @@
 	"err_update_credits": "Échec de la mise à jour des crédits.",
 	"err_save_models": "Échec de l'enregistrement des modèles.",
 	"err_agent_response": "Impossible d'obtenir une réponse ({status})",
-	"err_imslp_request": "La requête IMSLP a échoué ({status})."
+	"err_imslp_request": "La requête IMSLP a échoué ({status}).",
+	"viewer_loading": "Chargement de la partition…",
+	"viewer_load_error": "Impossible de charger ce PDF.",
+	"viewer_fullscreen": "Plein écran",
+	"viewer_exit_fullscreen": "Quitter le plein écran",
+	"viewer_prev_page": "Page précédente",
+	"viewer_next_page": "Page suivante",
+	"viewer_go_to_page": "Aller à la page",
+	"viewer_page_of": "{page} / {total}",
+	"viewer_pages_of": "{from}–{to} / {total}",
+	"viewer_close": "Fermer"
 }

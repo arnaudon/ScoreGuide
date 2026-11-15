@@ -4,7 +4,8 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
+import { cpSync } from 'node:fs';
+import { defineConfig, type Plugin } from 'vite';
 import { playwright } from '@vitest/browser-playwright';
 import { sveltekit } from '@sveltejs/kit/vite';
 
@@ -24,8 +25,30 @@ const trustedOrigins = process.env.CSRF_TRUSTED_ORIGINS
 			.filter(Boolean)
 	: DEFAULT_TRUSTED_ORIGINS;
 
+/**
+ * pdf.js loads fonts, character maps, colour profiles and image decoders
+ * (JBIG2/JPEG 2000 — common in scanned IMSLP scores) at runtime by URL.
+ * Copy them from the installed pdfjs-dist into static/pdfjs/ (gitignored)
+ * so they always match the library version.
+ */
+function pdfjsAssets(): Plugin {
+	return {
+		name: 'pdfjs-assets',
+		buildStart() {
+			for (const dir of ['cmaps', 'standard_fonts', 'wasm', 'iccs']) {
+				cpSync(
+					new URL(`./node_modules/pdfjs-dist/${dir}`, import.meta.url),
+					new URL(`./static/pdfjs/${dir}`, import.meta.url),
+					{ recursive: true }
+				);
+			}
+		}
+	};
+}
+
 export default defineConfig({
 	plugins: [
+		pdfjsAssets(),
 		tailwindcss(),
 		sveltekit({
 			preprocess: [vitePreprocess()],
@@ -34,6 +57,11 @@ export default defineConfig({
 		}),
 		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide' })
 	],
+	optimizeDeps: {
+		// Loaded lazily by ScoreViewer: pre-bundle it so Vite doesn't
+		// discover it mid-run and reload (breaks in-flight browser tests).
+		include: ['pdfjs-dist/legacy/build/pdf.mjs']
+	},
 	server: {
 		allowedHosts: ['scoreguide.ch'],
 		watch: {

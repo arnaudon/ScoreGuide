@@ -47,7 +47,6 @@
 	"add_this_score": "Add this Score",
 	"download_pdf_imslp": "1. Download PDF from IMSLP:",
 	"upload_pdf_below": "2. Upload the downloaded PDF below:",
-	"presentation_mode": "Presentation Mode",
 	"view_details": "View Details",
 	"no_pdf_available": "No PDF available for this score.",
 	"score_not_found": "Score not found.",
@@ -237,5 +236,15 @@
 	"err_update_credits": "Failed to update credits.",
 	"err_save_models": "Failed to save models.",
 	"err_agent_response": "Failed to get response ({status})",
-	"err_imslp_request": "IMSLP request failed ({status})."
+	"err_imslp_request": "IMSLP request failed ({status}).",
+	"viewer_loading": "Loading score…",
+	"viewer_load_error": "Could not load this PDF.",
+	"viewer_fullscreen": "Full screen",
+	"viewer_exit_fullscreen": "Exit full screen",
+	"viewer_prev_page": "Previous page",
+	"viewer_next_page": "Next page",
+	"viewer_go_to_page": "Go to page",
+	"viewer_page_of": "{page} / {total}",
+	"viewer_pages_of": "{from}–{to} / {total}",
+	"viewer_close": "Close"
 }
