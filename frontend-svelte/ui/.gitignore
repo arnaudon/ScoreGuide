@@ -7,7 +7,8 @@ node_modules
 .wrangler
 /.svelte-kit
 
-!/static/pdfjs/build/
+# Copied from pdfjs-dist at build time (see vite.config.ts)
+/static/pdfjs/
 /build
 /dist
 

@@ -3,18 +3,18 @@
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import * as Sheet from '#lib/components/ui/sheet/index.js';
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import ScoreContents from '#lib/components/ScoreContents.svelte';
+	import ScoreViewer from '#lib/components/ScoreViewer.svelte';
 	import { isLocalizedField, localizedField } from '#lib/i18n/score.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
 	let sheetOpen = $state(false);
-	// Small screens: contents in a sheet. Larger screens: a side panel next
-	// to the score, open by default and collapsible (remembered per browser).
-	let tocSheetOpen = $state(false);
+	// Larger screens: a side panel next to the score, open by default and
+	// collapsible (remembered per browser). Small screens (and full screen):
+	// the viewer's own contents drawer.
 	let tocPanelOpen = $state(true);
 	let currentPage = $state(0);
 	const TOC_PANEL_KEY = 'reader.tocPanelOpen';
@@ -36,56 +36,14 @@
 				// Not persisted; still toggled for this visit.
 			}
 		} else {
-			tocSheetOpen = true;
+			viewer?.openContents();
 		}
 	}
 	let editOpen = $state(false);
-	let iframeEl: HTMLIFrameElement | undefined = $state();
-	// Tracks which viewer URL has actually fired `onload`, rather than a
-	// plain boolean, so navigating to a different score's PDF while this
-	// component stays mounted correctly goes back to "loading" instead of
-	// keeping the previous document's loaded state.
-	let loadedUrl = $state('');
-
-	function enterPresentationMode() {
-		const button = iframeEl?.contentWindow?.document?.getElementById('presentationMode');
-		if (button) {
-			button.click();
-		} else {
-			console.error('Presentation mode control not found in the PDF viewer.');
-		}
-	}
-
-	type PdfViewerApp = {
-		page: number;
-		initializedPromise?: Promise<void>;
-		eventBus?: { on: (name: string, cb: (e: { pageNumber: number }) => void) => void };
-	};
-	type PdfViewerWindow = Window & { PDFViewerApplication?: PdfViewerApp };
-
-	function viewerApp(): PdfViewerApp | undefined {
-		return (iframeEl?.contentWindow as PdfViewerWindow | null)?.PDFViewerApplication;
-	}
+	let viewer: ScoreViewer | undefined = $state();
 
 	function goToPage(page: number) {
-		const viewer = viewerApp();
-		if (viewer) {
-			viewer.page = page;
-			currentPage = page;
-			tocSheetOpen = false;
-		} else {
-			console.error('PDF viewer not ready for navigation.');
-		}
-	}
-
-	// Follow the page shown in the viewer so the contents can highlight the
-	// section being read.
-	function onViewerLoad() {
-		loadedUrl = viewerUrl;
-		const viewer = viewerApp();
-		viewer?.initializedPromise?.then(() => {
-			viewer.eventBus?.on('pagechanging', (e) => (currentPage = e.pageNumber));
-		});
+		viewer?.goTo(page);
 	}
 
 	// While the table of contents is being generated in the background,
@@ -118,18 +76,10 @@
 		return map[key] || key.replace(/_/g, ' ');
 	}
 
-	// Use the saved pdf_path from the database.
+	// Same-origin proxy: the httpOnly access_token cookie rides along and
+	// /api/pdf authenticates server-side, so the token never appears in a URL.
 	let filename = $derived(data.score?.pdf_path || '');
-
-	// PDF.js viewer is hosted at /pdfjs/web/viewer.html. It fetches the
-	// `file` URL from the same origin, so the httpOnly access_token cookie
-	// rides along and the /api/pdf proxy authenticates server-side. The
-	// token never appears in any URL the browser sees.
 	let pdfUrl = $derived(filename ? `/api/pdf/${encodeURIComponent(filename)}` : '');
-	let viewerUrl = $derived(
-		pdfUrl ? `/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfUrl)}` : ''
-	);
-	let pdfLoaded = $derived(viewerUrl !== '' && loadedUrl === viewerUrl);
 </script>
 
 <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
@@ -140,8 +90,8 @@
 				<p class="text-muted-foreground">{data.score.composer}</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
-				<Button variant="outline" onclick={enterPresentationMode} disabled={!pdfLoaded}>
-					{m.presentation_mode()}
+				<Button variant="outline" onclick={() => viewer?.toggleFullscreen()} disabled={!pdfUrl}>
+					{m.viewer_fullscreen()}
 				</Button>
 				<Button variant="outline" onclick={toggleContents} aria-expanded={tocPanelOpen}>
 					{m.toc_contents()}{data.toc.sections.length ? ` (${data.toc.sections.length})` : ''}
@@ -160,25 +110,31 @@
 					<ScoreContents
 						toc={data.toc}
 						error={!!form?.tocError}
-						canNavigate={pdfLoaded}
+						canNavigate={!!pdfUrl}
 						{currentPage}
 						onSelect={goToPage}
 					/>
 				</aside>
 			{/if}
-			<div class="bg-card shadow-card relative min-h-0 flex-1 rounded-md border">
-				{#if viewerUrl}
-					{#if !pdfLoaded}
-						<Skeleton class="absolute inset-0 rounded-md" />
-					{/if}
-					<iframe
-						bind:this={iframeEl}
-						src={viewerUrl}
-						onload={onViewerLoad}
-						class="h-full w-full rounded-md border-0"
-						title="PDF Viewer"
-						allowfullscreen
-					></iframe>
+			<div class="bg-card shadow-card relative min-h-0 flex-1 overflow-hidden rounded-md border">
+				{#if pdfUrl}
+					<ScoreViewer
+						bind:this={viewer}
+						bind:page={currentPage}
+						url={pdfUrl}
+						storageKey={`reader.page.${data.score.id}`}
+						label={data.score.title ?? 'PDF'}
+					>
+						{#snippet contents(goTo)}
+							<ScoreContents
+								toc={data.toc}
+								error={!!form?.tocError}
+								canNavigate
+								{currentPage}
+								onSelect={goTo}
+							/>
+						{/snippet}
+					</ScoreViewer>
 				{:else}
 					<div class="text-muted-foreground flex h-full items-center justify-center">
 						{m.no_pdf_available()}
@@ -237,24 +193,6 @@
 				{/each}
 			</div>
 		{/if}
-	</Sheet.Content>
-</Sheet.Root>
-
-<Sheet.Root bind:open={tocSheetOpen}>
-	<Sheet.Content side="left" class="w-full overflow-y-auto sm:max-w-md">
-		<Sheet.Header>
-			<Sheet.Title>{m.toc_contents()}</Sheet.Title>
-			<Sheet.Description>{m.toc_desc()}</Sheet.Description>
-		</Sheet.Header>
-		<div class="mt-4 px-4 pb-6">
-			<ScoreContents
-				toc={data.toc}
-				error={!!form?.tocError}
-				canNavigate={pdfLoaded}
-				{currentPage}
-				onSelect={goToPage}
-			/>
-		</div>
 	</Sheet.Content>
 </Sheet.Root>
 
