@@ -15,15 +15,16 @@ test.describe('reader page', () => {
 		await expect(page.getByRole('heading', { name: /score not found/i })).toBeVisible();
 	});
 
-	test('renders the PDF.js iframe for an owned score', async ({ page }) => {
+	test('wires the score viewer to the PDF proxy', async ({ page }) => {
 		await login(page);
+		const pdfRequest = page.waitForRequest((r) => r.url().includes('/api/pdf/moonlight.pdf'));
 		await page.goto('/reader/1');
 		await expect(page.getByRole('heading', { name: 'Moonlight Sonata' })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Moonlight Sonata' })).toBeVisible();
 		// Smoke check only — the stub backend doesn't serve real PDF bytes, so
-		// we just assert the PDF.js iframe is wired up, not its rendered content.
-		await expect(page.locator('iframe[title="PDF Viewer"]')).toHaveAttribute(
-			'src',
-			/\/pdfjs\/web\/viewer\.html\?file=/
-		);
+		// the viewer requests the PDF through the proxy and reports the failure.
+		await pdfRequest;
+		await expect(page.getByRole('alert')).toContainText('Could not load this PDF.');
+		await expect(page.getByRole('button', { name: 'Full screen' }).first()).toBeVisible();
 	});
 });
