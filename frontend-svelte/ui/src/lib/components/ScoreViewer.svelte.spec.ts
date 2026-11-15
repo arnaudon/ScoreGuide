@@ -1,5 +1,5 @@
 import { page, userEvent } from 'vitest/browser';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { createRawSnippet } from 'svelte';
 import '../../app.css';
@@ -15,7 +15,14 @@ function sizedTarget(width: number, height: number) {
 
 const pageLabel = () => page.getByText(/^\d+(–\d+)? \/ 5$/);
 
-describe('ScoreViewer.svelte', () => {
+// Rendering waits on pdf.js (worker, wasm, fonts); on a cold CI cache the
+// first load can take a while, so warm it up once and allow more time.
+describe('ScoreViewer.svelte', { timeout: 45_000 }, () => {
+	beforeAll(async () => {
+		await import('pdfjs-dist/legacy/build/pdf.mjs');
+		await fetch(pdfUrl);
+	}, 120_000);
+
 	afterEach(() => {
 		localStorage.clear();
 		document.body.replaceChildren();

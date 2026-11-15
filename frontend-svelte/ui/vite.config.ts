@@ -57,6 +57,11 @@ export default defineConfig({
 		}),
 		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide' })
 	],
+	optimizeDeps: {
+		// Loaded lazily by ScoreViewer: pre-bundle it so Vite doesn't
+		// discover it mid-run and reload (breaks in-flight browser tests).
+		include: ['pdfjs-dist/legacy/build/pdf.mjs']
+	},
 	server: {
 		allowedHosts: ['scoreguide.ch'],
 		watch: {
