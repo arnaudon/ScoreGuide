@@ -41,6 +41,7 @@ if config.config_file_name is not None:
 import shared.user
 import shared.scores
 import shared.settings
+import shared.annotations
 
 target_metadata = SQLModel.metadata
 
