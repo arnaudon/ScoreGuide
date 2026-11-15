@@ -24,7 +24,9 @@ test.describe('reader page', () => {
 		// Smoke check only — the stub backend doesn't serve real PDF bytes, so
 		// the viewer requests the PDF through the proxy and reports the failure.
 		await pdfRequest;
-		await expect(page.getByRole('alert')).toContainText('Could not load this PDF.');
+		await expect(
+			page.getByRole('alert').filter({ hasText: 'Could not load this PDF.' })
+		).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Full screen' }).first()).toBeVisible();
 	});
 });
