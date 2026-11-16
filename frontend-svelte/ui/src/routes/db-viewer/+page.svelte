@@ -5,7 +5,12 @@
 	import { page } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
 	import * as Table from '#lib/components/ui/table/index.js';
-	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
+	import TrashIcon from '@lucide/svelte/icons/trash-2';
+	import SparklesIcon from '@lucide/svelte/icons/sparkles';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -25,7 +30,6 @@
 		renderComponent
 	} from '#lib/components/ui/data-table/index.js';
 	import type { Score, IMSLPScore } from '#lib/types.js';
-	import { isLocalizedField, localizedField } from '#lib/i18n/score.js';
 	import AgentChat from '#lib/components/AgentChat.svelte';
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import DataTableSortButton from './data-table-sort-button.svelte';
@@ -182,28 +186,6 @@
 			cell: ({ row }) => row.original.year || '-'
 		}
 	];
-
-	function translateKey(key: string) {
-		const map: Record<string, string> = {
-			title: m.label_title(),
-			composer: m.label_composer(),
-			year: m.label_year(),
-			period: m.label_period(),
-			instrumentation: m.label_instrumentation(),
-			short_description: m.label_short_description(),
-			key: m.label_key_signature(),
-			genre: m.label_genre(),
-			form: m.label_form(),
-			style: m.label_style(),
-			long_description: m.label_long_description(),
-			difficulty: m.label_difficulty(),
-			notable_interpreters: m.label_notable_interpreters(),
-			notable_interpeters: m.label_notable_interpreters(),
-			youtube_url: m.label_youtube_url(),
-			permlink: m.label_permlink()
-		};
-		return map[key] || key.replace(/_/g, ' ');
-	}
 
 	let imslpScores = $state<IMSLPScore[]>([]);
 	function onImslpResult(data: Record<string, unknown>) {
@@ -612,169 +594,139 @@
 	</div>
 </div>
 
-<Sheet.Root bind:open={sheetOpen}>
-	<Sheet.Content class="w-full overflow-y-auto sm:max-w-md">
-		<Sheet.Header>
-			<Sheet.Title>{m.score_details()}</Sheet.Title>
-			<Sheet.Description>{m.score_details_desc()}</Sheet.Description>
-		</Sheet.Header>
+<Dialog.Root bind:open={sheetOpen}>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title class="text-fancy-title text-2xl"
+				>{selectedScore?.title || m.score_details()}</Dialog.Title
+			>
+			<Dialog.Description>{selectedScore?.composer || m.score_details_desc()}</Dialog.Description>
+		</Dialog.Header>
 		{#if selectedScore}
-			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(selectedScore)
-					.filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'short_description_fr', 'long_description_fr'].includes(k))
-					.sort(([a], [b]) => {
-						const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
-						const idxA = order.indexOf(a);
-						const idxB = order.indexOf(b);
-						if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-						if (idxA !== -1) return -1;
-						if (idxB !== -1) return 1;
-						return a.localeCompare(b);
-					}) as [key, value] (key)}
-					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
-						<span class="text-foreground text-sm font-semibold capitalize">
-							{translateKey(key)}
-						</span>
-						<span class="text-muted-foreground col-span-2 text-sm break-words">
-							{#if key === 'youtube_url' && value}
-								<a
-									href={value}
-									target="_blank"
-									rel="noopener noreferrer"
-									class="text-primary hover:underline"
-								>
-									{m.watch_on_youtube()}
-								</a>
-							{:else if isLocalizedField(key) && selectedScore}
-								{localizedField(selectedScore, key) || value || '-'}
-							{:else}
-								{value !== null && value !== '' ? value : '-'}
-							{/if}
-						</span>
-					</div>
-				{/each}
-			</div>
+			<ScoreDetails score={selectedScore} />
 
-			<div class="mt-8 flex flex-col gap-2">
-				<Button href={resolve('/reader/[id]', { id: String(selectedScore.id) })} class="w-full"
-					>{m.view_pdf()}</Button
-				>
-				{#if !page.data.isDemo}
-					<Button variant="outline" class="w-full" onclick={() => (editOpen = true)}>
-						{m.edit_score()}
-					</Button>
-					<form
-						method="POST"
-						action="?/recomplete"
-						use:enhance={() => {
-							recompleting = true;
-							recompleteError = null;
-							return async ({ update, result }) => {
-								recompleting = false;
-								if (result.type === 'success') {
-									await invalidateAll();
-								} else if (result.type === 'failure') {
-									recompleteError = (result.data?.error as string) || m.failed_to_complete_score();
-								}
-								await update({ reset: false });
-							};
-						}}
-					>
-						<input type="hidden" name="id" value={selectedScore.id} />
-						<input type="hidden" name="title" value={selectedScore.title} />
-						<input type="hidden" name="composer" value={selectedScore.composer} />
-						<input type="hidden" name="pdf_path" value={selectedScore.pdf_path || ''} />
-						<Button type="submit" variant="secondary" class="w-full" disabled={recompleting}>
-							{recompleting ? m.running_agent() : m.rerun_complete_agent()}
+			<!-- The forms are empty: their buttons sit in the action row below
+			     and point at them with the form attribute. -->
+			<form
+				id="recomplete-form"
+				method="POST"
+				action="?/recomplete"
+				hidden
+				use:enhance={() => {
+					recompleting = true;
+					recompleteError = null;
+					return async ({ update, result }) => {
+						recompleting = false;
+						if (result.type === 'success') {
+							await invalidateAll();
+						} else if (result.type === 'failure') {
+							recompleteError = (result.data?.error as string) || m.failed_to_complete_score();
+						}
+						await update({ reset: false });
+					};
+				}}
+			>
+				<input type="hidden" name="id" value={selectedScore.id} />
+				<input type="hidden" name="title" value={selectedScore.title} />
+				<input type="hidden" name="composer" value={selectedScore.composer} />
+				<input type="hidden" name="pdf_path" value={selectedScore.pdf_path || ''} />
+			</form>
+			<form
+				id="delete-form"
+				method="POST"
+				action="?/delete"
+				hidden
+				use:enhance={() => {
+					deleteError = null;
+					return async ({ update, result }) => {
+						// Shown inside the dialog: the page banner is hidden behind it.
+						if (result.type === 'failure') {
+							deleteError = (result.data?.error as string) || m.err_delete_score();
+							return;
+						}
+						if (result.type === 'success') {
+							sheetOpen = false;
+							selectedScoreId = null;
+						}
+						await update();
+					};
+				}}
+			>
+				<input type="hidden" name="id" value={selectedScore.id} />
+			</form>
+
+			<div class="border-border flex flex-col gap-2 border-t pt-4">
+				{#if recompleteError}
+					<p role="alert" class="text-destructive text-sm font-medium">{recompleteError}</p>
+				{/if}
+				{#if deleteError}
+					<p role="alert" class="text-destructive text-sm font-medium">{deleteError}</p>
+				{/if}
+				<div class="flex flex-wrap items-center gap-2">
+					{#if !page.data.isDemo}
+						<Button
+							type="submit"
+							form="delete-form"
+							variant="ghost"
+							size="icon"
+							class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+							aria-label={m.delete_score()}
+							title={m.delete_score()}
+						>
+							<TrashIcon />
 						</Button>
-						<!-- Rendered inside the Sheet, not the page's own form?.error banner,
-					     since that banner sits behind this overlay while it's open. -->
-						{#if recompleteError}
-							<p role="alert" class="text-destructive mt-2 text-sm font-medium">
-								{recompleteError}
-							</p>
-						{/if}
-						{#if data.user?.credits !== undefined}
-							<p class="text-muted-foreground mt-1 text-center text-xs">
-								{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
-							</p>
-						{/if}
-					</form>
-					<form
-						method="POST"
-						action="?/delete"
-						use:enhance={() => {
-							deleteError = null;
-							return async ({ update, result }) => {
-								// Show failures inside the Sheet: the page banner is hidden behind it.
-								if (result.type === 'failure') {
-									deleteError = (result.data?.error as string) || m.err_delete_score();
-									return;
-								}
-								if (result.type === 'success') {
-									sheetOpen = false;
-									selectedScoreId = null;
-								}
-								await update();
-							};
-						}}
-					>
-						<input type="hidden" name="id" value={selectedScore.id} />
-						<Button type="submit" variant="destructive" class="w-full">{m.delete_score()}</Button>
-						{#if deleteError}
-							<p role="alert" class="text-destructive mt-2 text-sm font-medium">{deleteError}</p>
-						{/if}
-					</form>
+					{/if}
+					<span class="flex-1"></span>
+					{#if !page.data.isDemo}
+						<Button
+							type="submit"
+							form="recomplete-form"
+							variant="outline"
+							disabled={recompleting}
+							title={data.user?.credits !== undefined
+								? m.credits_label({ credits: data.user.credits, max: data.user.max_credits })
+								: undefined}
+						>
+							<SparklesIcon />{recompleting ? m.running_agent() : m.rerun_complete_agent()}
+						</Button>
+						<Button
+							variant="outline"
+							onclick={() => {
+								sheetOpen = false;
+								editOpen = true;
+							}}
+						>
+							<PencilIcon />{m.edit_score()}
+						</Button>
+					{/if}
+					<Button href={resolve('/reader/[id]', { id: String(selectedScore.id) })}>
+						<BookOpenIcon />{m.view_pdf()}
+					</Button>
+				</div>
+				{#if !page.data.isDemo && data.user?.credits !== undefined}
+					<p class="text-muted-foreground text-end text-xs">
+						{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
+					</p>
 				{/if}
 			</div>
 		{/if}
-	</Sheet.Content>
-</Sheet.Root>
+	</Dialog.Content>
+</Dialog.Root>
 
-<Sheet.Root bind:open={imslpSheetOpen}>
-	<Sheet.Content class="w-full overflow-y-auto sm:max-w-md">
-		<Sheet.Header>
-			<Sheet.Title>{m.imslp_score_details()}</Sheet.Title>
-			<Sheet.Description>{m.imslp_score_details_desc()}</Sheet.Description>
-		</Sheet.Header>
+<Dialog.Root bind:open={imslpSheetOpen}>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title class="text-fancy-title text-2xl"
+				>{agentSelectedScore?.title || m.imslp_score_details()}</Dialog.Title
+			>
+			<Dialog.Description
+				>{agentSelectedScore?.composer || m.imslp_score_details_desc()}</Dialog.Description
+			>
+		</Dialog.Header>
 		{#if agentSelectedScore}
-			<div class="mt-6 flex flex-col gap-3">
-				{#each Object.entries(agentSelectedScore)
-					.filter(([k]) => !['id', 'user_id', 'pdf_path', 'number_of_plays', 'source', 'imslp_id', 'score_metadata', 'short_description_fr', 'long_description_fr'].includes(k))
-					.sort(([a], [b]) => {
-						const order = ['title', 'composer', 'year', 'period', 'instrumentation', 'short_description', 'key', 'genre', 'form', 'style', 'long_description', 'difficulty', 'notable_interpreters', 'notable_interpeters', 'youtube_url'];
-						const idxA = order.indexOf(a);
-						const idxB = order.indexOf(b);
-						if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-						if (idxA !== -1) return -1;
-						if (idxB !== -1) return 1;
-						return a.localeCompare(b);
-					}) as [key, value] (key)}
-					<div class="border-border grid grid-cols-3 gap-2 border-b pb-2 last:border-0">
-						<span class="text-foreground text-sm font-semibold capitalize">
-							{translateKey(key)}
-						</span>
-						<span class="text-muted-foreground col-span-2 text-sm break-words">
-							{#if key === 'permlink' && value}
-								<a
-									href={value as string}
-									target="_blank"
-									rel="external noopener noreferrer"
-									class="text-primary hover:underline"
-								>
-									{m.view_on_imslp()}
-								</a>
-							{:else if isLocalizedField(key) && agentSelectedScore}
-								{localizedField(agentSelectedScore, key) || value || '-'}
-							{:else}
-								{value !== null && value !== '' ? value : '-'}
-							{/if}
-						</span>
-					</div>
-				{/each}
-			</div>
+			<ScoreDetails score={agentSelectedScore} />
 
-			<div class="border-border mt-8 flex flex-col gap-4 border-t pt-4">
+			<div class="border-border flex flex-col gap-4 border-t pt-4">
 				<h3 class="text-foreground font-semibold">{m.add_this_score()}</h3>
 				<p class="text-muted-foreground text-sm">
 					{m.download_pdf_imslp()}<br />
@@ -844,7 +796,7 @@
 				</form>
 			</div>
 		{/if}
-	</Sheet.Content>
-</Sheet.Root>
+	</Dialog.Content>
+</Dialog.Root>
 
 <EditScoreDialog bind:open={editOpen} score={selectedScore} />

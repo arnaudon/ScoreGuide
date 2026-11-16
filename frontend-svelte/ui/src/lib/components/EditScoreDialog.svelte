@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { enhance } from '$app/forms';
@@ -74,12 +74,12 @@
 		'border-input bg-background ring-offset-background focus:ring-ring flex h-9 w-full items-center rounded-md border px-3 py-1 text-sm shadow-xs focus:ring-2 focus:ring-offset-2 focus:outline-none';
 </script>
 
-<Sheet.Root bind:open>
-	<Sheet.Content class="w-full overflow-y-auto sm:max-w-md">
-		<Sheet.Header>
-			<Sheet.Title>{m.edit_score()}</Sheet.Title>
-			<Sheet.Description>{m.edit_score_desc()}</Sheet.Description>
-		</Sheet.Header>
+<Dialog.Root bind:open>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title>{m.edit_score()}</Dialog.Title>
+			<Dialog.Description>{m.edit_score_desc()}</Dialog.Description>
+		</Dialog.Header>
 		{#if score}
 			<form
 				method="POST"
@@ -209,12 +209,12 @@
 					<p role="alert" class="text-destructive text-sm font-medium">{saveError}</p>
 				{/if}
 
-				<Sheet.Footer class="mt-4">
+				<Dialog.Footer class="mt-4">
 					<Button type="submit" disabled={saving}>
 						{saving ? m.saving() : m.save_changes()}
 					</Button>
-				</Sheet.Footer>
+				</Dialog.Footer>
 			</form>
 		{/if}
-	</Sheet.Content>
-</Sheet.Root>
+	</Dialog.Content>
+</Dialog.Root>

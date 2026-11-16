@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { enhance, type SubmitFunction } from '$app/forms';
@@ -44,14 +44,14 @@
 	};
 </script>
 
-<Sheet.Root bind:open>
-	<Sheet.Content>
-		<Sheet.Header>
-			<Sheet.Title>{m.edit_max_credits({ username: user?.username || '' })}</Sheet.Title>
-			<Sheet.Description>
+<Dialog.Root bind:open>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title>{m.edit_max_credits({ username: user?.username || '' })}</Dialog.Title>
+			<Dialog.Description>
 				{m.edit_max_credits_desc()}
-			</Sheet.Description>
-		</Sheet.Header>
+			</Dialog.Description>
+		</Dialog.Header>
 		{#if user}
 			<div class="mt-4 space-y-6">
 				<form method="POST" action="?/set_credits" use:enhance={closeOnSuccess} class="space-y-4">
@@ -60,9 +60,9 @@
 						<label for="max_credits" class="text-sm font-medium">{m.max_credits()}</label>
 						<Input id="max_credits" name="max_credits" type="number" bind:value={max_credits} />
 					</div>
-					<Sheet.Footer>
+					<Dialog.Footer>
 						<Button type="submit">{m.save_changes()}</Button>
-					</Sheet.Footer>
+					</Dialog.Footer>
 				</form>
 
 				{#if error}
@@ -82,5 +82,5 @@
 				</form>
 			</div>
 		{/if}
-	</Sheet.Content>
-</Sheet.Root>
+	</Dialog.Content>
+</Dialog.Root>
