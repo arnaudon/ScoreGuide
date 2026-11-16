@@ -52,6 +52,23 @@ export const actions: Actions = {
 		redirect(303, '/home');
 	},
 
+	demo: async ({ cookies, fetch }) => {
+		const api = apiFetch(fetch, undefined);
+		const response = await api('/demo-login', { method: 'POST' });
+		if (!response.ok) {
+			return fail(response.status, { error: m.err_demo_unavailable() });
+		}
+		const tokenData = await response.json();
+		cookies.set('access_token', tokenData.access_token, {
+			path: '/',
+			httpOnly: true,
+			secure: !dev,
+			sameSite: 'lax',
+			maxAge: 60 * 60 * 24 // must match the backend's 1-day demo token
+		});
+		redirect(303, '/db-viewer');
+	},
+
 	register: async ({ request, cookies, fetch }) => {
 		const data = await request.formData();
 		const username = data.get('username');

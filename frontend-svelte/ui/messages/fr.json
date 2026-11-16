@@ -246,5 +246,10 @@
 	"viewer_go_to_page": "Aller à la page",
 	"viewer_page_of": "{page} / {total}",
 	"viewer_pages_of": "{from}–{to} / {total}",
-	"viewer_close": "Fermer"
+	"viewer_close": "Fermer",
+	"try_demo": "Essayer la démo",
+	"try_demo_hint": "Découvrez une bibliothèque en lecture seule — sans compte.",
+	"demo_banner": "Vous visitez une démo en lecture seule. La modification, l'import et l'assistant IA sont désactivés.",
+	"demo_signup": "Créer un compte gratuit",
+	"err_demo_unavailable": "La démo n'est pas disponible pour le moment."
 }

@@ -23,6 +23,9 @@ from shared.scores import Score
 from shared.user import User
 
 PASSWORD_RESET_PURPOSE = "password_reset"
+DEMO_ROLE = "demo"
+# The demo account may browse, never change anything.
+READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 logger = logging.getLogger(__name__)
 
@@ -224,9 +227,42 @@ def login_for_access_token(
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: Session = Depends(get_session),
+    *,
+    request: Request,
 ):
-    """Get current user."""
-    return get_current_user_from_token(token, session)
+    """Get current user.
+
+    The demo account is read-only: it is rejected on every write request,
+    which covers all score/annotation/account mutations and the paid agent
+    endpoints in one place.
+    """
+    user = get_current_user_from_token(token, session)
+    if user.role == DEMO_ROLE and request.method not in READ_ONLY_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The demo account is read-only. Create a free account to do this.",
+        )
+    return user
+
+
+@router.post("/demo-login")
+# Generous: anonymous requests all arrive from the SvelteKit proxy's IP, so
+# this bucket is shared by every visitor. Minting a token is cheap.
+@limiter.limit("60/minute")
+def demo_login(request: Request, session: Session = Depends(get_session)) -> Token:
+    """Issue a token for the read-only demo account, no password needed.
+
+    Only works when ``DEMO_USERNAME`` names an existing user with role
+    ``demo`` — a regular or admin account can never be reached this way.
+    """
+    user = get_user(config.DEMO_USERNAME, session) if config.DEMO_USERNAME else None
+    if user is None or user.role != DEMO_ROLE:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo not available")
+    access_token = create_access_token(
+        data={"sub": user.username, "role": user.role},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return Token(access_token=access_token, token_type="bearer")
 
 
 def get_current_user_from_token(token: str, session: Session):

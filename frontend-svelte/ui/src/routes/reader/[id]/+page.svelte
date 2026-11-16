@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 	import { onMount } from 'svelte';
+	import { page as appPage } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Sheet from '#lib/components/ui/sheet/index.js';
@@ -97,7 +98,9 @@
 					{m.toc_contents()}{data.toc.sections.length ? ` (${data.toc.sections.length})` : ''}
 				</Button>
 				<Button variant="outline" onclick={() => (sheetOpen = true)}>{m.view_details()}</Button>
-				<Button variant="outline" onclick={() => (editOpen = true)}>{m.edit_score()}</Button>
+				{#if !appPage.data.isDemo}
+					<Button variant="outline" onclick={() => (editOpen = true)}>{m.edit_score()}</Button>
+				{/if}
 			</div>
 		</div>
 
