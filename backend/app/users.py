@@ -246,7 +246,9 @@ def get_current_user(
 
 
 @router.post("/demo-login")
-@limiter.limit("10/minute")
+# Generous: anonymous requests all arrive from the SvelteKit proxy's IP, so
+# this bucket is shared by every visitor. Minting a token is cheap.
+@limiter.limit("60/minute")
 def demo_login(request: Request, session: Session = Depends(get_session)) -> Token:
     """Issue a token for the read-only demo account, no password needed.
 
