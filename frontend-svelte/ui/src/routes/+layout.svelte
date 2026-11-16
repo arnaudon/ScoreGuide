@@ -8,6 +8,7 @@
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
+	import { enhance } from '$app/forms';
 
 	let { children, data } = $props();
 	let showCookieBanner = $state(false);
@@ -46,6 +47,21 @@
 		<Sidebar.Inset class="bg-background text-foreground flex w-full flex-1 flex-col">
 			<main class="w-full flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
 				<Sidebar.Trigger class="mb-4" />
+				{#if data.isDemo}
+					<div
+						role="status"
+						class="bg-muted text-muted-foreground mb-4 flex flex-col gap-2 rounded-md p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+					>
+						<span>{m.demo_banner()}</span>
+						<form method="POST" action="/logout" use:enhance>
+							<button
+								type="submit"
+								class="text-primary font-medium whitespace-nowrap hover:underline"
+								>{m.demo_signup()}</button
+							>
+						</form>
+					</div>
+				{/if}
 				{@render children()}
 			</main>
 			<Footer />

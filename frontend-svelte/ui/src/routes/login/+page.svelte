@@ -128,6 +128,13 @@
 			</Button>
 		</form>
 
+		{#if !isRegister}
+			<form method="POST" action="?/demo" class="mt-4" use:enhance>
+				<Button type="submit" variant="outline" class="w-full">{m.try_demo()}</Button>
+				<p class="text-muted-foreground mt-1 text-center text-xs">{m.try_demo_hint()}</p>
+			</form>
+		{/if}
+
 		<div class="mt-4 text-center text-sm">
 			{#if isRegister}
 				<p class="text-muted-foreground">

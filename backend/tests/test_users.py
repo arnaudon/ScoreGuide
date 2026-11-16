@@ -13,6 +13,8 @@ from app import config, users
 from app.main import app
 from shared.user import User
 
+_GET = MagicMock(method="GET")
+
 
 @pytest.fixture(name="user_in_db")
 def user_in_db_fixture(test_user, session: Session) -> User:
@@ -66,7 +68,7 @@ def test_create_access_token_and_get_current_user(user_in_db: User, session: Ses
         expires_delta=timedelta(minutes=5),
     )
 
-    user = users.get_current_user(token, session=session)
+    user = users.get_current_user(token, session=session, request=_GET)
     assert user.id == user_in_db.id
 
 
@@ -75,18 +77,18 @@ def test_get_current_user_valid_invalid_and_missing_sub(user_in_db: User, sessio
 
     # valid token
     token = users.create_access_token(data={"sub": user_in_db.username})
-    user = users.get_current_user(token, session=session)
+    user = users.get_current_user(token, session=session, request=_GET)
     assert user.id == user_in_db.id
 
     # invalid token string
     with pytest.raises(HTTPException) as exc:
-        users.get_current_user("not-a-valid-token", session=session)
+        users.get_current_user("not-a-valid-token", session=session, request=_GET)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     # token without sub should also raise (exercises username is None branch)
     no_sub_token = users.create_access_token(data={})
     with pytest.raises(HTTPException) as exc2:
-        users.get_current_user(no_sub_token, session=session)
+        users.get_current_user(no_sub_token, session=session, request=_GET)
     assert exc2.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -95,7 +97,7 @@ def test_get_current_user_missing_user_raises(session: Session):
     # token with username that does not exist
     token = users.create_access_token(data={"sub": "does-not-exist"})
     with pytest.raises(HTTPException) as exc:
-        users.get_current_user(token, session=session)
+        users.get_current_user(token, session=session, request=_GET)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 

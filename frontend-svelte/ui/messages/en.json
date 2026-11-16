@@ -246,5 +246,10 @@
 	"viewer_go_to_page": "Go to page",
 	"viewer_page_of": "{page} / {total}",
 	"viewer_pages_of": "{from}–{to} / {total}",
-	"viewer_close": "Close"
+	"viewer_close": "Close",
+	"try_demo": "Try the demo",
+	"try_demo_hint": "Look around a read-only library — no account needed.",
+	"demo_banner": "You are browsing a read-only demo. Editing, uploading and the AI assistant are disabled.",
+	"demo_signup": "Create a free account",
+	"err_demo_unavailable": "The demo is not available right now."
 }

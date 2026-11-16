@@ -32,6 +32,11 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 SMTP_FROM = os.getenv("SMTP_FROM", SUPPORT_EMAIL)
 
+# Public read-only demo: POST /demo-login issues a token for this account
+# (no password). It only works once the account exists with role "demo" —
+# create it with ``python -m app.demo <score_id> ...``. Empty disables it.
+DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo")
+
 # Sentry is opt-in: if SENTRY_DSN isn't set, sentry_sdk.init() is skipped entirely.
 SENTRY_DSN = os.getenv("SENTRY_DSN")
 SENTRY_ENVIRONMENT = os.getenv("SENTRY_ENVIRONMENT", "production")
