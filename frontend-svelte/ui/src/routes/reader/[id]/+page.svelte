@@ -3,7 +3,10 @@
 	import { onMount } from 'svelte';
 	import { page as appPage } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
-	import { Button } from '#lib/components/ui/button/index.js';
+	import ListIcon from '@lucide/svelte/icons/list';
+	import InfoIcon from '@lucide/svelte/icons/info';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import Maximize from '@lucide/svelte/icons/maximize';
 	import * as Sheet from '#lib/components/ui/sheet/index.js';
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import ScoreContents from '#lib/components/ScoreContents.svelte';
@@ -16,6 +19,9 @@
 	import * as m from '#lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
+
+	const pill =
+		'text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none';
 	let sheetOpen = $state(false);
 	// Larger screens: a side panel next to the score, open by default and
 	// collapsible (remembered per browser). Small screens (and full screen):
@@ -109,24 +115,71 @@
 	class="flex h-[calc(100dvh-5rem)] min-h-[28rem] w-full flex-col gap-4 p-1 sm:p-2 lg:h-[calc(100dvh-8rem)]"
 >
 	{#if data.score}
-		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-			<div>
-				<h1 class="text-fancy-title text-foreground text-2xl font-bold">{data.score.title}</h1>
-				<p class="text-muted-foreground">{data.score.composer}</p>
+		<header class="flex items-center justify-between gap-3">
+			<div class="min-w-0">
+				<h1 class="text-fancy-title text-foreground truncate text-xl font-bold sm:text-2xl">
+					{data.score.title}
+				</h1>
+				<p class="text-muted-foreground truncate text-sm">{data.score.composer}</p>
 			</div>
-			<div class="flex flex-wrap gap-2">
-				<Button variant="outline" onclick={() => viewer?.toggleFullscreen()} disabled={!pdfUrl}>
-					{m.viewer_fullscreen()}
-				</Button>
-				<Button variant="outline" onclick={toggleContents} aria-expanded={tocPanelOpen}>
-					{m.toc_contents()}{data.toc.sections.length ? ` (${data.toc.sections.length})` : ''}
-				</Button>
-				<Button variant="outline" onclick={() => (sheetOpen = true)}>{m.view_details()}</Button>
+			<!-- One compact pill: icons everywhere, labels from sm up. -->
+			<div
+				role="toolbar"
+				aria-label={data.score.title}
+				class="bg-card shadow-card flex shrink-0 items-center gap-0.5 rounded-full border p-1"
+			>
+				<button
+					type="button"
+					class={[pill, tocPanelOpen && 'bg-accent text-accent-foreground']}
+					onclick={toggleContents}
+					aria-expanded={tocPanelOpen}
+					aria-label={m.toc_contents()}
+					title={m.toc_contents()}
+				>
+					<ListIcon class="size-4" />
+					<span class="hidden sm:inline">{m.toc_contents()}</span>
+					{#if data.toc.sections.length}
+						<span
+							class="bg-muted text-muted-foreground rounded-full px-1.5 text-xs leading-5 tabular-nums"
+							>{data.toc.sections.length}</span
+						>
+					{/if}
+				</button>
+				<button
+					type="button"
+					class={pill}
+					onclick={() => (sheetOpen = true)}
+					aria-label={m.view_details()}
+					title={m.view_details()}
+				>
+					<InfoIcon class="size-4" />
+					<span class="hidden sm:inline">{m.view_details()}</span>
+				</button>
 				{#if !appPage.data.isDemo}
-					<Button variant="outline" onclick={() => (editOpen = true)}>{m.edit_score()}</Button>
+					<button
+						type="button"
+						class={pill}
+						onclick={() => (editOpen = true)}
+						aria-label={m.edit_score()}
+						title={m.edit_score()}
+					>
+						<PencilIcon class="size-4" />
+						<span class="hidden lg:inline">{m.edit_score()}</span>
+					</button>
 				{/if}
+				<span class="bg-border mx-0.5 h-5 w-px"></span>
+				<button
+					type="button"
+					class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex size-9 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+					onclick={() => viewer?.toggleFullscreen()}
+					disabled={!pdfUrl}
+					aria-label={m.viewer_fullscreen()}
+					title={m.viewer_fullscreen()}
+				>
+					<Maximize class="size-4" />
+				</button>
 			</div>
-		</div>
+		</header>
 
 		<div class="flex min-h-0 flex-1 gap-3">
 			{#if tocPanelOpen}
