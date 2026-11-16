@@ -61,6 +61,7 @@
 		contents,
 		overlay,
 		tools,
+		banner,
 		interactive = true,
 		label = 'PDF'
 	}: {
@@ -77,8 +78,11 @@
 		overlay?: Snippet<[PageOverlay]>;
 		/** Extra controls added to the toolbar. */
 		tools?: Snippet;
+		/** Message shown at the top of the viewer (also in full screen). */
+		banner?: Snippet;
 		/** When false, taps and swipes on the page don't turn it (e.g.
-		 * while drawing). Keys and toolbar buttons still work. */
+		 * while drawing). Keys and toolbar buttons still work, and the
+		 * toolbar stays visible in full screen. */
 		interactive?: boolean;
 		label?: string;
 	} = $props();
@@ -104,7 +108,7 @@
 	let fullscreen = $derived(nativeFs || pseudoFs);
 	let controlsShown = $state(true);
 	let contentsOpen = $state(false);
-	let controlsVisible = $derived(!fullscreen || controlsShown || contentsOpen);
+	let controlsVisible = $derived(!fullscreen || controlsShown || contentsOpen || !interactive);
 
 	let spread = $derived(isSpread(stageW, stageH, numPages));
 	let visible = $derived(visiblePages(page, numPages, spread));
@@ -497,6 +501,12 @@
 		</div>
 	</div>
 
+	{#if banner}
+		<div class="absolute inset-x-0 top-3 z-30 flex justify-center px-3">
+			{@render banner()}
+		</div>
+	{/if}
+
 	<!-- Exit button: always obvious in full screen -->
 	{#if fullscreen && controlsVisible}
 		<button
@@ -521,7 +531,7 @@
 		inert={!controlsVisible}
 	>
 		<div
-			class="pointer-events-auto flex max-w-full items-center gap-1 rounded-full bg-black/70 px-2 py-1 shadow-lg backdrop-blur"
+			class="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-3xl bg-black/70 px-2 py-1 shadow-lg backdrop-blur"
 		>
 			{#if contents}
 				<button

@@ -15,15 +15,18 @@ test.describe('reader page', () => {
 		await expect(page.getByRole('heading', { name: /score not found/i })).toBeVisible();
 	});
 
-	test('renders the score viewer for an owned score', async ({ page }) => {
+	test('wires the score viewer to the PDF proxy', async ({ page }) => {
 		await login(page);
+		const pdfRequest = page.waitForRequest((r) => r.url().includes('/api/pdf/moonlight.pdf'));
 		await page.goto('/reader/1');
 		await expect(page.getByRole('heading', { name: 'Moonlight Sonata' })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Moonlight Sonata' })).toBeVisible();
 		// Smoke check only — the stub backend doesn't serve real PDF bytes, so
-		// we just assert the viewer is mounted (labelled by the score title)
-		// with its page controls, not its rendered content.
-		const viewer = page.getByRole('region', { name: 'Moonlight Sonata' });
-		await expect(viewer).toBeVisible();
-		await expect(viewer.getByRole('button', { name: 'Next page' })).toBeAttached();
+		// the viewer requests the PDF through the proxy and reports the failure.
+		await pdfRequest;
+		await expect(
+			page.getByRole('alert').filter({ hasText: 'Could not load this PDF.' })
+		).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Full screen' }).first()).toBeVisible();
 	});
 });

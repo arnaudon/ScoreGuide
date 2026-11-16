@@ -8,6 +8,10 @@
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import ScoreContents from '#lib/components/ScoreContents.svelte';
 	import ScoreViewer from '#lib/components/ScoreViewer.svelte';
+	import AnnotationLayer, { type Tool } from '#lib/components/AnnotationLayer.svelte';
+	import AnnotationTools, { COLORS } from '#lib/components/AnnotationTools.svelte';
+	import { annotationsApi } from '#lib/annotations.js';
+	import { AnnotationStore } from '#lib/viewer/annotations.svelte.js';
 	import { isLocalizedField, localizedField } from '#lib/i18n/score.js';
 	import * as m from '#lib/paraglide/messages.js';
 
@@ -46,6 +50,14 @@
 	function goToPage(page: number) {
 		viewer?.goTo(page);
 	}
+
+	// The user's pencil marks and notes for this score, saved as they go.
+	let tool: Tool = $state(null);
+	let penColor = $state(COLORS[0].value);
+	let notes = $derived(data.score?.id ? new AnnotationStore(annotationsApi(data.score.id)) : null);
+	$effect(() => {
+		void notes?.load();
+	});
 
 	// While the table of contents is being generated in the background,
 	// refresh the page data every few seconds until it's done.
@@ -127,7 +139,46 @@
 						url={pdfUrl}
 						storageKey={`reader.page.${data.score.id}`}
 						label={data.score.title ?? 'PDF'}
+						interactive={tool === null}
 					>
+						{#snippet overlay({ page, width, height })}
+							{#if notes}
+								<AnnotationLayer
+									{width}
+									{height}
+									items={notes.forPage(page)}
+									{tool}
+									color={penColor}
+									onCreate={(d) => notes.create(page, d)}
+									onUpdate={(id, d) => notes.update(id, d)}
+									onDelete={(id) => notes.remove(id)}
+								/>
+							{/if}
+						{/snippet}
+						{#snippet tools()}
+							<!-- The demo account is read-only: no annotate button. -->
+							{#if notes && !appPage.data.isDemo}
+								<AnnotationTools
+									bind:tool
+									bind:color={penColor}
+									canUndo={notes.canUndo}
+									onUndo={() => notes.undo()}
+								/>
+							{/if}
+						{/snippet}
+						{#snippet banner()}
+							{#if notes?.error}
+								<div
+									role="alert"
+									class="bg-destructive text-destructive-foreground flex items-center gap-3 rounded-md px-3 py-2 text-sm shadow-lg"
+								>
+									{notes.error === 'load' ? m.annotations_load_error() : m.annotations_save_error()}
+									<button type="button" class="underline" onclick={() => notes?.dismissError()}
+										>{m.dismiss()}</button
+									>
+								</div>
+							{/if}
+						{/snippet}
 						{#snippet contents(goTo)}
 							<ScoreContents
 								toc={data.toc}
