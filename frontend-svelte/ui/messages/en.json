@@ -263,7 +263,7 @@
 	"dismiss": "Dismiss",
 	"try_demo": "Try the demo",
 	"try_demo_hint": "Look around a read-only library — no account needed.",
-	"demo_banner": "You are browsing a read-only demo. Editing, uploading and the AI assistant are disabled.",
+	"demo_banner": "You are browsing a read-only demo: uploading, editing and the AI assistant are disabled. Pencil marks and notes stay in this browser.",
 	"demo_signup": "Create a free account",
 	"err_demo_unavailable": "The demo is not available right now."
 }

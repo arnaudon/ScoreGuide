@@ -10,7 +10,7 @@
 	import ScoreViewer from '#lib/components/ScoreViewer.svelte';
 	import AnnotationLayer, { type Tool } from '#lib/components/AnnotationLayer.svelte';
 	import AnnotationTools, { COLORS } from '#lib/components/AnnotationTools.svelte';
-	import { annotationsApi } from '#lib/annotations.js';
+	import { annotationsApi, localAnnotationsApi } from '#lib/annotations.js';
 	import { AnnotationStore } from '#lib/viewer/annotations.svelte.js';
 	import { isLocalizedField, localizedField } from '#lib/i18n/score.js';
 	import * as m from '#lib/paraglide/messages.js';
@@ -54,7 +54,14 @@
 	// The user's pencil marks and notes for this score, saved as they go.
 	let tool: Tool = $state(null);
 	let penColor = $state(COLORS[0].value);
-	let notes = $derived(data.score?.id ? new AnnotationStore(annotationsApi(data.score.id)) : null);
+	// The read-only demo account keeps them in this browser instead.
+	let notes = $derived(
+		data.score?.id
+			? new AnnotationStore(
+					appPage.data.isDemo ? localAnnotationsApi(data.score.id) : annotationsApi(data.score.id)
+				)
+			: null
+	);
 	$effect(() => {
 		void notes?.load();
 	});
@@ -95,7 +102,12 @@
 	let pdfUrl = $derived(filename ? `/api/pdf/${encodeURIComponent(filename)}` : '');
 </script>
 
-<div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
+<!-- Sized to the viewport (minus the layout's padding) so the viewer always
+     fits on screen and a long contents list scrolls inside its own panel
+     instead of stretching the page. -->
+<div
+	class="flex h-[calc(100dvh-5rem)] min-h-[28rem] w-full flex-col gap-4 p-1 sm:p-2 lg:h-[calc(100dvh-8rem)]"
+>
 	{#if data.score}
 		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 			<div>
@@ -156,8 +168,7 @@
 							{/if}
 						{/snippet}
 						{#snippet tools()}
-							<!-- The demo account is read-only: no annotate button. -->
-							{#if notes && !appPage.data.isDemo}
+							{#if notes}
 								<AnnotationTools
 									bind:tool
 									bind:color={penColor}

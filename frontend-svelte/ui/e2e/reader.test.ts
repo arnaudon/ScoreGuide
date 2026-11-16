@@ -29,4 +29,22 @@ test.describe('reader page', () => {
 		).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Full screen' }).first()).toBeVisible();
 	});
+
+	test('a long contents list scrolls in its panel and keeps the score on screen', async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await login(page);
+		await page.goto('/reader/2');
+		const viewer = page.getByRole('region', { name: 'Long Suite' });
+		await expect(viewer).toBeVisible();
+
+		const box = await viewer.boundingBox();
+		expect(box!.y + box!.height).toBeLessThanOrEqual(800);
+
+		const panel = page.getByRole('complementary', { name: 'Contents' }).first();
+		await expect(panel.getByRole('button', { name: /Movement 40/ })).toBeAttached();
+		const scrollable = await panel.evaluate((el) => el.scrollHeight > el.clientHeight);
+		expect(scrollable).toBe(true);
+	});
 });
