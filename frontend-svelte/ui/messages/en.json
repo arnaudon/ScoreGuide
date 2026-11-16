@@ -260,5 +260,10 @@
 	"note_placeholder": "Write a note…",
 	"annotations_save_error": "Couldn't save your annotation. Check your connection and try again.",
 	"annotations_load_error": "Couldn't load your annotations.",
-	"dismiss": "Dismiss"
+	"dismiss": "Dismiss",
+	"try_demo": "Try the demo",
+	"try_demo_hint": "Look around a read-only library — no account needed.",
+	"demo_banner": "You are browsing a read-only demo. Editing, uploading and the AI assistant are disabled.",
+	"demo_signup": "Create a free account",
+	"err_demo_unavailable": "The demo is not available right now."
 }

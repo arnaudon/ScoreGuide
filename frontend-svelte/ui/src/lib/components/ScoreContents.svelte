@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import type { SectionsResponse } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
@@ -73,7 +74,7 @@
 		<p class="text-muted-foreground text-sm">{m.toc_empty()}</p>
 	{/if}
 
-	{#if toc.status !== 'running'}
+	{#if toc.status !== 'running' && !page.data.isDemo}
 		<form
 			method="POST"
 			action="?/generate_toc"

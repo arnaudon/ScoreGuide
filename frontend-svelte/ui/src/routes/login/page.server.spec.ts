@@ -164,3 +164,32 @@ describe('register action', () => {
 		expect(errSpy).toHaveBeenCalled();
 	});
 });
+
+describe('demo action', () => {
+	it('logs into the demo account and opens the library', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ access_token: 'demo-tok' }));
+		const cookies = makeCookies();
+		try {
+			await actions.demo(event(fakeRequest({}), cookies, fetch));
+			expect.unreachable('should redirect');
+		} catch (e) {
+			expect(isRedirect(e)).toBe(true);
+			expect(e).toMatchObject({ status: 303, location: '/db-viewer' });
+		}
+		expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/demo-login$/), expect.anything());
+		expect(cookies.set).toHaveBeenCalledWith(
+			'access_token',
+			'demo-tok',
+			expect.objectContaining({ maxAge: 60 * 60 * 24, httpOnly: true })
+		);
+	});
+
+	it('fails when the demo is not set up', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ detail: 'Demo not available' }, 404));
+		const cookies = makeCookies();
+		const result = await actions.demo(event(fakeRequest({}), cookies, fetch));
+		expect(isActionFailure(result)).toBe(true);
+		expect(result).toMatchObject({ status: 404 });
+		expect(cookies.set).not.toHaveBeenCalled();
+	});
+});

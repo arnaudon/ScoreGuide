@@ -2,6 +2,7 @@
 	import type { PageProps } from './$types';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import * as Sheet from '#lib/components/ui/sheet/index.js';
@@ -264,214 +265,218 @@
 </script>
 
 <div class="p-8">
-	<div class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-4">
-		<div class="mb-4 flex items-center justify-between gap-2">
-			<h2 class="text-fancy-title text-lg font-semibold">{m.add_new_score()}</h2>
-			{#if data.user?.credits !== undefined}
-				<span class="text-muted-foreground text-sm font-medium">
-					{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
-				</span>
+	{#if !page.data.isDemo}
+		<div class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-4">
+			<div class="mb-4 flex items-center justify-between gap-2">
+				<h2 class="text-fancy-title text-lg font-semibold">{m.add_new_score()}</h2>
+				{#if data.user?.credits !== undefined}
+					<span class="text-muted-foreground text-sm font-medium">
+						{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
+					</span>
+				{/if}
+			</div>
+			<Tabs.Root value="manual" class="w-full">
+				<Tabs.List class="mb-4">
+					<Tabs.Trigger value="manual">{m.manual_upload()}</Tabs.Trigger>
+					<Tabs.Trigger value="imslp">{m.from_imslp()}</Tabs.Trigger>
+				</Tabs.List>
+				<Tabs.Content value="manual">
+					<form
+						method="POST"
+						action="?/upload"
+						enctype="multipart/form-data"
+						use:enhance={() => {
+							uploading = true;
+							return async ({ update }) => {
+								uploading = false;
+								manualFiles = undefined;
+								update();
+							};
+						}}
+						class="flex flex-col gap-4 md:flex-row md:items-end"
+					>
+						<div class="flex-1 space-y-2">
+							<label for="title" class="text-sm leading-none font-medium">{m.title()}</label>
+							<Input id="title" name="title" required />
+						</div>
+						<div class="flex-1 space-y-2">
+							<label for="composer" class="text-sm leading-none font-medium">{m.composer()}</label>
+							<Input id="composer" name="composer" required />
+						</div>
+						<div class="flex-1 space-y-2">
+							<label for="file" class="text-sm leading-none font-medium">{m.pdf_file()}</label>
+							<div class="relative">
+								<Input
+									id="file"
+									name="file"
+									type="file"
+									accept="application/pdf"
+									required
+									class="sr-only"
+									bind:files={manualFiles}
+								/>
+								<label
+									for="file"
+									class="border-input hover:bg-accent hover:text-accent-foreground flex h-9 w-full cursor-pointer items-center rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
+								>
+									<span class="text-muted-foreground truncate">
+										{manualFiles && manualFiles.length > 0 ? manualFiles[0].name : m.choose_file()}
+									</span>
+								</label>
+							</div>
+						</div>
+						<Button type="submit" disabled={uploading}>
+							{uploading ? m.adding() : m.add()}
+						</Button>
+					</form>
+				</Tabs.Content>
+				<Tabs.Content value="imslp">
+					<div
+						class="flex flex-col {imslpAgentHistoryStore.history.length > 0
+							? 'h-[500px]'
+							: 'h-auto'} w-full"
+					>
+						<AgentChat
+							form={form?.formId === 'agent' ? form : null}
+							action="?/ask_agent"
+							title={m.imslp_search_help()}
+							placeholder={m.agent_placeholder_imslp()}
+							onResult={onImslpResult}
+							user={data.user}
+							store={imslpAgentHistoryStore}
+						>
+							<div class="max-w-sm text-xs">
+								{m.warning_limit_100()}
+							</div>
+							{#snippet resultSnippet({ msg, isLast })}
+								<p class="mb-4 text-sm whitespace-pre-wrap">{msg.answer}</p>
+								{#if isLast}
+									{#if Array.isArray(msg.scores) && msg.scores.length > 0}
+										<div
+											class="bg-card text-card-foreground shadow-card mb-4 overflow-hidden rounded-md border"
+										>
+											<Table.Root>
+												<Table.Header>
+													{#each imslpTable.getHeaderGroups() as headerGroup (headerGroup.id)}
+														<Table.Row>
+															{#each headerGroup.headers as header (header.id)}
+																<Table.Head>
+																	{#if !header.isPlaceholder}
+																		<FlexRender
+																			content={header.column.columnDef.header}
+																			context={header.getContext()}
+																		/>
+																	{/if}
+																</Table.Head>
+															{/each}
+														</Table.Row>
+													{/each}
+												</Table.Header>
+												<Table.Body>
+													{#each imslpTable.getRowModel().rows as row (row.id)}
+														<Table.Row
+															class="hover:bg-muted/50 cursor-pointer transition-colors {agentSelectedScore?.id ===
+															row.original.id
+																? 'bg-muted'
+																: ''}"
+															onclick={() => {
+																if (!uploading) {
+																	agentSelectedScore = row.original;
+																	addImslpError = null;
+																	imslpSheetOpen = true;
+																}
+															}}
+														>
+															{#each row.getVisibleCells() as cell (cell.id)}
+																<Table.Cell
+																	class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]"
+																>
+																	<FlexRender
+																		content={cell.column.columnDef.cell}
+																		context={cell.getContext()}
+																	/>
+																</Table.Cell>
+															{/each}
+														</Table.Row>
+													{/each}
+												</Table.Body>
+											</Table.Root>
+
+											<div class="flex items-center justify-end space-x-2 border-t px-4 py-4">
+												<div class="text-muted-foreground flex-1 text-sm">
+													{m.page_of({
+														page: imslpTable.getState().pagination.pageIndex + 1,
+														total: Math.max(1, imslpTable.getPageCount())
+													})}
+												</div>
+												<Button
+													variant="outline"
+													size="sm"
+													onclick={() => imslpTable.previousPage()}
+													disabled={!imslpTable.getCanPreviousPage()}
+												>
+													{m.previous()}
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onclick={() => imslpTable.nextPage()}
+													disabled={!imslpTable.getCanNextPage()}
+												>
+													{m.next()}
+												</Button>
+											</div>
+										</div>
+									{:else if msg.answer}
+										<p class="text-muted-foreground mt-2 text-center text-sm">
+											{m.no_matching_scores()}
+										</p>
+									{/if}
+								{/if}
+							{/snippet}
+						</AgentChat>
+					</div>
+				</Tabs.Content>
+			</Tabs.Root>
+			<!-- Agent errors are shown by AgentChat itself, under its input. -->
+			{#if form?.error && form?.formId !== 'agent'}
+				<p role="alert" class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
+			{/if}
+			{#if form?.scoreAdded}
+				<p role="status" class="text-success mt-4 text-sm font-medium">
+					{m.score_added_success()}
+				</p>
+				{#if form?.completionFailed}
+					<p role="status" class="text-muted-foreground mt-1 text-sm">
+						{m.score_completion_failed()}
+						{#if form?.completionError}({form.completionError}){/if}
+					</p>
+				{/if}
 			{/if}
 		</div>
-		<Tabs.Root value="manual" class="w-full">
-			<Tabs.List class="mb-4">
-				<Tabs.Trigger value="manual">{m.manual_upload()}</Tabs.Trigger>
-				<Tabs.Trigger value="imslp">{m.from_imslp()}</Tabs.Trigger>
-			</Tabs.List>
-			<Tabs.Content value="manual">
-				<form
-					method="POST"
-					action="?/upload"
-					enctype="multipart/form-data"
-					use:enhance={() => {
-						uploading = true;
-						return async ({ update }) => {
-							uploading = false;
-							manualFiles = undefined;
-							update();
-						};
-					}}
-					class="flex flex-col gap-4 md:flex-row md:items-end"
-				>
-					<div class="flex-1 space-y-2">
-						<label for="title" class="text-sm leading-none font-medium">{m.title()}</label>
-						<Input id="title" name="title" required />
-					</div>
-					<div class="flex-1 space-y-2">
-						<label for="composer" class="text-sm leading-none font-medium">{m.composer()}</label>
-						<Input id="composer" name="composer" required />
-					</div>
-					<div class="flex-1 space-y-2">
-						<label for="file" class="text-sm leading-none font-medium">{m.pdf_file()}</label>
-						<div class="relative">
-							<Input
-								id="file"
-								name="file"
-								type="file"
-								accept="application/pdf"
-								required
-								class="sr-only"
-								bind:files={manualFiles}
-							/>
-							<label
-								for="file"
-								class="border-input hover:bg-accent hover:text-accent-foreground flex h-9 w-full cursor-pointer items-center rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
-							>
-								<span class="text-muted-foreground truncate">
-									{manualFiles && manualFiles.length > 0 ? manualFiles[0].name : m.choose_file()}
-								</span>
-							</label>
-						</div>
-					</div>
-					<Button type="submit" disabled={uploading}>
-						{uploading ? m.adding() : m.add()}
-					</Button>
-				</form>
-			</Tabs.Content>
-			<Tabs.Content value="imslp">
-				<div
-					class="flex flex-col {imslpAgentHistoryStore.history.length > 0
-						? 'h-[500px]'
-						: 'h-auto'} w-full"
-				>
-					<AgentChat
-						form={form?.formId === 'agent' ? form : null}
-						action="?/ask_agent"
-						title={m.imslp_search_help()}
-						placeholder={m.agent_placeholder_imslp()}
-						onResult={onImslpResult}
-						user={data.user}
-						store={imslpAgentHistoryStore}
-					>
-						<div class="max-w-sm text-xs">
-							{m.warning_limit_100()}
-						</div>
-						{#snippet resultSnippet({ msg, isLast })}
-							<p class="mb-4 text-sm whitespace-pre-wrap">{msg.answer}</p>
-							{#if isLast}
-								{#if Array.isArray(msg.scores) && msg.scores.length > 0}
-									<div
-										class="bg-card text-card-foreground shadow-card mb-4 overflow-hidden rounded-md border"
-									>
-										<Table.Root>
-											<Table.Header>
-												{#each imslpTable.getHeaderGroups() as headerGroup (headerGroup.id)}
-													<Table.Row>
-														{#each headerGroup.headers as header (header.id)}
-															<Table.Head>
-																{#if !header.isPlaceholder}
-																	<FlexRender
-																		content={header.column.columnDef.header}
-																		context={header.getContext()}
-																	/>
-																{/if}
-															</Table.Head>
-														{/each}
-													</Table.Row>
-												{/each}
-											</Table.Header>
-											<Table.Body>
-												{#each imslpTable.getRowModel().rows as row (row.id)}
-													<Table.Row
-														class="hover:bg-muted/50 cursor-pointer transition-colors {agentSelectedScore?.id ===
-														row.original.id
-															? 'bg-muted'
-															: ''}"
-														onclick={() => {
-															if (!uploading) {
-																agentSelectedScore = row.original;
-																addImslpError = null;
-																imslpSheetOpen = true;
-															}
-														}}
-													>
-														{#each row.getVisibleCells() as cell (cell.id)}
-															<Table.Cell
-																class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]"
-															>
-																<FlexRender
-																	content={cell.column.columnDef.cell}
-																	context={cell.getContext()}
-																/>
-															</Table.Cell>
-														{/each}
-													</Table.Row>
-												{/each}
-											</Table.Body>
-										</Table.Root>
-
-										<div class="flex items-center justify-end space-x-2 border-t px-4 py-4">
-											<div class="text-muted-foreground flex-1 text-sm">
-												{m.page_of({
-													page: imslpTable.getState().pagination.pageIndex + 1,
-													total: Math.max(1, imslpTable.getPageCount())
-												})}
-											</div>
-											<Button
-												variant="outline"
-												size="sm"
-												onclick={() => imslpTable.previousPage()}
-												disabled={!imslpTable.getCanPreviousPage()}
-											>
-												{m.previous()}
-											</Button>
-											<Button
-												variant="outline"
-												size="sm"
-												onclick={() => imslpTable.nextPage()}
-												disabled={!imslpTable.getCanNextPage()}
-											>
-												{m.next()}
-											</Button>
-										</div>
-									</div>
-								{:else if msg.answer}
-									<p class="text-muted-foreground mt-2 text-center text-sm">
-										{m.no_matching_scores()}
-									</p>
-								{/if}
-							{/if}
-						{/snippet}
-					</AgentChat>
-				</div>
-			</Tabs.Content>
-		</Tabs.Root>
-		<!-- Agent errors are shown by AgentChat itself, under its input. -->
-		{#if form?.error && form?.formId !== 'agent'}
-			<p role="alert" class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
-		{/if}
-		{#if form?.scoreAdded}
-			<p role="status" class="text-success mt-4 text-sm font-medium">
-				{m.score_added_success()}
-			</p>
-			{#if form?.completionFailed}
-				<p role="status" class="text-muted-foreground mt-1 text-sm">
-					{m.score_completion_failed()}
-					{#if form?.completionError}({form.completionError}){/if}
-				</p>
-			{/if}
-		{/if}
-	</div>
+	{/if}
 
 	<div class="mb-4 flex items-center justify-between">
 		<h1 class="text-fancy-title text-foreground text-2xl font-bold">{m.database_viewer()}</h1>
 		{#if selectedScoreId}
 			<div class="flex gap-2">
-				<form
-					method="POST"
-					action="?/delete"
-					use:enhance={() => {
-						return async ({ update, result }) => {
-							if (result.type === 'success') {
-								selectedScoreId = null;
-							}
-							update();
-						};
-					}}
-				>
-					<input type="hidden" name="id" value={selectedScoreId} />
-					<Button type="submit" variant="destructive">{m.delete()}</Button>
-				</form>
+				{#if !page.data.isDemo}
+					<form
+						method="POST"
+						action="?/delete"
+						use:enhance={() => {
+							return async ({ update, result }) => {
+								if (result.type === 'success') {
+									selectedScoreId = null;
+								}
+								update();
+							};
+						}}
+					>
+						<input type="hidden" name="id" value={selectedScoreId} />
+						<Button type="submit" variant="destructive">{m.delete()}</Button>
+					</form>
+				{/if}
 				<Button href={resolve('/reader/[id]', { id: String(selectedScoreId) })}
 					>{m.view_pdf()}</Button
 				>
@@ -654,69 +659,73 @@
 				<Button href={resolve('/reader/[id]', { id: String(selectedScore.id) })} class="w-full"
 					>{m.view_pdf()}</Button
 				>
-				<Button variant="outline" class="w-full" onclick={() => (editOpen = true)}>
-					{m.edit_score()}
-				</Button>
-				<form
-					method="POST"
-					action="?/recomplete"
-					use:enhance={() => {
-						recompleting = true;
-						recompleteError = null;
-						return async ({ update, result }) => {
-							recompleting = false;
-							if (result.type === 'success') {
-								await invalidateAll();
-							} else if (result.type === 'failure') {
-								recompleteError = (result.data?.error as string) || m.failed_to_complete_score();
-							}
-							await update({ reset: false });
-						};
-					}}
-				>
-					<input type="hidden" name="id" value={selectedScore.id} />
-					<input type="hidden" name="title" value={selectedScore.title} />
-					<input type="hidden" name="composer" value={selectedScore.composer} />
-					<input type="hidden" name="pdf_path" value={selectedScore.pdf_path || ''} />
-					<Button type="submit" variant="secondary" class="w-full" disabled={recompleting}>
-						{recompleting ? m.running_agent() : m.rerun_complete_agent()}
+				{#if !page.data.isDemo}
+					<Button variant="outline" class="w-full" onclick={() => (editOpen = true)}>
+						{m.edit_score()}
 					</Button>
-					<!-- Rendered inside the Sheet, not the page's own form?.error banner,
+					<form
+						method="POST"
+						action="?/recomplete"
+						use:enhance={() => {
+							recompleting = true;
+							recompleteError = null;
+							return async ({ update, result }) => {
+								recompleting = false;
+								if (result.type === 'success') {
+									await invalidateAll();
+								} else if (result.type === 'failure') {
+									recompleteError = (result.data?.error as string) || m.failed_to_complete_score();
+								}
+								await update({ reset: false });
+							};
+						}}
+					>
+						<input type="hidden" name="id" value={selectedScore.id} />
+						<input type="hidden" name="title" value={selectedScore.title} />
+						<input type="hidden" name="composer" value={selectedScore.composer} />
+						<input type="hidden" name="pdf_path" value={selectedScore.pdf_path || ''} />
+						<Button type="submit" variant="secondary" class="w-full" disabled={recompleting}>
+							{recompleting ? m.running_agent() : m.rerun_complete_agent()}
+						</Button>
+						<!-- Rendered inside the Sheet, not the page's own form?.error banner,
 					     since that banner sits behind this overlay while it's open. -->
-					{#if recompleteError}
-						<p role="alert" class="text-destructive mt-2 text-sm font-medium">{recompleteError}</p>
-					{/if}
-					{#if data.user?.credits !== undefined}
-						<p class="text-muted-foreground mt-1 text-center text-xs">
-							{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
-						</p>
-					{/if}
-				</form>
-				<form
-					method="POST"
-					action="?/delete"
-					use:enhance={() => {
-						deleteError = null;
-						return async ({ update, result }) => {
-							// Show failures inside the Sheet: the page banner is hidden behind it.
-							if (result.type === 'failure') {
-								deleteError = (result.data?.error as string) || m.err_delete_score();
-								return;
-							}
-							if (result.type === 'success') {
-								sheetOpen = false;
-								selectedScoreId = null;
-							}
-							await update();
-						};
-					}}
-				>
-					<input type="hidden" name="id" value={selectedScore.id} />
-					<Button type="submit" variant="destructive" class="w-full">{m.delete_score()}</Button>
-					{#if deleteError}
-						<p role="alert" class="text-destructive mt-2 text-sm font-medium">{deleteError}</p>
-					{/if}
-				</form>
+						{#if recompleteError}
+							<p role="alert" class="text-destructive mt-2 text-sm font-medium">
+								{recompleteError}
+							</p>
+						{/if}
+						{#if data.user?.credits !== undefined}
+							<p class="text-muted-foreground mt-1 text-center text-xs">
+								{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
+							</p>
+						{/if}
+					</form>
+					<form
+						method="POST"
+						action="?/delete"
+						use:enhance={() => {
+							deleteError = null;
+							return async ({ update, result }) => {
+								// Show failures inside the Sheet: the page banner is hidden behind it.
+								if (result.type === 'failure') {
+									deleteError = (result.data?.error as string) || m.err_delete_score();
+									return;
+								}
+								if (result.type === 'success') {
+									sheetOpen = false;
+									selectedScoreId = null;
+								}
+								await update();
+							};
+						}}
+					>
+						<input type="hidden" name="id" value={selectedScore.id} />
+						<Button type="submit" variant="destructive" class="w-full">{m.delete_score()}</Button>
+						{#if deleteError}
+							<p role="alert" class="text-destructive mt-2 text-sm font-medium">{deleteError}</p>
+						{/if}
+					</form>
+				{/if}
 			</div>
 		{/if}
 	</Sheet.Content>

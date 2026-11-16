@@ -34,7 +34,7 @@ describe('+layout.server load', () => {
 		const fetch = vi.fn();
 		const cookies = makeCookies();
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: false, isAdmin: false });
+		expect(result).toEqual({ loggedIn: false, isAdmin: false, isDemo: false });
 		expect(fetch).not.toHaveBeenCalled();
 	});
 
@@ -42,21 +42,21 @@ describe('+layout.server load', () => {
 		const fetch = vi.fn(async () => jsonResponse(true));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: true, isAdmin: true });
+		expect(result).toEqual({ loggedIn: true, isAdmin: true, isDemo: false });
 	});
 
 	it('returns isAdmin false when /is_admin returns falsy', async () => {
 		const fetch = vi.fn(async () => jsonResponse(false));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: true, isAdmin: false });
+		expect(result).toEqual({ loggedIn: true, isAdmin: false, isDemo: false });
 	});
 
 	it('returns logged-out on non-OK response (e.g., expired token)', async () => {
 		const fetch = vi.fn(async () => new Response(null, { status: 401 }));
 		const cookies = makeCookies({ access_token: 'expired' });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: false, isAdmin: false });
+		expect(result).toEqual({ loggedIn: false, isAdmin: false, isDemo: false });
 	});
 
 	it('logs and degrades gracefully when fetch throws', async () => {
@@ -65,7 +65,17 @@ describe('+layout.server load', () => {
 		});
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: true, isAdmin: false });
+		expect(result).toEqual({ loggedIn: true, isAdmin: false, isDemo: false });
 		expect(errSpy).toHaveBeenCalled();
+	});
+
+	it('flags the read-only demo account from the token role claim', async () => {
+		const fetch = vi.fn(async () => jsonResponse(false));
+		const payload = Buffer.from(JSON.stringify({ sub: 'demo', role: 'demo' })).toString(
+			'base64url'
+		);
+		const cookies = makeCookies({ access_token: `h.${payload}.s` });
+		const result = await load(event(cookies, fetch));
+		expect(result).toEqual({ loggedIn: true, isAdmin: false, isDemo: true });
 	});
 });
