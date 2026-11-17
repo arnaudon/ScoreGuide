@@ -81,3 +81,7 @@ jobs:
               < infrastructure/mcp-readonly.sql
             # run alembic migration
             docker exec --workdir /app/backend backend alembic upgrade head
+            # Give the demo account its public-domain starter library the first
+            # time (no-op once it has scores). Never fail the deploy over it.
+            docker exec --workdir /app/backend backend python -m app.demo --catalog --if-empty \
+              || echo "demo seeding skipped (see error above)"
