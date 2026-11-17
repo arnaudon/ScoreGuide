@@ -418,13 +418,18 @@ def test_text_heading_mid_page_opens_section():
         [
             toc.TextLine("Praeludium I", 0.02, 14),
             toc.TextLine("Fuga I", _above(h, third), 14),
-            toc.TextLine("Adagio", _above(h, second), 9),  # tempo change: no new piece
         ],
     )
     assert [(j, title, src) for _, j, title, src in toc._find_starts([page])] == [
         (0, "Praeludium I", "text"),
         (2, "Fuga I", "text"),
     ]
+    # A tempo change above a later system (no final barline) isn't a piece.
+    page.lines = [
+        toc.TextLine("Praeludium I", 0.02, 14),
+        toc.TextLine("Adagio", _above(h, second), 9),
+    ]
+    assert [j for _, j, _, _ in toc._find_starts([page])] == [0]
 
 
 def test_text_page_final_barline_and_tempo():
@@ -537,3 +542,121 @@ def test_continuation_notes_are_not_headings():
     assert not toc.is_heading("Segue la Fuga")
     assert not toc.is_heading("attacca subito la Fuga")
     assert toc.is_heading("Fuga 3")
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("als Op. 120.) Jahre 1825.) Allegro moderato im TTT IS 7 Auk I", "Allegro moderato"),
+        ("Kéchel Nr.545 24 Allegro", "Allegro"),
+        ("4-96. Allegro moderato. 25 all", "Allegro moderato"),
+        ("noto. Andante con moto. 66.) 2 di", "Andante con moto"),
+        ("im September 1528.) Molto moderato I I", "Molto moderato"),
+        ("Allegro troppo. ma non", "Allegro troppo"),
+        ("la Allegro", "Allegro"),
+        ("LUDWIG KLEE JOSEPH HAYDN. Allegro moderato", "Allegro moderato"),
+        ("parts of movement in song-form. Moderato. JOSEPH HAYDN", "Moderato"),
+        ("Variatio 3. Canone all’ Unisuono. 1 Clav. TZ", "Variatio 3. Canone all’ Unisuono"),
+        ("Clav. Variatio 5. vero", "Variatio 5"),
+        ("I 1 Var. IV", "Var. IV"),
+        ("Var.I 2", "Var.I"),
+        ("Sonata No. 3 Allegro", "Sonata No. 3 Allegro"),
+        ("ua Joyeuse RONDEAU", "Joyeuse RONDEAU"),
+        ("La Follette RONDEAU au ar", "La Follette RONDEAU"),
+        ("Mr A La Boiteuse", "La Boiteuse"),
+        ("Les Soupirs Tendrement", "Les Soupirs Tendrement"),
+        ("Gigue. Les Cyclopes", "Les Cyclopes Gigue"),
+        ("no heading here", "no heading here"),
+    ],
+)
+def test_tidy_title(raw, expected):
+    assert toc.tidy_title(raw) == expected
+
+
+def test_named_pieces_and_roman_variations_are_headings():
+    assert toc.is_heading("La Boiteuse")
+    assert toc.is_heading("VAR. III")
+    assert toc.is_heading("Double")
+    assert not toc.is_heading("La Csi")
+
+
+def test_ocr_titles_are_tidied(monkeypatch):
+    data = _pdf_from_pages(_page())
+    heads = [_ocr("im September 1828.) Allegro. Aud", "")]
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: heads[0])
+    assert [s.title for s in toc.extract_sections(data)] == ["Allegro"]
+
+
+def _barline_system(img: np.ndarray, ink_cols: list[tuple[int, int]], gaps: bool = False):
+    """A one-system page whose right end has the given inked column ranges."""
+    for a, b in ink_cols:
+        img[120:330, a:b] = 0
+        if gaps:  # scanned: the line is broken in places
+            img[150:175, a:b] = 255
+    systems = toc.page_systems(img)
+    return img < toc.INK, systems[0]
+
+
+def test_engraved_thin_barline_is_single():
+    """Anti-aliased engraved barlines render ~3 px wide: still a single bar."""
+    ink, system = _barline_system(_page(systems=1), [(737, 740)])
+    assert toc.barline_kind(ink, system) == "single"
+
+
+def test_scanned_broken_final_barline():
+    """Scans break barlines; thin + thick still reads as a final barline."""
+    ink, system = _barline_system(_page(systems=1), [(733, 734), (736, 740)], gaps=True)
+    assert toc.barline_kind(ink, system) == "final"
+
+
+def test_skewed_scan_is_straightened():
+    """A page scanned 1.5° off still has its staves found."""
+    gray = _page(systems=3)
+    skewed = np.asarray(Image.fromarray(gray).rotate(1.5, fillcolor=255))
+    assert toc.find_staves(skewed) == [] or len(toc.find_staves(skewed)) < 6
+    assert abs(toc.skew_angle(skewed) + 1.5) <= 0.25
+    data = _pdf_from_pages(skewed)
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(data)
+    try:
+        assert len(toc.page_systems(toc._render_gray(pdf[0]))) == 3
+    finally:
+        pdf.close()
+
+
+def test_dense_page_staff_threshold():
+    """Busy music fills many rows past the base threshold; a threshold
+    relative to the fullest row still separates the five lines."""
+    gray = _page(systems=2)
+    lines = np.flatnonzero((gray < toc.INK).mean(axis=1) > 0.5)
+    # Dense notes: every row inside each staff inked over ~35% of the width,
+    # so at the base threshold each staff is one solid band.
+    for y in lines:
+        if y + 10 in lines:
+            gray[y + 1 : y + 10, 100:380] = 0
+    assert toc._staves_from_fill(gray < toc.INK, (gray < toc.INK).mean(axis=1)) == []
+    assert len(toc.find_staves(gray)) == 4
+
+
+def test_sparse_outline_gets_detected_movements(monkeypatch):
+    """An outline listing whole works only (one entry per many pages) keeps
+    its entries and gains the titled movements detected inside them."""
+    pages = [_page(systems=2, final=(1,) if k == 2 else ()) for k in range(8)]
+    writer = PdfWriter(clone_from=io.BytesIO(_pdf_from_pages(*pages)))
+    writer.add_outline_item("Sonata No. 1", 0)
+    buf = io.BytesIO()
+    writer.write(buf)
+    heads = {1: ("Sonata I", ""), 5: ("Menuetto", "")}
+    calls = iter(range(1, 9))
+    monkeypatch.setattr(
+        toc, "ocr_headings", lambda gray, systems: _ocr(*heads.get(next(calls), ("", "")))
+    )
+    sections = toc.extract_sections(buf.getvalue())
+    # Page 1's own heading is the outline entry; page 4's barline-only start
+    # is left out; page 5's Menuetto is added.
+    assert [(s.page, s.title, s.source) for s in sections] == [
+        (1, "Sonata No. 1", "outline"),
+        (5, "Menuetto", "ocr"),
+    ]
+    assert all(s.incipit_png for s in sections)

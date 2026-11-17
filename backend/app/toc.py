@@ -40,11 +40,17 @@ RENDER_DPI = 100
 INK = 140
 # Fraction of the page width a pixel row must be inked to be a staff line.
 STAFF_LINE_FILL = 0.25
+# Extra thresholds, as fractions of the fullest row, for dense pages.
+DENSE_FILL_FRACTIONS = (0.6, 0.75)
 # Minimum horizontal run (px) for ink to count as part of a staff line.
 LINE_RUN_MIN = 24
 # Share of the gap between two staves a left barline/brace must cover for
 # them to be one system (scans break thin lines, so not 100%).
 JOIN_MIN_COVERAGE = 0.7
+# Share of a system's height a column must be inked to be part of a barline.
+BARLINE_MIN_COVERAGE = 0.6
+# Minimum width of a lone thick (final) barline, in staff spaces.
+THICK_BAR_SPACES = 0.4
 
 TEMPO_RE = re.compile(
     r"\b(allegr\w*|adagi\w*|andant\w*|prest\w*|larg\w*|lento|moderato|vivace|grave|"
@@ -61,7 +67,7 @@ TEMPO_ONLY_RE = re.compile(
 )
 PIECE_RE = re.compile(
     r"\b(sonat\w*|partita|suite|pr(?:[ée]|ae|æ|ee|[äa])lud\w*|pr(?:ae|æ|[äe])ambul\w*|fug\w*|puga|invention\w*|[ée]tude\w*|"
-    r"nocturne|mazurka|waltz|valse|impromptu|variat\w*|var\.\s*\d+|movement|satz|ballade|"
+    r"nocturne|mazurka|waltz|valse|impromptu|variat\w*|var\.(?:\s*(?:\d+|[ivxl]+\b))?|double|movement|satz|ballade|"
     r"fantasi\w*|toccata|concerto|op\.\s*\d+|no\.\s*\d+|nr\.\s*\d+|bwv\s*\d+|k\.\s*\d+)",
     re.IGNORECASE,
 )
@@ -201,19 +207,28 @@ def find_staves(gray: np.ndarray) -> list[Staff]:
     all ink (robust to scans whose staff lines are broken into short
     pieces) and only long horizontal runs (keeps the lines distinct on
     dense, heavily inked pages). False staves are rare either way thanks
-    to the five-evenly-spaced-lines check.
+    to the five-evenly-spaced-lines check. On dense pages (fast passages,
+    slightly skewed scans) many rows besides the staff lines pass the base
+    fill threshold and the lines merge into bands, so higher thresholds
+    relative to the page's fullest row are tried too.
     """
     ink = gray < INK
     _, w = ink.shape
-    by_all = _staves_from_fill(ink, ink.sum(axis=1) / w)
-    by_long = _staves_from_fill(ink, _long_horizontal(ink).sum(axis=1) / w)
-    return by_long if len(by_long) > len(by_all) else by_all
+    best: list[Staff] = []
+    for fill in (ink.sum(axis=1) / w, _long_horizontal(ink).sum(axis=1) / w):
+        for threshold in (STAFF_LINE_FILL, *(f * float(fill.max()) for f in DENSE_FILL_FRACTIONS)):
+            staves = _staves_from_fill(ink, fill, max(threshold, STAFF_LINE_FILL))
+            if len(staves) > len(best):
+                best = staves
+    return best
 
 
-def _staves_from_fill(ink: np.ndarray, fill: np.ndarray) -> list[Staff]:
+def _staves_from_fill(
+    ink: np.ndarray, fill: np.ndarray, threshold: float = STAFF_LINE_FILL
+) -> list[Staff]:
     """Staves from a row projection (fraction of each row that is ink)."""
     _, w = ink.shape
-    runs = _row_runs(fill > STAFF_LINE_FILL)
+    runs = _row_runs(fill > threshold)
     centers = [(a + b) / 2 for a, b in runs]
 
     # Staff-line spacing of this page, from the cleanly detected staves.
@@ -290,8 +305,17 @@ def barline_kind(ink: np.ndarray, system: System) -> str:
     w = ink.shape[1]
     x0, x1 = max(0, system.right - 10), min(w, system.right + 4)
     cov = ink[system.top : system.bottom + 1, x0:x1].mean(axis=0)
-    runs = _row_runs(cov > 0.8)
-    thick = any(b - a + 1 >= 3 for a, b in runs)
+    # Scanned barlines are broken and slightly skewed: 60% of the system
+    # height still rules out stems and beams, which cover one staff at most.
+    runs = _row_runs(cov > BARLINE_MIN_COVERAGE)
+    # Engraved PDFs render even thin barlines ~3 px wide (anti-aliasing):
+    # a lone line is thick only when it is about half a staff space wide;
+    # next to another line, when it is the wider of the two (thin + thick).
+    widths = [b - a + 1 for a, b in runs]
+    space = min((st.bottom - st.top) / 4 for st in system.staves)
+    thick = any(w >= max(4, THICK_BAR_SPACES * space) for w in widths) or (
+        len(widths) >= 2 and widths[-1] > widths[0]
+    )
     if not runs or (len(runs) < 2 and not thick):
         return "single"
     # Repeat dots: ink in the 2nd and 3rd staff spaces, left of the barline.
@@ -499,6 +523,122 @@ def clean_title(text: str) -> str:
     return " ".join(kept).strip(" .,")
 
 
+# Words that qualify a tempo / form heading ("Allegro ma non troppo",
+# "Canone alla Quinta", "Andante con moto"): kept inside a title.
+QUALIFIER_RE = re.compile(
+    r"(molto|assai|ma|non|troppo|con|moto|poco|più|piu|quasi|sostenuto|cantabile|espressivo|"
+    r"grazioso|giocoso|tranquillo|mosso|meno|sempre|vivo|brio|spirito|fuoco|un|e|ed|di|del|"
+    r"della|alla|all[’']?|al|il|lo|la|sehr|mässig|massig|nicht|zu|schnell|langsam|lebhaft|"
+    r"et|très|tres|un|peu|gai|gracieusement|tendrement|lentement|vivement|modéré|"
+    r"canon[ei]?|unisono|unisuono|seconda|terza|quarta|quinta|sexta|sesta|settima|ottava|"
+    r"nona|giga|fug[h]?etta|ouverture|quodlibet|delicatezza|tempo|primo)",
+    re.IGNORECASE,
+)
+# Catalogue / opus tokens: metadata, not part of a section title on
+# their own ("Kéchel Nr.545", "BWV873"); kept only right after a piece
+# word ("Sonata No. 3", "Var. 2").
+CATALOGUE_RE = re.compile(r"(op|no|nr|n°|bwv|k|kv|hob|d)\.?\s*[\dIVXL]", re.IGNORECASE)
+# "No." / "Op." in "Sonata No. 3": the number follows as its own token.
+NUMBER_PREFIX_RE = re.compile(r"(no|nr|op|n°)\.?", re.IGNORECASE)
+# French character-piece names: "La Joyeuse", "Les Tendres Plaintes",
+# "L'Enharmonique" (Rameau, Couperin...).
+NAMED_PIECE_RE = re.compile(
+    r"\b(?:L[ae]s?\s+|L[’'])[A-ZÀ-Ý][\w’'-]{3,}(?:\s+[A-ZÀ-Ýa-zà-ÿ][\w’'-]{2,}){0,2}"
+)
+
+
+def _core(token: str) -> str:
+    return token.strip(".,;:()’'\"«»")
+
+
+def _is_vocab(token: str) -> bool:
+    core = _core(token)
+    return bool(core) and bool(
+        TEMPO_RE.fullmatch(core)
+        or PIECE_RE.fullmatch(core)
+        or PIECE_RE.fullmatch(token.rstrip(","))
+    )
+
+
+def _title_word(token: str, names: bool) -> bool:
+    """Can ``token`` precede a heading word as part of the title?
+
+    Qualifiers ("Molto moderato", "Canone alla Quinta. Variatio 15") and,
+    before a piece/form word (``names``), capitalised names ("La Follette
+    Rondeau"); not footnote/metronome debris (ends with ")" or holds
+    digits) nor abbreviations ("Clav.", "Op.").
+    """
+    core = _core(token)
+    abbreviation = token.endswith(".") and len(core) <= 4 and not QUALIFIER_RE.fullmatch(core)
+    if not core or token.endswith(")") or re.search(r"\d", token) or abbreviation:
+        return False
+    if QUALIFIER_RE.fullmatch(core):
+        return True
+    return names and bool(re.fullmatch(r"(?:L[ae]s?|L[’']\w+|[A-ZÀ-Ý][a-zà-ÿ’'-]{2,})", core))
+
+
+def _bare_piece_word(token: str) -> bool:
+    """A piece word without its own number ("Variatio", not "Var.II")."""
+    core = _core(token)
+    piece = PIECE_RE.fullmatch(core) or PIECE_RE.fullmatch(core + ".")
+    return bool(core.isalpha() and piece and not TEMPO_RE.fullmatch(core))
+
+
+def tidy_title(text: str) -> str:
+    """Cut a heading down to its title phrase, dropping OCR debris.
+
+    OCR'd bands also catch footnotes ("im September 1828.)", "parts of
+    movement in song-form"), metronome marks ("108.)"), fingerings,
+    editor names and catalogue numbers. The title is the run of heading
+    vocabulary (tempo / form words and their qualifiers, a number right
+    after a piece word) from the first capitalised tempo or piece word,
+    plus a name just before a piece word ("La Follette Rondeau"). Text
+    without heading vocabulary is returned unchanged.
+    """
+    named = NAMED_PIECE_RE.search(text)
+    tokens = text.split()
+    anchors = [k for k, t in enumerate(tokens) if _is_vocab(t) and not CATALOGUE_RE.match(t)]
+    if not anchors:
+        return named.group(0) if named else text
+    # Headings are capitalised; footnote prose ("parts of movement") isn't.
+    start = end = next((k for k in anchors if _core(tokens[k])[:1].isupper()), anchors[0])
+    names = not TEMPO_ONLY_RE.search(tokens[start])
+    while start > 0 and _title_word(tokens[start - 1], names):
+        start -= 1
+    k = end + 1
+    while k < len(tokens):
+        tok, core = tokens[k], _core(tokens[k])
+        prev = tokens[k - 1]
+        after_piece = _bare_piece_word(prev) or NUMBER_PREFIX_RE.fullmatch(_core(prev))
+        number = re.fullmatch(r"\d{1,2}|[IVXL]+", core) or NUMBER_PREFIX_RE.fullmatch(core)
+        if (
+            _is_vocab(tok)
+            or (core and QUALIFIER_RE.fullmatch(core))
+            or (after_piece and (number or CATALOGUE_RE.match(tok)))
+        ):
+            end = k
+        else:
+            break
+        k += 1
+    # Trailing connectors ("Allegro ma") aren't part of the title.
+    while (
+        end > start and len(_core(tokens[end])) <= 3 and QUALIFIER_RE.fullmatch(_core(tokens[end]))
+    ):
+        end -= 1
+    # Nor are leading ones ("la Allegro" from stray OCR letters).
+    while (
+        start < end
+        and len(_core(tokens[start])) <= 2
+        and QUALIFIER_RE.fullmatch(_core(tokens[start]))
+    ):
+        start += 1
+    title = " ".join(tokens[start : end + 1]).strip(" .,;:")
+    if named and named.group(0) not in title:
+        name = named.group(0)
+        title = name if title in name else f"{name} {title}"
+    return title
+
+
 def is_heading(text: str) -> bool:
     """Does OCR'd text above a system look like a piece/movement heading?
 
@@ -508,7 +648,7 @@ def is_heading(text: str) -> bool:
     """
     return bool(
         text
-        and (PIECE_RE.search(text) or TEMPO_RE.search(text))
+        and (PIECE_RE.search(text) or TEMPO_RE.search(text) or NAMED_PIECE_RE.search(text))
         and not CONTINUATION_RE.search(text)
     )
 
@@ -747,9 +887,44 @@ def is_scanned(page: pdfium.PdfPage) -> bool:
     return False
 
 
+# Skew angles (degrees) tried when straightening scanned pages.
+SKEW_ANGLES = np.linspace(-2.0, 2.0, 17)
+
+
+def skew_angle(gray: np.ndarray) -> float:
+    """Rotation (degrees) that makes the page's staff lines horizontal.
+
+    Scans are often a degree or two off: each staff line then spreads over
+    several pixel rows and no row is inked enough to be found. The angle
+    whose row projection is the most peaked (sum of squares) wins.
+    """
+    small = Image.fromarray(((gray[::2, ::2] < INK) * 255).astype(np.uint8))
+
+    def peakedness(angle: float) -> float:
+        rows = np.asarray(small.rotate(angle, resample=Image.Resampling.NEAREST)).sum(axis=1)
+        return float((rows.astype(np.float64) ** 2).sum())
+
+    def score(angle: float) -> tuple[float, float]:
+        # Tiny rotations change nothing at this resolution: prefer the
+        # smallest angle among equally good ones.
+        return peakedness(angle), -abs(angle)
+
+    coarse = float(max(SKEW_ANGLES, key=score))
+    step = float(SKEW_ANGLES[1] - SKEW_ANGLES[0])
+    return float(max(np.linspace(coarse - step, coarse + step, 11), key=score))
+
+
 def _render_gray(page: pdfium.PdfPage) -> np.ndarray:
     bitmap = page.render(scale=RENDER_DPI / 72, grayscale=True)
-    return np.asarray(bitmap.to_pil().convert("L"))
+    gray = np.asarray(bitmap.to_pil().convert("L"))
+    angle = skew_angle(gray)
+    if abs(angle) < 0.05:
+        return gray
+    rotated = np.asarray(
+        Image.fromarray(gray).rotate(angle, resample=Image.Resampling.BILINEAR, fillcolor=255)
+    )
+    # Rotating blurs thin lines a little: keep it only when it finds more staves.
+    return rotated if len(find_staves(rotated)) > len(find_staves(gray)) else gray
 
 
 @dataclass
@@ -838,12 +1013,14 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
         else:
             heads, source = info.ocr, "ocr"
         page_starts = []
+        headed = 0
         for j, head in enumerate(heads):
             src = source
             if src == "text" and not head.text and info.ocr:
                 # Scan with a hidden text layer that has no heading here.
                 head, src = info.ocr[j], "ocr"
             title = head.text if src == "text" else clean_title(head.text)
+            headed += is_heading(title)
             if CONTINUATION_RE.search(title):
                 # "Segue la Fuga" closes a piece: what follows on this
                 # page (an ossia, a variant) doesn't open one.
@@ -857,7 +1034,9 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
                 or (src == "text" and j == 0)
                 or _tempo_opens(head, info.systems[j], prev_kind != "single")
             ):
-                page_starts.append((j, title, src))
+                # Text-layer headings are clean already; OCR'd ones carry
+                # debris from the whole band.
+                page_starts.append((j, title if src == "text" else tidy_title(title), src))
             elif prev_kind == "final" and not _split_half(info.systems[j], prev_bottom):
                 # A final barline (thin + thick) closed the previous piece:
                 # this system opens the next one even if its heading (e.g. a
@@ -866,7 +1045,6 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
             prev_kind = kinds[j]
             prev_bottom = info.systems[j].bottom
         prev_kind, prev_bottom = kinds[-1], None
-        headed = sum(1 for _, _, src in page_starts if src != "layout")
         if headed >= INDEX_PAGE_MIN_HEADINGS and headed * 2 >= len(info.systems):
             # A page where most systems have a heading is an edition's index
             # of incipits / contents page, not music to navigate to; what
@@ -878,6 +1056,34 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
     return starts
 
 
+# An outline with fewer entries than one per this many pages lists whole
+# works only (e.g. "Sonata No. 1", "Sonata No. 2"...): their movements are
+# detected too and listed under each entry.
+OUTLINE_SPARSE_PAGES = 8
+
+
+def _sparse_outline(outline: list[DetectedSection], n_pages: int) -> bool:
+    return n_pages >= OUTLINE_SPARSE_PAGES * len(outline)
+
+
+def _merge_outline(
+    outline: list[DetectedSection], detected: list[tuple[int, int, DetectedSection]]
+) -> list[DetectedSection]:
+    """Outline entries plus the titled sections detected inside them.
+
+    A detection at the top of an outline entry's page is that entry itself;
+    untitled (barline-only) detections would be meaningless numbers next to
+    the outline's titles, so they are left out.
+    """
+    first_pages = {sec.page for sec in outline}
+    keyed = [((sec.page, -1), sec) for sec in outline]
+    for page, sys_idx, sec in detected:
+        if sec.source == "layout" or (page in first_pages and sys_idx == 0):
+            continue
+        keyed.append(((page, sys_idx), sec))
+    return [sec for _, sec in sorted(keyed, key=lambda item: item[0])]
+
+
 def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection]:
     """Detect section starts (with incipits) in a score PDF."""
     outline = outline_sections(data)
@@ -885,13 +1091,13 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
     try:
         n = min(len(pdf), max_pages)
 
-        if outline:
-            for sec in outline:
-                if sec.page <= n:
-                    gray = _render_gray(pdf[sec.page - 1])
-                    systems = page_systems(gray)
-                    if systems:
-                        sec.incipit_png = crop_incipit(gray, systems[0])
+        for sec in outline:
+            if sec.page <= n:
+                gray = _render_gray(pdf[sec.page - 1])
+                systems = page_systems(gray)
+                if systems:
+                    sec.incipit_png = crop_incipit(gray, systems[0])
+        if outline and not _sparse_outline(outline, n):
             return outline
 
         # Pass 1: per-page features only (rendered pages are ~1 MB each, so a
@@ -912,19 +1118,20 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
         # Pass 2: re-render only the pages that need an incipit crop.
         starts = _find_starts(pages)
         titles = normalize_titles([title for _, _, title, _ in starts])
-        sections: list[DetectedSection] = []
+        detected: list[tuple[int, int, DetectedSection]] = []
         for (info, sys_idx, _, source), title in zip(starts, titles, strict=True):
             if title is None:
                 continue
             gray = _render_gray(pdf[info.number - 1])
-            sections.append(
-                DetectedSection(
-                    title=title or str(len(sections) + 1),
-                    page=info.number,
-                    source=source,
-                    incipit_png=crop_incipit(gray, info.systems[sys_idx]),
-                )
+            sec = DetectedSection(
+                title=title or str(len(detected) + 1),
+                page=info.number,
+                source=source,
+                incipit_png=crop_incipit(gray, info.systems[sys_idx]),
             )
-        return sections
+            detected.append((info.number, sys_idx, sec))
+        if outline:
+            return _merge_outline(outline, detected)
+        return [sec for _, _, sec in detected]
     finally:
         pdf.close()
