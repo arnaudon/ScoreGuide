@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
@@ -11,6 +11,7 @@
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
+	import InfoIcon from '@lucide/svelte/icons/info';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -50,6 +51,13 @@
 	let manualFiles = $state<FileList | undefined>();
 	let imslpFiles = $state<FileList | undefined>();
 	let selectedScore = $derived(data.scores.find((s: Score) => s.id === selectedScoreId));
+
+	function openDetails(id: number) {
+		selectedScoreId = id;
+		recompleteError = null;
+		deleteError = null;
+		sheetOpen = true;
+	}
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
 	let sorting = $state<SortingState>([]);
@@ -534,6 +542,7 @@
 								{/if}
 							</Table.Head>
 						{/each}
+						<Table.Head><span class="sr-only">{m.view_details()}</span></Table.Head>
 					</Table.Row>
 				{/each}
 			</Table.Header>
@@ -544,22 +553,32 @@
 						row.original.id
 							? 'bg-muted'
 							: ''}"
-						onclick={() => {
-							selectedScoreId = row.original.id;
-							recompleteError = null;
-							deleteError = null;
-							sheetOpen = true;
-						}}
+						onclick={() => goto(resolve('/reader/[id]', { id: String(row.original.id) }))}
 					>
 						{#each row.getVisibleCells() as cell (cell.id)}
 							<Table.Cell class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]">
 								<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
 							</Table.Cell>
 						{/each}
+						<Table.Cell class="w-0 py-1 text-right">
+							<!-- The row opens the score; this opens its details instead. -->
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={m.view_details()}
+								title={m.view_details()}
+								onclick={(e: MouseEvent) => {
+									e.stopPropagation();
+									openDetails(row.original.id);
+								}}
+							>
+								<InfoIcon class="size-4" />
+							</Button>
+						</Table.Cell>
 					</Table.Row>
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={columns.length} class="text-muted-foreground py-4 text-center">
+						<Table.Cell colspan={columns.length + 1} class="text-muted-foreground py-4 text-center">
 							{m.no_scores_found()}
 						</Table.Cell>
 					</Table.Row>
