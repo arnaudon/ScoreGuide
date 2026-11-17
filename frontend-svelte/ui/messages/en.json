@@ -269,5 +269,8 @@
 	"err_demo_unavailable": "The demo is not available right now.",
 	"demo_agent_found": "Here's what I found in the demo library ({count}):",
 	"demo_agent_fallback": "This is the demo: I give scripted answers here. Try “a Bach score”, “something easy” or “a sonata”. In the meantime, here is the whole library ({count} scores):",
-	"toggle_theme": "Switch light / dark mode"
+	"toggle_theme": "Switch light / dark mode",
+	"reader_tabs": "Open scores",
+	"tab_close": "Close {title}",
+	"tab_open_another": "Open another score"
 }

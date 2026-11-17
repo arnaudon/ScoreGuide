@@ -269,5 +269,8 @@
 	"err_demo_unavailable": "La démo n'est pas disponible pour le moment.",
 	"demo_agent_found": "Voici ce que j'ai trouvé dans la bibliothèque de démo ({count}) :",
 	"demo_agent_fallback": "Ceci est la démo : mes réponses sont préparées à l'avance. Essayez « une partition de Bach », « quelque chose de facile » ou « une sonate ». En attendant, voici toute la bibliothèque ({count} partitions) :",
-	"toggle_theme": "Basculer mode clair / sombre"
+	"toggle_theme": "Basculer mode clair / sombre",
+	"reader_tabs": "Partitions ouvertes",
+	"tab_close": "Fermer {title}",
+	"tab_open_another": "Ouvrir une autre partition"
 }

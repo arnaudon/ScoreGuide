@@ -13,6 +13,7 @@
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import ScoreContents from '#lib/components/ScoreContents.svelte';
 	import ScoreViewer from '#lib/components/ScoreViewer.svelte';
+	import ReaderTabs from '#lib/components/ReaderTabs.svelte';
 	import AnnotationLayer, { type Tool } from '#lib/components/AnnotationLayer.svelte';
 	import AnnotationTools, { COLORS } from '#lib/components/AnnotationTools.svelte';
 	import { annotationsApi, localAnnotationsApi } from '#lib/annotations.js';
@@ -101,6 +102,12 @@
 <div
 	class="flex h-[calc(100dvh-5rem)] min-h-[28rem] w-full flex-col gap-4 p-1 sm:p-2 lg:h-[calc(100dvh-8rem)]"
 >
+	<ReaderTabs
+		currentId={Number(appPage.params.id)}
+		current={data.score?.id
+			? { id: data.score.id, title: data.score.title ?? '', composer: data.score.composer ?? '' }
+			: null}
+	/>
 	{#if data.score}
 		<header class="flex items-center justify-between gap-3">
 			<div class="min-w-0">
@@ -197,61 +204,67 @@
 			{/if}
 			<div class="bg-card shadow-card relative min-h-0 flex-1 overflow-hidden rounded-md border">
 				{#if pdfUrl}
-					<ScoreViewer
-						bind:this={viewer}
-						bind:page={currentPage}
-						url={pdfUrl}
-						storageKey={`reader.page.${data.score.id}`}
-						label={data.score.title ?? 'PDF'}
-						interactive={tool === null}
-					>
-						{#snippet overlay({ page, width, height })}
-							{#if notes}
-								<AnnotationLayer
-									{width}
-									{height}
-									items={notes.forPage(page)}
-									{tool}
-									color={penColor}
-									onCreate={(d) => notes.create(page, d)}
-									onUpdate={(id, d) => notes.update(id, d)}
-									onDelete={(id) => notes.remove(id)}
-								/>
-							{/if}
-						{/snippet}
-						{#snippet tools()}
-							{#if notes}
-								<AnnotationTools
-									bind:tool
-									bind:color={penColor}
-									canUndo={notes.canUndo}
-									onUndo={() => notes.undo()}
-								/>
-							{/if}
-						{/snippet}
-						{#snippet banner()}
-							{#if notes?.error}
-								<div
-									role="alert"
-									class="bg-destructive text-destructive-foreground flex items-center gap-3 rounded-md px-3 py-2 text-sm shadow-lg"
-								>
-									{notes.error === 'load' ? m.annotations_load_error() : m.annotations_save_error()}
-									<button type="button" class="underline" onclick={() => notes?.dismissError()}
-										>{m.dismiss()}</button
+					<!-- A fresh viewer per score (tabs switch scores in place), so the
+					     page it restores and saves never leaks from one to the next. -->
+					{#key data.score.id}
+						<ScoreViewer
+							bind:this={viewer}
+							bind:page={currentPage}
+							url={pdfUrl}
+							storageKey={`reader.page.${data.score.id}`}
+							label={data.score.title ?? 'PDF'}
+							interactive={tool === null}
+						>
+							{#snippet overlay({ page, width, height })}
+								{#if notes}
+									<AnnotationLayer
+										{width}
+										{height}
+										items={notes.forPage(page)}
+										{tool}
+										color={penColor}
+										onCreate={(d) => notes.create(page, d)}
+										onUpdate={(id, d) => notes.update(id, d)}
+										onDelete={(id) => notes.remove(id)}
+									/>
+								{/if}
+							{/snippet}
+							{#snippet tools()}
+								{#if notes}
+									<AnnotationTools
+										bind:tool
+										bind:color={penColor}
+										canUndo={notes.canUndo}
+										onUndo={() => notes.undo()}
+									/>
+								{/if}
+							{/snippet}
+							{#snippet banner()}
+								{#if notes?.error}
+									<div
+										role="alert"
+										class="bg-destructive text-destructive-foreground flex items-center gap-3 rounded-md px-3 py-2 text-sm shadow-lg"
 									>
-								</div>
-							{/if}
-						{/snippet}
-						{#snippet contents(goTo)}
-							<ScoreContents
-								toc={data.toc}
-								error={!!form?.tocError}
-								canNavigate
-								{currentPage}
-								onSelect={goTo}
-							/>
-						{/snippet}
-					</ScoreViewer>
+										{notes.error === 'load'
+											? m.annotations_load_error()
+											: m.annotations_save_error()}
+										<button type="button" class="underline" onclick={() => notes?.dismissError()}
+											>{m.dismiss()}</button
+										>
+									</div>
+								{/if}
+							{/snippet}
+							{#snippet contents(goTo)}
+								<ScoreContents
+									toc={data.toc}
+									error={!!form?.tocError}
+									canNavigate
+									{currentPage}
+									onSelect={goTo}
+								/>
+							{/snippet}
+						</ScoreViewer>
+					{/key}
 				{:else}
 					<div class="text-muted-foreground flex h-full items-center justify-center">
 						{m.no_pdf_available()}
