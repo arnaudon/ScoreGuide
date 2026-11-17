@@ -391,8 +391,8 @@ def test_scan_hidden_text_layer_falls_back_to_ocr(monkeypatch):
     monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
     sections = toc.extract_sections(data)
     assert [(s.page, s.source, s.title) for s in sections] == [
-        (1, "text", "Praeludium"),
-        (2, "ocr", "Fuga II"),
+        (1, "text", "Praeludium 2"),
+        (2, "ocr", "Fuga 2"),
     ]
 
 
@@ -451,3 +451,89 @@ def test_text_index_page_is_skipped():
         toc.TextLine(f"Fuga {k}", _above(h, s), 14) for k, s in enumerate(probe.systems[1:])
     ]
     assert toc._find_starts([_text_page(1, lines)]) == []
+
+
+def test_normalize_titles_prelude_and_fugue():
+    """Noisy OCR headings become "<Kind> <n>" with one spelling per kind;
+    fugues take their prelude's number; untitled starts are checked
+    against the prelude/fugue alternation."""
+    titles = [
+        "BWV870 Prelude",  # numbered back from the next piece
+        "Fuga",
+        "BWV di Bach Præludium 2. pp",
+        "Fuga 43 LN LS",  # "à 3" misread as part of the number
+        "",  # a missing piece: Prelude 3
+        "",  # misdetection after it
+        "Fuga 3 à 3",
+        "YU, BWV873 Prelude",
+        "",  # inside a complete pair: misdetection
+        "Fughetta",
+        "BWV874 Fassung di Bach Preeludium 6",  # skipped a piece: kept
+        "Prélude XXI",  # far off the sequence: continued instead
+        "Puga 2443",
+        "Prelude et Fugue 1.",  # an appendix restarts at 1
+        "Sonata No. 1",
+        "",
+    ]
+    assert toc.normalize_titles(titles) == [
+        "Prelude 1",
+        "Fuga 1",
+        "Prelude 2",
+        "Fuga 2",
+        "Prelude 3",
+        None,
+        "Fuga 3",
+        "Prelude 4",
+        None,
+        "Fuga 4",
+        "Prelude 6",
+        "Prelude 7",
+        "Fuga 7",
+        "Prelude 1",
+        "Sonata No. 1",
+        "",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("titles", "expected"),
+    [
+        (["Preludio", "Fuge"], ["Preludio", "Fuge"]),
+        (["Fugue No. 2", "Fuga"], ["Fugue 2", "Fugue 3"]),
+        (["Praeambulum I"], ["Praeambulum 1"]),
+        (["Fuga IIII"], ["Fuga"]),  # not a Roman numeral
+        (["Fuga XIV"], ["Fuga 14"]),
+        (["Praelud j"], ["Praeludium"]),
+        (["Fuga 1", "Praeludium", "Fuga II"], ["Fuga 1", "Praeludium 2", "Fuga 2"]),
+        (["Fuga 8", "", "Fuga 10"], ["Fuga 8", "", "Fuga 10"]),  # not a clear gap
+        (["Fuga 8", "", "Sonata", "Fuga 9"], ["Fuga 8", "", "Sonata", "Fuga 9"]),
+        (["Praeludium 1", "", "Praeludium 2"], ["Praeludium 1", "Fuga 1", "Praeludium 2"]),
+        (["Fuga", "Prelude 1"], ["Fuga", "Prelude 1"]),
+        (["", "Fuga 1"], ["", "Fuga 1"]),
+    ],
+)
+def test_normalize_titles_cases(titles, expected):
+    assert toc.normalize_titles(titles) == expected
+
+
+def test_extract_sections_drops_misdetections(monkeypatch):
+    """A final barline misread inside a prelude doesn't add an entry, and a
+    'Segue la Fuga' direction doesn't open the system below it."""
+    data = _pdf_from_pages(_page(systems=2, final=(1,)), _page(systems=2), _page(systems=2))
+    page_heads = iter(
+        [
+            _ocr("Praeludium 1.", "Segue la Fuga"),
+            _ocr("", ""),  # after the (misread) final barline
+            _ocr("Fuga à 3", ""),
+        ]
+    )
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
+    sections = toc.extract_sections(data)
+    assert [(s.page, s.title) for s in sections] == [(1, "Praeludium 1"), (3, "Fuga 1")]
+
+
+def test_continuation_notes_are_not_headings():
+    """'Segue la Fuga' ends a prelude: it must not open a section."""
+    assert not toc.is_heading("Segue la Fuga")
+    assert not toc.is_heading("attacca subito la Fuga")
+    assert toc.is_heading("Fuga 3")

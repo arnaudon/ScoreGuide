@@ -60,7 +60,7 @@ TEMPO_ONLY_RE = re.compile(
     re.IGNORECASE,
 )
 PIECE_RE = re.compile(
-    r"\b(sonat\w*|partita|suite|pr(?:[ée]|ae|æ|[äa])lud\w*|pr(?:ae|æ|[äe])ambul\w*|fug\w*|invention\w*|[ée]tude\w*|"
+    r"\b(sonat\w*|partita|suite|pr(?:[ée]|ae|æ|ee|[äa])lud\w*|pr(?:ae|æ|[äe])ambul\w*|fug\w*|puga|invention\w*|[ée]tude\w*|"
     r"nocturne|mazurka|waltz|valse|impromptu|variat\w*|var\.\s*\d+|movement|satz|ballade|"
     r"fantasi\w*|toccata|concerto|op\.\s*\d+|no\.\s*\d+|nr\.\s*\d+|bwv\s*\d+|k\.\s*\d+)",
     re.IGNORECASE,
@@ -503,9 +503,14 @@ def is_heading(text: str) -> bool:
     """Does OCR'd text above a system look like a piece/movement heading?
 
     Only real heading vocabulary counts: bare numbers or Roman numerals are
-    too often OCR debris from stems, barlines and fingerings.
+    too often OCR debris from stems, barlines and fingerings. Directions
+    like "Segue la Fuga" end a piece rather than open one.
     """
-    return bool(text and (PIECE_RE.search(text) or TEMPO_RE.search(text)))
+    return bool(
+        text
+        and (PIECE_RE.search(text) or TEMPO_RE.search(text))
+        and not CONTINUATION_RE.search(text)
+    )
 
 
 def is_tempo_only(text: str) -> bool:
@@ -514,6 +519,162 @@ def is_tempo_only(text: str) -> bool:
     return bool(TEMPO_ONLY_RE.search(text)) and not (
         PIECE_RE.search(stripped) or TEMPO_RE.search(stripped)
     )
+
+
+# --- title normalisation -----------------------------------------------------
+
+# Pieces of numbered prelude & fugue collections (WTC, Shostakovich op. 87,
+# ...): OCR'd headings around them are noisy ("BWV873 Prelude Cisb av I"),
+# so their titles are rebuilt as "<Kind> <number>".
+PRELUDE_RE = re.compile(
+    r"\b(pr(?:ae|æ|ä|a|ee)lud\w*|pr[ée]lud[ei]\w*|pr(?:ae|æ|ä|e)ambul\w*)", re.I
+)
+FUGUE_RE = re.compile(r"\b(fughett\w*|fug(?:a|ue|e)\b|puga\b)", re.I)
+# Directions to carry on into the next piece ("Segue la Fuga", "attacca
+# subito la Fuga"): printed at the end of a piece, never a heading.
+CONTINUATION_RE = re.compile(r"\b(segue|attacca|volti|folgt|suivez|suit)\b", re.I)
+# A piece number printed right after the kind word: "Fuga 2", "Fuga II.",
+# "Prelude No. 3" (not "Fuga à 3", which counts voices).
+_NUMBER_AFTER = r"\s*(?:no\.?|nr\.?|n°)?\s*(\d{1,2}|[IVXL]{1,6})\b\.?"
+MAX_PIECE_NUMBER = 48
+# A printed number may skip at most this many pieces ahead of the sequence.
+MAX_NUMBER_SKIP = 2
+_ROMAN = {"I": 1, "V": 5, "X": 10, "L": 50}
+
+
+def _roman_value(text: str) -> int | None:
+    if not ROMAN_RE.match(text):
+        return None
+    total = 0
+    for a, b in zip(text, text[1:] + " ", strict=True):
+        v = _ROMAN[a]
+        total += -v if b in _ROMAN and _ROMAN[b] > v else v
+    return total
+
+
+def _canonical_kind(word: str) -> str:
+    """Clean, consistent spelling of a prelude/fugue word from a heading."""
+    low = word.lower()
+    if low.startswith("fughett"):
+        return "Fughetta"
+    if low.startswith(("fug", "pug")):
+        return {"fugue": "Fugue", "fuge": "Fuge"}.get(low, "Fuga")
+    if "ambul" in low:
+        return "Praeambulum"
+    if re.match(r"pr[ée]lud", low):
+        return {"preludio": "Preludio", "prélude": "Prélude"}.get(low, "Prelude")
+    return "Praeludium"
+
+
+def _piece_number(title: str, match: re.Match[str]) -> int | None:
+    """The piece number printed after the kind word, if plausible."""
+    m = re.match(_NUMBER_AFTER, title[match.end() :], re.I)
+    if not m:
+        return None
+    raw = m.group(1)
+    n = int(raw) if raw.isdigit() else _roman_value(raw.upper())
+    return n if n and 1 <= n <= MAX_PIECE_NUMBER else None
+
+
+def _prelude_or_fugue(title: str) -> tuple[str, str, int | None] | None:
+    """("prelude" | "fugue", canonical kind word, number) of a heading.
+
+    A combined heading ("Praeludium und Fuga 2, c-Moll") opens with the
+    prelude; its number is the first one after either word.
+    """
+    pre, fug = PRELUDE_RE.search(title), FUGUE_RE.search(title)
+    first = min((m for m in (pre, fug) if m), key=lambda m: m.start(), default=None)
+    if first is None:
+        return None
+    number = next((n for m in (pre, fug) if m and (n := _piece_number(title, m))), None)
+    family = "prelude" if first is pre else "fugue"
+    return family, _canonical_kind(first.group(1)), number
+
+
+def _number_pieces(parsed: list[tuple[str, str, int | None] | None]) -> list[int | None]:
+    """Piece number of every prelude/fugue, consistent with its neighbours.
+
+    A fugue takes the number of the prelude just before it (its own printed
+    number is often misread, e.g. "Fuga 2 à 3" → "2443", or absent). Other
+    numbers follow the sequence unless printed close ahead of it (a piece
+    may have been missed) or printed as 1 (an appendix restarts). Leading
+    unnumbered pieces are numbered back from the first known number.
+    """
+    numbers: list[int | None] = []
+    current: int | None = None
+    last_family = ""
+    for p in parsed:
+        if p is None:
+            numbers.append(None)
+            continue
+        family, _, number = p
+        following = current + 1 if current is not None else None
+        if family == "fugue" and last_family == "prelude" and current is not None:
+            number = current
+        elif following is not None and (
+            number is None
+            or not (number == 1 or following <= number <= following + MAX_NUMBER_SKIP)
+        ):
+            number = following
+        current, last_family = number, family
+        numbers.append(number)
+    nxt: tuple[str, int] | None = None
+    for k in range(len(parsed) - 1, -1, -1):
+        p = parsed[k]
+        if p is None:
+            continue
+        if numbers[k] is None and nxt is not None:
+            same_pair = p[0] == "prelude" and nxt[0] == "fugue"
+            guess = nxt[1] if same_pair else nxt[1] - 1
+            numbers[k] = guess if guess >= 1 else None
+        n = numbers[k]
+        nxt = (p[0], n) if n is not None else None
+    return numbers
+
+
+def _most_common_word(parsed: list[tuple[str, str, int | None] | None], family: str) -> str:
+    words = [p[1] for p in parsed if p and p[0] == family]
+    default = "Praeludium" if family == "prelude" else "Fuga"
+    return max(words, key=words.count) if words else default
+
+
+def normalize_titles(titles: list[str]) -> list[str | None]:
+    """Rebuild prelude/fugue titles as "<Kind> <n>", dropping OCR debris.
+
+    Each family gets one spelling (the document's most common one), so the
+    list reads consistently. Untitled starts (from final barlines) between
+    two numbered pieces are checked against the prelude/fugue alternation:
+    one in place of a missing piece takes its title, the others are
+    misdetections (e.g. an unreadable repeat barline inside a prelude) and
+    come back as None, to be dropped. Other titles are left untouched.
+    """
+    parsed = [_prelude_or_fugue(t) if t else None for t in titles]
+    numbers = _number_pieces(parsed)
+    words = {f: _most_common_word(parsed, f) for f in ("prelude", "fugue")}
+    out: list[str | None] = list(titles)
+    for k, p in enumerate(parsed):
+        if p is not None:
+            out[k] = f"{words[p[0]]} {numbers[k]}" if numbers[k] else words[p[0]]
+
+    known = [k for k, p in enumerate(parsed) if p is not None and numbers[k] is not None]
+    for a, b in zip(known, known[1:], strict=False):
+        gap = [k for k in range(a + 1, b) if not titles[k]]
+        if not gap or len(gap) != b - a - 1:
+            continue
+        fam_a, fam_b = parsed[a][0], parsed[b][0]  # type: ignore[index]
+        n_a, n_b = numbers[a], numbers[b]
+        assert n_a is not None and n_b is not None
+        missing = ("fugue", n_a) if fam_a == "prelude" else ("prelude", n_a + 1)
+        after_missing = ("prelude", n_a + 1) if fam_a == "prelude" else ("fugue", n_a + 1)
+        if (fam_b, n_b) == missing:
+            labels: list[str | None] = [None] * len(gap)
+        elif (fam_b, n_b) == after_missing:
+            labels = [f"{words[missing[0]]} {missing[1]}"] + [None] * (len(gap) - 1)
+        else:
+            continue
+        for k, label in zip(gap, labels, strict=True):
+            out[k] = label
+    return out
 
 
 # --- outline ---------------------------------------------------------------
@@ -683,6 +844,12 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
                 # Scan with a hidden text layer that has no heading here.
                 head, src = info.ocr[j], "ocr"
             title = head.text if src == "text" else clean_title(head.text)
+            if CONTINUATION_RE.search(title):
+                # "Segue la Fuga" closes a piece: what follows on this
+                # page (an ossia, a variant) doesn't open one.
+                prev_kind = kinds[j]
+                prev_bottom = info.systems[j].bottom
+                continue
             if is_heading(title) and (
                 not is_tempo_only(title)
                 # A tempo heading at the very top of a text page is the
@@ -743,20 +910,21 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
             pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr, kinds))
 
         # Pass 2: re-render only the pages that need an incipit crop.
+        starts = _find_starts(pages)
+        titles = normalize_titles([title for _, _, title, _ in starts])
         sections: list[DetectedSection] = []
-        for info, sys_idx, title, source in _find_starts(pages):
+        for (info, sys_idx, _, source), title in zip(starts, titles, strict=True):
+            if title is None:
+                continue
             gray = _render_gray(pdf[info.number - 1])
             sections.append(
                 DetectedSection(
-                    title=title,
+                    title=title or str(len(sections) + 1),
                     page=info.number,
                     source=source,
                     incipit_png=crop_incipit(gray, info.systems[sys_idx]),
                 )
             )
-        for k, sec in enumerate(sections, start=1):
-            if not sec.title:
-                sec.title = str(k)
         return sections
     finally:
         pdf.close()
