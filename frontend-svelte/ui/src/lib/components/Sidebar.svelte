@@ -93,7 +93,8 @@
 				>
 					{#snippet child({ props })}
 						<form method="POST" action="/logout" use:enhance>
-							<button type="submit" aria-label={m.nav_logout()} {...props}>
+							<!-- After the spread: the tooltip trigger sets type="button". -->
+							<button {...props} type="submit" aria-label={m.nav_logout()}>
 								<LogOut />
 								<span class="md:sr-only">{m.nav_logout()}</span>
 							</button>

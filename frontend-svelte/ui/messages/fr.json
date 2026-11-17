@@ -272,5 +272,6 @@
 	"toggle_theme": "Basculer mode clair / sombre",
 	"reader_tabs": "Partitions ouvertes",
 	"tab_close": "Fermer {title}",
-	"tab_open_another": "Ouvrir une autre partition"
+	"tab_open_another": "Ouvrir une autre partition",
+	"demo_login": "J'ai déjà un compte"
 }

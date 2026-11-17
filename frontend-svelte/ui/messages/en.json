@@ -272,5 +272,6 @@
 	"toggle_theme": "Switch light / dark mode",
 	"reader_tabs": "Open scores",
 	"tab_close": "Close {title}",
-	"tab_open_another": "Open another score"
+	"tab_open_another": "Open another score",
+	"demo_login": "I already have an account"
 }
