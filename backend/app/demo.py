@@ -4,7 +4,7 @@ Usage (from ``backend/``, or ``docker compose exec backend``)::
 
     python -m app.demo 12 34 56
     python -m app.demo --catalog            # built-in public-domain piano pieces
-    python -m app.demo --catalog --if-empty # same, but leave a filled demo alone
+    python -m app.demo --catalog --if-changed  # only if the demo doesn't match it
 
 Creates the ``DEMO_USERNAME`` user (role ``demo``, no password, so it can
 only be reached through ``POST /demo-login``) if needed, and gives it a copy
@@ -20,6 +20,7 @@ from collections.abc import Callable
 from typing import Any
 
 import httpx
+import pypdf
 from sqlmodel import Session, select
 
 from app import annotations, config, sections
@@ -31,7 +32,8 @@ from shared.user import User
 MUTOPIA = "https://www.mutopiaproject.org/ftp"
 
 # Public-domain engravings from the Mutopia Project (license checked in each
-# piece's LilyPond source). ``pdf_url`` is fetched at seed time, not vendored.
+# piece's LilyPond source). ``pdf_url`` is fetched at seed time, not vendored;
+# a list of URLs is joined into one PDF (one movement per file).
 CATALOG: list[dict[str, Any]] = [
     {
         "pdf_url": f"{MUTOPIA}/BachJS/BWV846/wtk1-prelude1/wtk1-prelude1-a4.pdf",
@@ -79,6 +81,33 @@ CATALOG: list[dict[str, Any]] = [
             "Le doux refrain en la mineur revient entre deux épisodes contrastés : l'un "
             "lyrique en fa majeur, l'autre plus agité sur une basse répétée. Tout l'enjeu "
             "est de garder le refrain léger et chantant."
+        ),
+    },
+    {
+        "pdf_url": [
+            f"{MUTOPIA}/BeethovenLv/O13/pathetique-{n}/pathetique-{n}-a4.pdf" for n in (1, 2, 3)
+        ],
+        "title": "Piano Sonata No. 8 in C minor, Op. 13 “Pathétique”",
+        "composer": "Ludwig van Beethoven",
+        "year": 1798,
+        "period": Period.Classical,
+        "genre": "Keyboard",
+        "form": "Sonata",
+        "key": "C minor",
+        "difficulty": Difficulty.advanced,
+        "notable_interpreters": "Wilhelm Kempff, Emil Gilels, Daniel Barenboim",
+        "short_description": "Beethoven's dramatic early sonata, in three movements.",
+        "short_description_fr": "La sonate dramatique de jeunesse de Beethoven, en 3 mouvements.",
+        "long_description": (
+            "A slow, weighty Grave introduction bursts into a stormy Allegro; the "
+            "Adagio cantabile is one of Beethoven's most beloved melodies; the Rondo "
+            "closes with restless energy. Use the contents to jump between movements."
+        ),
+        "long_description_fr": (
+            "Une introduction Grave, lente et pesante, débouche sur un Allegro "
+            "tempétueux ; l'Adagio cantabile est l'une des mélodies les plus aimées de "
+            "Beethoven ; le Rondo conclut avec une énergie fébrile. La table des "
+            "matières permet de passer d'un mouvement à l'autre."
         ),
     },
     {
@@ -228,23 +257,47 @@ def _download(url: str) -> bytes:  # pragma: no cover - network
     return resp.content
 
 
+def _fetch_pdf(url: str | list[str], fetch: Callable[[str], bytes]) -> bytes:
+    urls = [url] if isinstance(url, str) else url
+    parts = []
+    for u in urls:
+        data = fetch(u)
+        if not data.startswith(b"%PDF"):
+            raise ValueError(f"Not a PDF: {u}")
+        parts.append(data)
+    if len(parts) == 1:
+        return parts[0]
+    writer = pypdf.PdfWriter()
+    for part in parts:
+        writer.append(io.BytesIO(part))
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+def _catalog_matches(user: User, session: Session) -> bool:
+    have = sorted(
+        (s.composer, s.title) for s in session.exec(select(Score).where(Score.user_id == user.id))
+    )
+    return have == sorted((e["composer"], e["title"]) for e in CATALOG)
+
+
 def seed_catalog(
-    session: Session, *, if_empty: bool = False, fetch: Callable[[str], bytes] = _download
+    session: Session, *, if_changed: bool = False, fetch: Callable[[str], bytes] = _download
 ) -> list[Score]:
     """Replace the demo library with the built-in :data:`CATALOG`.
 
-    With ``if_empty``, a demo account that already has scores is left alone
-    (so a hand-picked library survives redeploys) and ``[]`` is returned.
+    With ``if_changed``, a demo library that already holds exactly the
+    catalog's pieces is left alone (redeploys don't re-download) and ``[]``
+    is returned; any other library, including an empty one, is replaced.
     """
     user = get_or_create_demo_user(session)
-    if if_empty and session.exec(select(Score).where(Score.user_id == user.id)).first():
+    if if_changed and _catalog_matches(user, session):
         return []
     fresh = []
     for entry in CATALOG:
         fields = {k: v for k, v in entry.items() if k != "pdf_url"}
-        data = fetch(entry["pdf_url"])
-        if not data.startswith(b"%PDF"):
-            raise ValueError(f"Not a PDF: {entry['pdf_url']}")
+        data = _fetch_pdf(entry["pdf_url"], fetch)
         pdf_path = f"{uuid.uuid4().hex}.pdf"
         file_helper.upload_pdf(pdf_path, io.BytesIO(data))
         fresh.append(
@@ -267,7 +320,9 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         "--catalog", action="store_true", help="use the built-in public-domain pieces"
     )
     parser.add_argument(
-        "--if-empty", action="store_true", help="with --catalog: skip if the demo has scores"
+        "--if-changed",
+        action="store_true",
+        help="with --catalog: skip if the demo already holds the catalog",
     )
     args = parser.parse_args(argv)
     if bool(args.catalog) == bool(args.score_ids):
@@ -277,9 +332,9 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
 
     with Session(engine) as session:
         if args.catalog:
-            copies = seed_catalog(session, if_empty=args.if_empty)
+            copies = seed_catalog(session, if_changed=args.if_changed)
             if not copies:
-                print(f"Demo user {config.DEMO_USERNAME!r} already has scores; left as is.")
+                print(f"Demo user {config.DEMO_USERNAME!r} already has the catalog; left as is.")
                 return
         else:
             copies = setup_demo(args.score_ids, session)

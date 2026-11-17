@@ -1,5 +1,8 @@
 """Tests for the read-only demo account."""
 
+import io
+
+import pypdf
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
@@ -137,25 +140,47 @@ def test_setup_demo_errors(session: Session, monkeypatch):
         demo.setup_demo([1], session)
 
 
+def _tiny_pdf(pages: int = 1) -> bytes:
+    writer = pypdf.PdfWriter()
+    for _ in range(pages):
+        writer.add_blank_page(width=100, height=100)
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
 def test_seed_catalog(session: Session, tmp_path, monkeypatch):
-    """seed_catalog fills the demo from the built-in list, and --if-empty keeps it."""
+    """seed_catalog fills the demo, joins multi-file pieces, and --if-changed skips."""
     monkeypatch.setenv("DATA_PATH", str(tmp_path))
     monkeypatch.setattr(sections, "generate_sections", lambda *args: None)
     fetched: list[str] = []
 
     def fetch(url: str) -> bytes:
         fetched.append(url)
-        return b"%PDF-1.4 " + url.encode()
+        return _tiny_pdf()
 
-    scores = demo.seed_catalog(session, fetch=fetch)
+    urls = [
+        u
+        for e in demo.CATALOG
+        for u in ([e["pdf_url"]] if isinstance(e["pdf_url"], str) else e["pdf_url"])
+    ]
+    scores = demo.seed_catalog(session, if_changed=True, fetch=fetch)
     assert [s.composer for s in scores] == [e["composer"] for e in demo.CATALOG]
-    assert fetched == [e["pdf_url"] for e in demo.CATALOG]
+    assert fetched == urls
     first = scores[0]
     assert first.source == "Mutopia Project" and first.instrumentation == "Piano"
     assert (tmp_path / first.pdf_path).read_bytes().startswith(b"%PDF")
+    multi = next(i for i, e in enumerate(demo.CATALOG) if isinstance(e["pdf_url"], list))
+    joined = pypdf.PdfReader(tmp_path / scores[multi].pdf_path)
+    assert len(joined.pages) == len(demo.CATALOG[multi]["pdf_url"])
 
-    assert demo.seed_catalog(session, if_empty=True, fetch=fetch) == []
-    assert len(fetched) == len(demo.CATALOG)
+    # Unchanged catalog: nothing downloaded. A different library: replaced.
+    assert demo.seed_catalog(session, if_changed=True, fetch=fetch) == []
+    assert len(fetched) == len(urls)
+    scores[0].title = "Something else"
+    session.add(scores[0])
+    session.commit()
+    assert len(demo.seed_catalog(session, if_changed=True, fetch=fetch)) == len(demo.CATALOG)
 
     with pytest.raises(ValueError, match="Not a PDF"):
         demo.seed_catalog(session, fetch=lambda url: b"<html>")
