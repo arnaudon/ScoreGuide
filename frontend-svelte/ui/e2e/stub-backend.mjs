@@ -4,6 +4,7 @@
  *
  * Started automatically by playwright.config.ts on port 9999.
  */
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 
 const PORT = Number(process.env.STUB_PORT ?? 9999);
@@ -30,6 +31,24 @@ function json(res, status, body) {
 	res.end(payload);
 }
 
+// Score 2: a real PDF with a long table of contents, to check the reader
+// layout keeps the viewer on screen however many sections there are.
+const REAL_PDF = readFileSync(
+	new URL('../../../backend/tests/data/real_score.pdf', import.meta.url)
+);
+const LONG_TOC = {
+	status: 'ready',
+	sections: Array.from({ length: 40 }, (_, i) => ({
+		id: i + 1,
+		score_id: 2,
+		position: i,
+		title: `Movement ${i + 1}`,
+		page: Math.min(i + 1, 3),
+		source: 'outline',
+		incipit_path: ''
+	}))
+};
+
 const server = createServer((req, res) => {
 	const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
@@ -55,7 +74,25 @@ const server = createServer((req, res) => {
 				pdf_path: 'moonlight.pdf'
 			});
 		}
+		if (scoreMatch[1] === '2') {
+			return json(res, 200, {
+				id: 2,
+				title: 'Long Suite',
+				composer: 'Bach',
+				pdf_path: 'real.pdf'
+			});
+		}
 		return json(res, 404, { detail: 'Score not found' });
+	}
+	if (url.pathname === '/scores/2/sections' && req.method === 'GET') {
+		return json(res, 200, LONG_TOC);
+	}
+	if (/^\/scores\/\d+\/annotations$/.test(url.pathname) && req.method === 'GET') {
+		return json(res, 200, []);
+	}
+	if (url.pathname === '/pdf/real.pdf' && req.method === 'GET') {
+		res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': REAL_PDF.length });
+		return res.end(REAL_PDF);
 	}
 	return json(res, 404, { detail: `stub: no handler for ${req.method} ${url.pathname}` });
 });

@@ -62,3 +62,87 @@ export function annotationsApi(scoreId: number, fetchFn: FetchFn = fetch) {
 		clearPage: (page: number) => send<void>(`${base}?page=${page}`, { method: 'DELETE' })
 	};
 }
+
+/**
+ * Same interface as {@link annotationsApi}, but kept in this browser's
+ * localStorage instead of the server. Used for the read-only demo account,
+ * whose writes the backend refuses: visitors can still try the pencil and
+ * notes, and their marks stay on their own device.
+ */
+export function localAnnotationsApi(scoreId: number, storage: Storage | null = safeLocalStorage()) {
+	const key = `demo.annotations.${scoreId}`;
+	// In-memory fallback when storage is unavailable (private mode, blocked).
+	let memory: Annotation[] = [];
+
+	function read(): Annotation[] {
+		if (!storage) return memory;
+		try {
+			const parsed = JSON.parse(storage.getItem(key) ?? '[]');
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+
+	function write(items: Annotation[]) {
+		memory = items;
+		try {
+			storage?.setItem(key, JSON.stringify(items));
+		} catch {
+			// Quota or blocked storage: keep the in-memory copy for this visit.
+		}
+	}
+
+	function find(items: Annotation[], id: number) {
+		const index = items.findIndex((a) => a.id === id);
+		if (index === -1) throw new AnnotationsError(404);
+		return index;
+	}
+
+	return {
+		list: async () => read(),
+		create: async (page: number, data: AnnotationData) => {
+			const items = read();
+			const now = new Date().toISOString();
+			const created: Annotation = {
+				id: items.reduce((max, a) => Math.max(max, a.id), 0) + 1,
+				score_id: scoreId,
+				page,
+				kind: data.kind,
+				data,
+				created_at: now,
+				updated_at: now
+			};
+			write([...items, created]);
+			return created;
+		},
+		update: async (id: number, page: number, data: AnnotationData) => {
+			const items = read();
+			const index = find(items, id);
+			const updated = {
+				...items[index],
+				page,
+				kind: data.kind,
+				data,
+				updated_at: new Date().toISOString()
+			};
+			items[index] = updated;
+			write(items);
+			return updated;
+		},
+		remove: async (id: number) => {
+			write(read().filter((a) => a.id !== id));
+		},
+		clearPage: async (page: number) => {
+			write(read().filter((a) => a.page !== page));
+		}
+	};
+}
+
+function safeLocalStorage(): Storage | null {
+	try {
+		return typeof localStorage === 'undefined' ? null : localStorage;
+	} catch {
+		return null;
+	}
+}
