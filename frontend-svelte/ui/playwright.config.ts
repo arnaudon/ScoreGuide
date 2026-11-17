@@ -3,7 +3,23 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
 	testDir: 'e2e',
 	use: {
-		baseURL: 'http://localhost:4173'
+		baseURL: 'http://localhost:4173',
+		// French is the default locale; the e2e tests assert on English text.
+		storageState: {
+			cookies: [
+				{
+					name: 'PARAGLIDE_LOCALE',
+					value: 'en',
+					domain: 'localhost',
+					path: '/',
+					expires: -1,
+					httpOnly: false,
+					secure: false,
+					sameSite: 'Lax'
+				}
+			],
+			origins: []
+		}
 	},
 	webServer: [
 		{
