@@ -42,7 +42,7 @@
 <ModeWatcher />
 
 {#if data.loggedIn}
-	<Sidebar.Provider style="--sidebar-width: 10rem;">
+	<Sidebar.Provider style="--sidebar-width: 4rem;">
 		<AppSidebar />
 		<Sidebar.Inset class="bg-background text-foreground flex w-full flex-1 flex-col">
 			<main class="w-full flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
