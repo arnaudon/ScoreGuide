@@ -70,6 +70,8 @@ export default defineConfig({
 	},
 	test: {
 		expect: { requireAssertions: true },
+		// The app defaults to French; tests assert on the English strings.
+		setupFiles: ['./src/test-setup.ts'],
 		projects: [
 			{
 				extends: './vite.config.ts',
