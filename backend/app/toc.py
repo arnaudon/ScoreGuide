@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pypdfium2 as pdfium
+import pypdfium2.raw as pdfium_c
 from PIL import Image
 from pypdf import PdfReader
 
@@ -59,7 +60,7 @@ TEMPO_ONLY_RE = re.compile(
     re.IGNORECASE,
 )
 PIECE_RE = re.compile(
-    r"\b(sonat\w*|partita|suite|pr[ée]lud\w*|pr[äa]ludium|fug\w*|invention\w*|[ée]tude\w*|"
+    r"\b(sonat\w*|partita|suite|pr(?:[ée]|ae|æ|[äa])lud\w*|pr(?:ae|æ|[äe])ambul\w*|fug\w*|invention\w*|[ée]tude\w*|"
     r"nocturne|mazurka|waltz|valse|impromptu|variat\w*|var\.\s*\d+|movement|satz|ballade|"
     r"fantasi\w*|toccata|concerto|op\.\s*\d+|no\.\s*\d+|nr\.\s*\d+|bwv\s*\d+|k\.\s*\d+)",
     re.IGNORECASE,
@@ -349,13 +350,18 @@ def _norm(text: str) -> str:
     return re.sub(r"\W+", " ", text.lower()).strip()
 
 
-def heading_for(lines: list[TextLine], header_bottom: float) -> str | None:
+def heading_for(lines: list[TextLine], header_bottom: float, header_top: float = 0.0) -> str | None:
     """Build a section title from the heading-area lines of a page, if any.
 
-    ``header_bottom`` is the page-fraction y of the first system's top: text
-    above it is where titles and the opening tempo marking live.
+    ``header_bottom`` is the page-fraction y of a system's top and
+    ``header_top`` that of the top of its heading band: text in between is
+    where titles and the opening tempo marking live.
     """
-    head = [ln for ln in lines if ln.top < header_bottom and not NOT_HEADING_RE.match(ln.text)]
+    head = [
+        ln
+        for ln in lines
+        if header_top <= ln.top < header_bottom and not NOT_HEADING_RE.match(ln.text)
+    ]
     titled = [ln for ln in head if PIECE_RE.search(ln.text)]
     tempo = [ln for ln in head if TEMPO_RE.search(ln.text) and len(ln.text) < 40]
     if not titled and not tempo:
@@ -561,6 +567,25 @@ def outline_sections(data: bytes) -> list[DetectedSection]:
 # --- main entry ------------------------------------------------------------
 
 
+# An image covering at least this share of the page makes it a scan.
+SCAN_IMAGE_COVERAGE = 0.5
+
+
+def is_scanned(page: pdfium.PdfPage) -> bool:
+    """Is the page a scanned image (possibly with an invisible OCR text layer)?
+
+    Scanners and archives (e.g. the Internet Archive) add a hidden OCR text
+    layer that is mostly garbage on music: it may still hold a legible
+    heading, but where it doesn't, Tesseract on the heading band is tried.
+    """
+    width, height = page.get_size()
+    for obj in page.get_objects(filter=[pdfium_c.FPDF_PAGEOBJ_IMAGE], max_depth=2):
+        left, bottom, right, top = obj.get_bounds()
+        if (right - left) * (top - bottom) >= SCAN_IMAGE_COVERAGE * width * height:
+            return True
+    return False
+
+
 def _render_gray(page: pdfium.PdfPage) -> np.ndarray:
     bitmap = page.render(scale=RENDER_DPI / 72, grayscale=True)
     return np.asarray(bitmap.to_pil().convert("L"))
@@ -602,6 +627,27 @@ def _split_half(system: System, prev_bottom: int | None) -> bool:
     return system.top - prev_bottom < 1.5 * staff_h
 
 
+def _text_headings(info: _PageInfo, lines: list[TextLine]) -> list[OcrText]:
+    """Heading text above every system of a page, from its text layer.
+
+    The first system's heading area is everything above it (titles,
+    composer, opening tempo); later systems use the band just above them,
+    like OCR, so a piece starting mid-page (a fugue after its prelude) is
+    found too. ``left`` is the system's own left: text-layer lines are
+    whole lines, so their horizontal position isn't meaningful.
+    """
+    h = info.shape[0]
+    out: list[OcrText] = []
+    prev: int | None = None
+    for system in info.systems:
+        top, bottom = (
+            (0, system.top) if prev is None else (_heading_band(system, prev)[0], system.top)
+        )
+        out.append(OcrText(heading_for(lines, bottom / h, top / h) or "", system.left))
+        prev = system.bottom
+    return out
+
+
 def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]]:
     """Pick (page, system index, title, source) for every section start."""
     n = len(pages)
@@ -623,22 +669,28 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
             # Title/preface page: the music after it starts fresh.
             prev_kind, prev_bottom = "final", None
             continue
-        h, _ = info.shape
         kinds = info.bar_kinds or ["single"] * len(info.systems)
         lines = [ln for ln in info.lines if _norm(ln.text) not in repeated]
-        title = heading_for(lines, info.systems[0].top / h)
-        if title:
-            starts.append((info, 0, title, "text"))
-            prev_kind, prev_bottom = kinds[-1], None
-            continue
+        if info.lines:
+            # Engraved PDF: headings from the text layer, already clean.
+            heads, source = _text_headings(info, lines), "text"
+        else:
+            heads, source = info.ocr, "ocr"
         page_starts = []
-        for j, ocr in enumerate(info.ocr):
-            title = clean_title(ocr.text)
+        for j, head in enumerate(heads):
+            src = source
+            if src == "text" and not head.text and info.ocr:
+                # Scan with a hidden text layer that has no heading here.
+                head, src = info.ocr[j], "ocr"
+            title = head.text if src == "text" else clean_title(head.text)
             if is_heading(title) and (
                 not is_tempo_only(title)
-                or _tempo_opens(ocr, info.systems[j], prev_kind != "single")
+                # A tempo heading at the very top of a text page is the
+                # page's title area, not a tempo change over a later bar.
+                or (src == "text" and j == 0)
+                or _tempo_opens(head, info.systems[j], prev_kind != "single")
             ):
-                page_starts.append((j, title, "ocr"))
+                page_starts.append((j, title, src))
             elif prev_kind == "final" and not _split_half(info.systems[j], prev_bottom):
                 # A final barline (thin + thick) closed the previous piece:
                 # this system opens the next one even if its heading (e.g. a
@@ -647,15 +699,15 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
             prev_kind = kinds[j]
             prev_bottom = info.systems[j].bottom
         prev_kind, prev_bottom = kinds[-1], None
-        headed = sum(1 for ocr in info.ocr if is_heading(clean_title(ocr.text)))
+        headed = sum(1 for _, _, src in page_starts if src != "layout")
         if headed >= INDEX_PAGE_MIN_HEADINGS and headed * 2 >= len(info.systems):
             # A page where most systems have a heading is an edition's index
             # of incipits / contents page, not music to navigate to; what
             # follows it starts fresh, like after a title page.
             prev_kind = "final"
             continue
-        for j, cleaned, source in page_starts:
-            starts.append((info, j, cleaned, source))
+        for j, cleaned, src in page_starts:
+            starts.append((info, j, cleaned, src))
     return starts
 
 
@@ -683,8 +735,9 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
             gray = _render_gray(page)
             systems = page_systems(gray)
             lines = text_lines(page)
-            # Scans have no text layer: read the headings with OCR instead.
-            ocr = ocr_headings(gray, systems) if systems and not lines else []
+            # Scans have no text layer, or a hidden OCR one that is mostly
+            # garbage on music: read the headings with Tesseract too.
+            ocr = ocr_headings(gray, systems) if systems and (not lines or is_scanned(page)) else []
             ink = gray < INK
             kinds = [barline_kind(ink, s) for s in systems]
             pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr, kinds))

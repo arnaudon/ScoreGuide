@@ -349,3 +349,105 @@ def test_first_system_opens_even_when_heading_is_rejected(monkeypatch):
     data = _pdf_from_pages(_page(systems=1))
     monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: [toc.OcrText("Allegro", 600)])
     assert [(s.page, s.source) for s in toc.extract_sections(data)] == [(1, "layout")]
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Praeludium I", "Præludium II", "Präludium", "Praludium", "Prelude", "Prélude", "Preludio"]
+    + ["Praeambulum", "Fuga I", "Fughetta"],
+)
+def test_prelude_spellings_are_piece_titles(title):
+    """German editions spell it Praeludium (Peters, Bach-Gesellschaft, Henle)."""
+    assert toc.PIECE_RE.search(title)
+    assert toc.is_heading(title) and not toc.is_tempo_only(title)
+
+
+def test_is_scanned():
+    """A page that is one big image is a scan; engraved vector pages aren't."""
+    import pypdfium2 as pdfium
+
+    scan = pdfium.PdfDocument(_pdf_from_pages(_page()))
+    engraved = pdfium.PdfDocument((DATA / "engraved.pdf").read_bytes())
+    try:
+        assert toc.is_scanned(scan[0])
+        assert not toc.is_scanned(engraved[0])
+    finally:
+        scan.close()
+        engraved.close()
+
+
+def test_scan_hidden_text_layer_falls_back_to_ocr(monkeypatch):
+    """Scans with an invisible OCR text layer (Internet Archive, scanners):
+    the layer's heading is used when legible, Tesseract's otherwise."""
+    data = _pdf_from_pages(_page(), _page())
+    layers = iter(
+        [
+            [toc.TextLine("Edition Peters", 0.02, 9), toc.TextLine("Praeludium", 0.05, 14)],
+            [toc.TextLine("Edition Peters", 0.02, 9), toc.TextLine("Fnqa ЕШ", 0.05, 14)],
+        ]
+    )
+    monkeypatch.setattr(toc, "text_lines", lambda page: next(layers))
+    page_heads = iter([_ocr("Praeludium I.", ""), _ocr("Fuga II", "")])
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
+    sections = toc.extract_sections(data)
+    assert [(s.page, s.source, s.title) for s in sections] == [
+        (1, "text", "Praeludium"),
+        (2, "ocr", "Fuga II"),
+    ]
+
+
+def _text_page(number: int, lines: list[toc.TextLine], final: tuple[int, ...] = ()):
+    gray = _page(systems=3, final=final)
+    systems = toc.page_systems(gray)
+    kinds = [toc.barline_kind(gray < toc.INK, s) for s in systems]
+    return toc._PageInfo(number, gray.shape, systems, lines, bar_kinds=kinds)
+
+
+def _above(gray_h: int, system: toc.System, offset: int = 15) -> float:
+    return (system.top - offset) / gray_h
+
+
+def test_text_heading_mid_page_opens_section():
+    """Engraved pages: a fugue starting below its prelude's last system is
+    found from the text in the band above that system."""
+    probe = _text_page(1, [])
+    h = probe.shape[0]
+    second, third = probe.systems[1], probe.systems[2]
+    page = _text_page(
+        1,
+        [
+            toc.TextLine("Praeludium I", 0.02, 14),
+            toc.TextLine("Fuga I", _above(h, third), 14),
+            toc.TextLine("Adagio", _above(h, second), 9),  # tempo change: no new piece
+        ],
+    )
+    assert [(j, title, src) for _, j, title, src in toc._find_starts([page])] == [
+        (0, "Praeludium I", "text"),
+        (2, "Fuga I", "text"),
+    ]
+
+
+def test_text_page_final_barline_and_tempo():
+    """On text pages too, a final barline opens the next system and a bare
+    tempo word after it is a new movement's heading."""
+    probe = _text_page(1, [])
+    h = probe.shape[0]
+    first = _text_page(1, [toc.TextLine("Sonata No. 1", 0.02, 14)], final=(0, 1))
+    second = _text_page(2, [toc.TextLine("Presto", _above(h, probe.systems[2]), 9)], final=(1,))
+    starts = [(p.number, j, t, s) for p, j, t, s in toc._find_starts([first, second])]
+    assert starts == [
+        (1, 0, "Sonata No. 1", "text"),
+        (1, 1, "", "layout"),
+        (1, 2, "", "layout"),
+        (2, 2, "Presto", "text"),
+    ]
+
+
+def test_text_index_page_is_skipped():
+    """An engraved incipit index (a heading above most systems) is skipped."""
+    probe = _text_page(1, [])
+    h = probe.shape[0]
+    lines = [toc.TextLine("Praeludium I", 0.02, 14)] + [
+        toc.TextLine(f"Fuga {k}", _above(h, s), 14) for k, s in enumerate(probe.systems[1:])
+    ]
+    assert toc._find_starts([_text_page(1, lines)]) == []
