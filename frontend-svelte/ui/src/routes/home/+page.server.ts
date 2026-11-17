@@ -2,6 +2,8 @@ import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
+import { demoAgentAnswer } from '#lib/server/demoAgent.js';
+import { tokenRole } from '#lib/server/token.js';
 import type { Score, User } from '#lib/types.js';
 import * as m from '#lib/paraglide/messages.js';
 
@@ -66,6 +68,22 @@ export const actions: Actions = {
 			const scoresRes = await api('/scores');
 			const scores: Score[] = scoresRes.ok ? await scoresRes.json() : [];
 			const deps = JSON.stringify({ scores });
+
+			// The demo account can't call the real (paid) agent: answer from
+			// its own library with a scripted reply instead.
+			if (tokenRole(token) === 'demo') {
+				const answer = demoAgentAnswer(question.toString(), scores);
+				const picked = answer.score_ids
+					.map((id) => scores.find((s) => s.id === id))
+					.filter((s): s is Score => Boolean(s));
+				return {
+					success: true,
+					answer: { response: answer },
+					question: question.toString(),
+					scoreDetails: picked.length === 1 ? picked[0] : null,
+					scores: picked
+				};
+			}
 
 			const response = await api('/agent', {
 				method: 'POST',

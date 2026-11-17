@@ -2,7 +2,7 @@
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"nav_home": "Home",
 	"nav_db_viewer": "My scores",
-	"nav_pdf_viewer": "Reader",
+	"nav_pdf_viewer": "Read a score",
 	"nav_account": "Account",
 	"nav_admin": "Admin",
 	"nav_logout": "Logout",
@@ -192,6 +192,7 @@
 	"cookie_banner_label": "Cookie consent",
 	"score_completion_failed": "The assistant couldn't enrich the metadata; you can rerun it from the score's menu.",
 	"toc_contents": "Contents",
+	"toc_fold": "Hide contents",
 	"toc_desc": "Pieces and movements in this score. Click one to jump to it.",
 	"toc_running": "Building the table of contents… this can take a few minutes for long volumes.",
 	"toc_error": "Couldn't build the table of contents.",
@@ -263,7 +264,10 @@
 	"dismiss": "Dismiss",
 	"try_demo": "Try the demo",
 	"try_demo_hint": "Look around a read-only library — no account needed.",
-	"demo_banner": "You are browsing a read-only demo: uploading, editing and the AI assistant are disabled. Pencil marks and notes stay in this browser.",
+	"demo_banner": "You are browsing a read-only demo: uploading and editing are disabled, and the assistant gives scripted answers. Pencil marks and notes stay in this browser.",
 	"demo_signup": "Create a free account",
-	"err_demo_unavailable": "The demo is not available right now."
+	"err_demo_unavailable": "The demo is not available right now.",
+	"demo_agent_found": "Here's what I found in the demo library ({count}):",
+	"demo_agent_fallback": "This is the demo: I give scripted answers here. Try “a Bach score”, “something easy” or “a sonata”. In the meantime, here is the whole library ({count} scores):",
+	"toggle_theme": "Switch light / dark mode"
 }

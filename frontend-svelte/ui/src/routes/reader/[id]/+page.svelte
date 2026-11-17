@@ -4,6 +4,7 @@
 	import { page as appPage } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
 	import ListIcon from '@lucide/svelte/icons/list';
+	import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import Maximize from '@lucide/svelte/icons/maximize';
@@ -23,29 +24,37 @@
 	const pill =
 		'text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none';
 	let sheetOpen = $state(false);
-	// Larger screens: a side panel next to the score, open by default and
-	// collapsible (remembered per browser). Small screens (and full screen):
-	// the viewer's own contents drawer.
-	let tocPanelOpen = $state(true);
+	// Larger screens: a foldable side panel next to the score. It starts
+	// open only when there is something to navigate (2+ sections) and the
+	// reader hasn't folded it before (remembered per browser); toggling it
+	// on this page overrides that. Small screens (and full screen): the
+	// viewer's own contents drawer.
+	let tocPanelPref = $state(true);
+	let tocPanelToggled: boolean | null = $state(null);
+	let tocPanelOpen = $derived(tocPanelToggled ?? (tocPanelPref && data.toc.sections.length > 1));
 	let currentPage = $state(0);
 	const TOC_PANEL_KEY = 'reader.tocPanelOpen';
 
 	onMount(() => {
 		try {
-			tocPanelOpen = localStorage.getItem(TOC_PANEL_KEY) !== 'false';
+			tocPanelPref = localStorage.getItem(TOC_PANEL_KEY) !== 'false';
 		} catch {
 			// Storage unavailable (private mode…): keep the default.
 		}
 	});
 
+	function setTocPanel(open: boolean) {
+		tocPanelToggled = open;
+		try {
+			localStorage.setItem(TOC_PANEL_KEY, String(open));
+		} catch {
+			// Not persisted; still toggled for this visit.
+		}
+	}
+
 	function toggleContents() {
 		if (window.matchMedia('(min-width: 768px)').matches) {
-			tocPanelOpen = !tocPanelOpen;
-			try {
-				localStorage.setItem(TOC_PANEL_KEY, String(tocPanelOpen));
-			} catch {
-				// Not persisted; still toggled for this visit.
-			}
+			setTocPanel(!tocPanelOpen);
 		} else {
 			viewer?.openContents();
 		}
@@ -163,8 +172,20 @@
 			{#if tocPanelOpen}
 				<aside
 					aria-label={m.toc_contents()}
-					class="bg-card shadow-card hidden w-64 shrink-0 overflow-y-auto rounded-md border p-3 md:block lg:w-72"
+					class="bg-card shadow-card hidden w-64 shrink-0 flex-col gap-2 overflow-y-auto rounded-md border p-3 md:flex lg:w-72"
 				>
+					<div class="flex items-center justify-between gap-2">
+						<h2 class="text-sm font-semibold">{m.toc_contents()}</h2>
+						<button
+							type="button"
+							class="text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex size-8 items-center justify-center rounded-md"
+							onclick={() => setTocPanel(false)}
+							aria-label={m.toc_fold()}
+							title={m.toc_fold()}
+						>
+							<PanelLeftClose class="size-4" />
+						</button>
+					</div>
 					<ScoreContents
 						toc={data.toc}
 						error={!!form?.tocError}

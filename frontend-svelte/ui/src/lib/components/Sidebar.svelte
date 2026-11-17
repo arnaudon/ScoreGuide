@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
+	import { useSidebar } from '#lib/components/ui/sidebar/context.svelte.js';
 	import DarkModeToggle from './DarkModeToggle.svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -40,6 +41,11 @@
 			: [])
 	]);
 
+	// Labels show as tooltips on the desktop rail; the mobile drawer
+	// prints them next to the icons instead.
+	const sidebar = useSidebar();
+	let tip = $derived({ hidden: sidebar.isMobile });
+
 	let other: 'en' | 'fr' = $derived(getLocale() === 'fr' ? 'en' : 'fr');
 
 	const button =
@@ -58,9 +64,14 @@
 				<Sidebar.Menu class="items-center gap-1 max-md:items-stretch">
 					{#each items as item (item.match)}
 						<Sidebar.MenuItem>
-							<Sidebar.MenuButton isActive={isActive(item.match)} class={button}>
+							<Sidebar.MenuButton
+								isActive={isActive(item.match)}
+								class={button}
+								tooltipContent={item.label}
+								tooltipContentProps={tip}
+							>
 								{#snippet child({ props })}
-									<a href={item.href} title={item.label} aria-label={item.label} {...props}>
+									<a href={item.href} aria-label={item.label} {...props}>
 										<item.icon />
 										<span class="md:sr-only">{item.label}</span>
 									</a>
@@ -75,10 +86,14 @@
 	<Sidebar.Footer class="items-center gap-2 p-2 pb-4 max-md:items-stretch">
 		<Sidebar.Menu class="items-center max-md:items-stretch">
 			<Sidebar.MenuItem>
-				<Sidebar.MenuButton class={button}>
+				<Sidebar.MenuButton
+					class={button}
+					tooltipContent={m.nav_logout()}
+					tooltipContentProps={tip}
+				>
 					{#snippet child({ props })}
 						<form method="POST" action="/logout" use:enhance>
-							<button type="submit" title={m.nav_logout()} aria-label={m.nav_logout()} {...props}>
+							<button type="submit" aria-label={m.nav_logout()} {...props}>
 								<LogOut />
 								<span class="md:sr-only">{m.nav_logout()}</span>
 							</button>
@@ -94,7 +109,7 @@
 				onclick={() => setLocale(other)}
 				aria-label={other === 'en' ? m.language_switch_to_en() : m.language_switch_to_fr()}
 				title={other === 'en' ? m.language_switch_to_en() : m.language_switch_to_fr()}
-				class="hover:bg-muted size-9 rounded-md border text-xs font-semibold uppercase"
+				class="border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring size-9 rounded-md border text-xs font-semibold uppercase focus-visible:ring-2 focus-visible:outline-none"
 			>
 				{other}
 			</button>

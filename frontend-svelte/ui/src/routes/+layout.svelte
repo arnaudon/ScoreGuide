@@ -46,7 +46,8 @@
 		<AppSidebar />
 		<Sidebar.Inset class="bg-background text-foreground flex w-full flex-1 flex-col">
 			<main class="w-full flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-				<Sidebar.Trigger class="mb-4" />
+				<!-- Desktop: the icon rail is always shown. Mobile: opens the drawer. -->
+				<Sidebar.Trigger class="mb-4 md:hidden" />
 				{#if data.isDemo}
 					<div
 						role="status"

@@ -1,8 +1,8 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"nav_home": "Accueil",
-	"nav_db_viewer": "Partitions",
-	"nav_pdf_viewer": "Lecture",
+	"nav_db_viewer": "Mes partitions",
+	"nav_pdf_viewer": "Lire une partition",
 	"nav_account": "Mon Compte",
 	"nav_admin": "Administration",
 	"nav_logout": "Déconnexion",
@@ -192,6 +192,7 @@
 	"cookie_banner_label": "Consentement aux cookies",
 	"score_completion_failed": "L'assistant n'a pas pu compléter les métadonnées ; vous pouvez le relancer depuis le menu de la partition.",
 	"toc_contents": "Sommaire",
+	"toc_fold": "Masquer le sommaire",
 	"toc_desc": "Pièces et mouvements de cette partition. Cliquez pour y accéder.",
 	"toc_running": "Création du sommaire… cela peut prendre quelques minutes pour les gros volumes.",
 	"toc_error": "Impossible de créer le sommaire.",
@@ -263,7 +264,10 @@
 	"dismiss": "Fermer",
 	"try_demo": "Essayer la démo",
 	"try_demo_hint": "Découvrez une bibliothèque en lecture seule — sans compte.",
-	"demo_banner": "Vous visitez une démo en lecture seule : l'import, la modification et l'assistant IA sont désactivés. Vos annotations restent dans ce navigateur.",
+	"demo_banner": "Vous visitez une démo en lecture seule : l'import et la modification sont désactivés, et l'assistant donne des réponses préparées. Vos annotations restent dans ce navigateur.",
 	"demo_signup": "Créer un compte gratuit",
-	"err_demo_unavailable": "La démo n'est pas disponible pour le moment."
+	"err_demo_unavailable": "La démo n'est pas disponible pour le moment.",
+	"demo_agent_found": "Voici ce que j'ai trouvé dans la bibliothèque de démo ({count}) :",
+	"demo_agent_fallback": "Ceci est la démo : mes réponses sont préparées à l'avance. Essayez « une partition de Bach », « quelque chose de facile » ou « une sonate ». En attendant, voici toute la bibliothèque ({count} partitions) :",
+	"toggle_theme": "Basculer mode clair / sombre"
 }
