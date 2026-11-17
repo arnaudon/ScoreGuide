@@ -135,3 +135,27 @@ def test_setup_demo_errors(session: Session, monkeypatch):
     session.commit()
     with pytest.raises(ValueError, match="not a demo"):
         demo.setup_demo([1], session)
+
+
+def test_seed_catalog(session: Session, tmp_path, monkeypatch):
+    """seed_catalog fills the demo from the built-in list, and --if-empty keeps it."""
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    monkeypatch.setattr(sections, "generate_sections", lambda *args: None)
+    fetched: list[str] = []
+
+    def fetch(url: str) -> bytes:
+        fetched.append(url)
+        return b"%PDF-1.4 " + url.encode()
+
+    scores = demo.seed_catalog(session, fetch=fetch)
+    assert [s.composer for s in scores] == [e["composer"] for e in demo.CATALOG]
+    assert fetched == [e["pdf_url"] for e in demo.CATALOG]
+    first = scores[0]
+    assert first.source == "Mutopia Project" and first.instrumentation == "Piano"
+    assert (tmp_path / first.pdf_path).read_bytes().startswith(b"%PDF")
+
+    assert demo.seed_catalog(session, if_empty=True, fetch=fetch) == []
+    assert len(fetched) == len(demo.CATALOG)
+
+    with pytest.raises(ValueError, match="Not a PDF"):
+        demo.seed_catalog(session, fetch=lambda url: b"<html>")
