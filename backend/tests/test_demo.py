@@ -180,6 +180,13 @@ def test_seed_catalog(session: Session, tmp_path, monkeypatch):
     scores[0].title = "Something else"
     session.add(scores[0])
     session.commit()
+    scores = demo.seed_catalog(session, if_changed=True, fetch=fetch)
+    assert len(scores) == len(demo.CATALOG)
+
+    # Same pieces but a corrected detail (e.g. the genre): replaced too.
+    scores[0].genre = "Other"
+    session.add(scores[0])
+    session.commit()
     assert len(demo.seed_catalog(session, if_changed=True, fetch=fetch)) == len(demo.CATALOG)
 
     with pytest.raises(ValueError, match="Not a PDF"):

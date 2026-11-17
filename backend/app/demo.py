@@ -41,7 +41,7 @@ CATALOG: list[dict[str, Any]] = [
         "composer": "Johann Sebastian Bach",
         "year": 1722,
         "period": Period.Baroque,
-        "genre": "Keyboard",
+        "genre": "Classical",
         "form": "Prelude",
         "key": "C major",
         "difficulty": Difficulty.moderate,
@@ -65,7 +65,7 @@ CATALOG: list[dict[str, Any]] = [
         "composer": "Ludwig van Beethoven",
         "year": 1810,
         "period": Period.Classical,
-        "genre": "Keyboard",
+        "genre": "Classical",
         "form": "Bagatelle",
         "key": "A minor",
         "difficulty": Difficulty.moderate,
@@ -91,7 +91,7 @@ CATALOG: list[dict[str, Any]] = [
         "composer": "Ludwig van Beethoven",
         "year": 1798,
         "period": Period.Classical,
-        "genre": "Keyboard",
+        "genre": "Classical",
         "form": "Sonata",
         "key": "C minor",
         "difficulty": Difficulty.advanced,
@@ -116,7 +116,7 @@ CATALOG: list[dict[str, Any]] = [
         "composer": "Frédéric Chopin",
         "year": 1839,
         "period": Period.Romantic,
-        "genre": "Keyboard",
+        "genre": "Classical",
         "form": "Prelude",
         "key": "E minor",
         "difficulty": Difficulty.easy,
@@ -140,7 +140,7 @@ CATALOG: list[dict[str, Any]] = [
         "composer": "Robert Schumann",
         "year": 1838,
         "period": Period.Romantic,
-        "genre": "Keyboard",
+        "genre": "Classical",
         "form": "Character piece",
         "key": "F major",
         "difficulty": Difficulty.moderate,
@@ -164,7 +164,7 @@ CATALOG: list[dict[str, Any]] = [
         "composer": "Erik Satie",
         "year": 1888,
         "period": Period.Modernist,
-        "genre": "Keyboard",
+        "genre": "Classical",
         "form": "Gymnopédie",
         "key": "D major",
         "difficulty": Difficulty.easy,
@@ -275,11 +275,20 @@ def _fetch_pdf(url: str | list[str], fetch: Callable[[str], bytes]) -> bytes:
     return out.getvalue()
 
 
+def _entry_fields(entry: dict) -> dict:
+    """The score fields a catalog entry sets (everything but its PDF source)."""
+    return {k: v for k, v in entry.items() if k != "pdf_url"}
+
+
 def _catalog_matches(user: User, session: Session) -> bool:
-    have = sorted(
-        (s.composer, s.title) for s in session.exec(select(Score).where(Score.user_id == user.id))
+    """Whether the demo holds exactly the catalog's pieces, details included."""
+    have = session.exec(select(Score).where(Score.user_id == user.id)).all()
+    if len(have) != len(CATALOG):
+        return False
+    return all(
+        any(all(getattr(s, k) == v for k, v in _entry_fields(e).items()) for s in have)
+        for e in CATALOG
     )
-    return have == sorted((e["composer"], e["title"]) for e in CATALOG)
 
 
 def seed_catalog(
@@ -288,7 +297,7 @@ def seed_catalog(
     """Replace the demo library with the built-in :data:`CATALOG`.
 
     With ``if_changed``, a demo library that already holds exactly the
-    catalog's pieces is left alone (redeploys don't re-download) and ``[]``
+    catalog's pieces and details is left alone (redeploys don't re-download) and ``[]``
     is returned; any other library, including an empty one, is replaced.
     """
     user = get_or_create_demo_user(session)
@@ -296,7 +305,7 @@ def seed_catalog(
         return []
     fresh = []
     for entry in CATALOG:
-        fields = {k: v for k, v in entry.items() if k != "pdf_url"}
+        fields = _entry_fields(entry)
         data = _fetch_pdf(entry["pdf_url"], fetch)
         pdf_path = f"{uuid.uuid4().hex}.pdf"
         file_helper.upload_pdf(pdf_path, io.BytesIO(data))
