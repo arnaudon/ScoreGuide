@@ -54,6 +54,9 @@ THICK_BAR_SPACES = 0.4
 
 TEMPO_RE = re.compile(
     r"\b(allegr\w*|adagi\w*|andant\w*|prest\w*|larg\w*|lento|moderato|vivace|grave|"
+    r"mod[ée]r[ée]\w*|lent(?:ement)?|vif|vite|vivement|gai(?:ement)?|gracieus\w*|"
+    r"tendrement|l[ée]g[èe]rement|gravement|majestueu\w*|anim[ée]|"
+    r"langsam|lebhaft|schnell|m[äa](?:ss|ß)ig|bewegt|"
     r"menuett?o?|minuet\w*|menuet|scherz\w*|rond\w*|finale|tempo di \w+|maestoso|"
     r"sarabande|courante|gigue|allemande|gavotte|bourr[ée]e|air|aria|polonaise)\b",
     re.IGNORECASE,
@@ -62,6 +65,9 @@ TEMPO_RE = re.compile(
 # inside a movement, so on their own they need more evidence (see _find_starts).
 TEMPO_ONLY_RE = re.compile(
     r"\b(allegr\w*|adagi\w*|andant\w*|prest\w*|larg\w*|lento|moderato|vivace|grave|"
+    r"mod[ée]r[ée]\w*|lent(?:ement)?|vif|vite|vivement|gai(?:ement)?|gracieus\w*|"
+    r"tendrement|l[ée]g[èe]rement|gravement|majestueu\w*|anim[ée]|"
+    r"langsam|lebhaft|schnell|m[äa](?:ss|ß)ig|bewegt|"
     r"maestoso|tempo di \w+)\b",
     re.IGNORECASE,
 )
@@ -496,7 +502,8 @@ def _noise(tok: str) -> bool:
     if not TOKEN_RE.match(tok):
         return True
     core = tok.strip(".,()'’")
-    if len(core) == 1 and not core.isdigit() and not ROMAN_RE.match(core):
+    # "à" stays: "Fuga à 3" (voices) must not read as "Fuga 3".
+    if len(core) == 1 and not core.isdigit() and not ROMAN_RE.match(core) and core != "à":
         return True
     mixed = re.search(r"[^\W\d_]", core) and re.search(r"\d", core)
     return bool(mixed and not PIECE_RE.fullmatch(core))
@@ -543,7 +550,7 @@ NUMBER_PREFIX_RE = re.compile(r"(no|nr|op|n°)\.?", re.IGNORECASE)
 # French character-piece names: "La Joyeuse", "Les Tendres Plaintes",
 # "L'Enharmonique" (Rameau, Couperin...).
 NAMED_PIECE_RE = re.compile(
-    r"\b(?:L[ae]s?\s+|L[’'])[A-ZÀ-Ý][\w’'-]{3,}(?:\s+[A-ZÀ-Ýa-zà-ÿ][\w’'-]{2,}){0,2}"
+    r"\b(?:L[aeAE][sS]?\s+|L[’'])[A-ZÀ-Ý][\w’'-]{3,}(?:\s+[A-ZÀ-Ý][\w’'-]{2,}){0,2}"
 )
 
 
@@ -584,6 +591,26 @@ def _bare_piece_word(token: str) -> bool:
     return bool(core.isalpha() and piece and not TEMPO_RE.fullmatch(core))
 
 
+def _piece_name(name: str) -> str:
+    """Normalise a matched piece name: one case style, title-cased.
+
+    "LA VIRGINITE Sous" (caps title, then a subtitle) → "La Virginite".
+    """
+    words = name.split()
+    caps = words[-1 if len(words) == 1 else 1].isupper()
+    kept = words[:2]
+    for word in words[2:]:
+        if word.isupper() != caps:
+            break
+        kept.append(word)
+    name = " ".join(kept)
+    return name.title() if name.isupper() else name
+
+
+# Longest heading text kept as-is when no heading vocabulary is found in it.
+MAX_UNTIDY_TITLE = 40
+
+
 def tidy_title(text: str) -> str:
     """Cut a heading down to its title phrase, dropping OCR debris.
 
@@ -599,7 +626,10 @@ def tidy_title(text: str) -> str:
     tokens = text.split()
     anchors = [k for k, t in enumerate(tokens) if _is_vocab(t) and not CATALOGUE_RE.match(t)]
     if not anchors:
-        return named.group(0) if named else text
+        if named:
+            return _piece_name(named.group(0))
+        # Prose (a footnote mentioning "sonatas") is not a title.
+        return text if len(text) <= MAX_UNTIDY_TITLE else ""
     # Headings are capitalised; footnote prose ("parts of movement") isn't.
     start = end = next((k for k in anchors if _core(tokens[k])[:1].isupper()), anchors[0])
     names = not TEMPO_ONLY_RE.search(tokens[start])
@@ -611,10 +641,13 @@ def tidy_title(text: str) -> str:
         prev = tokens[k - 1]
         after_piece = _bare_piece_word(prev) or NUMBER_PREFIX_RE.fullmatch(_core(prev))
         number = re.fullmatch(r"\d{1,2}|[IVXL]+", core) or NUMBER_PREFIX_RE.fullmatch(core)
+        # "Fuga 3 à": the number of voices, read out of order.
+        voices = k + 1 < len(tokens) and _core(tokens[k + 1]) in ("à", "a")
+        is_number = bool(number) and not voices
         if (
             _is_vocab(tok)
             or (core and QUALIFIER_RE.fullmatch(core))
-            or (after_piece and (number or CATALOGUE_RE.match(tok)))
+            or (after_piece and (is_number or CATALOGUE_RE.match(tok)))
         ):
             end = k
         else:
@@ -625,17 +658,19 @@ def tidy_title(text: str) -> str:
         end > start and len(_core(tokens[end])) <= 3 and QUALIFIER_RE.fullmatch(_core(tokens[end]))
     ):
         end -= 1
-    # Nor are leading ones ("la Allegro" from stray OCR letters).
+    # Nor are leading ones ("la Allegro" from stray OCR letters), except an
+    # article opening a name ("La Follette Rondeau").
     while (
         start < end
         and len(_core(tokens[start])) <= 2
         and QUALIFIER_RE.fullmatch(_core(tokens[start]))
+        and not (tokens[start][0].isupper() and tokens[start + 1][0].isupper())
     ):
         start += 1
     title = " ".join(tokens[start : end + 1]).strip(" .,;:")
     if named and named.group(0) not in title:
-        name = named.group(0)
-        title = name if title in name else f"{name} {title}"
+        name = _piece_name(named.group(0))
+        title = name if title in name else f"{name} — {title}"
     return title
 
 
@@ -708,8 +743,10 @@ def _canonical_kind(word: str) -> str:
 
 def _piece_number(title: str, match: re.Match[str]) -> int | None:
     """The piece number printed after the kind word, if plausible."""
-    m = re.match(_NUMBER_AFTER, title[match.end() :], re.I)
-    if not m:
+    rest = title[match.end() :]
+    m = re.match(_NUMBER_AFTER, rest, re.I)
+    # "Fuga 3 à" is "Fuga à 3" read out of order: a number of voices.
+    if not m or re.match(r"\s*[àa]\b", rest[m.end() :]):
         return None
     raw = m.group(1)
     n = int(raw) if raw.isdigit() else _roman_value(raw.upper())
@@ -731,6 +768,23 @@ def _prelude_or_fugue(title: str) -> tuple[str, str, int | None] | None:
     return family, _canonical_kind(first.group(1)), number
 
 
+def _confirmed_later(parsed: list[tuple[str, str, int | None] | None], k: int, number: int) -> bool:
+    """Does the next printed number agree with ``number`` at piece ``k``?
+
+    Lets the sequence re-anchor when it went wrong earlier (e.g. a number
+    of voices taken for a fugue's number) instead of overriding every
+    correctly printed number after it.
+    """
+    steps = 0
+    for p in parsed[k + 1 :]:
+        if p is None:
+            continue
+        steps += p[0] == "prelude"
+        if p[2] is not None:
+            return abs(p[2] - (number + steps)) <= MAX_NUMBER_SKIP
+    return False
+
+
 def _number_pieces(parsed: list[tuple[str, str, int | None] | None]) -> list[int | None]:
     """Piece number of every prelude/fugue, consistent with its neighbours.
 
@@ -743,7 +797,7 @@ def _number_pieces(parsed: list[tuple[str, str, int | None] | None]) -> list[int
     numbers: list[int | None] = []
     current: int | None = None
     last_family = ""
-    for p in parsed:
+    for k, p in enumerate(parsed):
         if p is None:
             numbers.append(None)
             continue
@@ -753,7 +807,11 @@ def _number_pieces(parsed: list[tuple[str, str, int | None] | None]) -> list[int
             number = current
         elif following is not None and (
             number is None
-            or not (number == 1 or following <= number <= following + MAX_NUMBER_SKIP)
+            or not (
+                number == 1
+                or following <= number <= following + MAX_NUMBER_SKIP
+                or _confirmed_later(parsed, k, number)
+            )
         ):
             number = following
         current, last_family = number, family
@@ -789,7 +847,12 @@ def normalize_titles(titles: list[str]) -> list[str | None]:
     come back as None, to be dropped. Other titles are left untouched.
     """
     parsed = [_prelude_or_fugue(t) if t else None for t in titles]
-    numbers = _number_pieces(parsed)
+    if any(p and p[0] == "prelude" for p in parsed):
+        numbers = _number_pieces(parsed)
+    else:
+        # Fugues without preludes (fugal finales of sonatas, a fugue
+        # collection): no pairing to infer numbers from, keep printed ones.
+        numbers = [p[2] if p else None for p in parsed]
     words = {f: _most_common_word(parsed, f) for f in ("prelude", "fugue")}
     out: list[str | None] = list(titles)
     for k, p in enumerate(parsed):
@@ -984,9 +1047,37 @@ def _text_headings(info: _PageInfo, lines: list[TextLine]) -> list[OcrText]:
     return out
 
 
+# A system starting this share of the page width right of the document's
+# usual system start is indented: engravers indent the first system of
+# each piece / movement.
+INDENT_FRACTION = 0.04
+# A larger offset is a partial system (the end of a line continued after a
+# page turn, an ossia), not an indent.
+INDENT_MAX_FRACTION = 0.15
+# With at least this many indented systems, a document follows that
+# convention, and a section start without a heading must be indented.
+INDENT_CONVENTION_MIN = 3
+
+
+def _indented(pages: list[_PageInfo]) -> set[tuple[int, int]]:
+    """(page number, system index) of every indented system."""
+    lefts = [s.left for info in pages for s in info.systems]
+    if not lefts:
+        return set()
+    usual = float(np.median(lefts))
+    return {
+        (info.number, j)
+        for info in pages
+        for j, s in enumerate(info.systems)
+        if INDENT_FRACTION < (s.left - usual) / info.shape[1] <= INDENT_MAX_FRACTION
+    }
+
+
 def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]]:
     """Pick (page, system index, title, source) for every section start."""
     n = len(pages)
+    indented = _indented(pages)
+    convention = len(indented) >= INDENT_CONVENTION_MIN
     counts: dict[str, int] = {}
     for info in pages:
         for key in {_norm(ln.text) for ln in info.lines}:
@@ -1000,10 +1091,14 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
     # end", so it always opens a section even without a legible heading.
     prev_kind = "final"
     prev_bottom: int | None = None  # previous system's bottom, same page only
+    fresh = True  # no music yet, or only front matter / an index since
     for info in pages:
         if not info.systems:
-            # Title/preface page: the music after it starts fresh.
+            # Title/preface page: the music after it starts fresh, unless
+            # the edition indents first systems (then it may as well be a
+            # blank page inside a piece).
             prev_kind, prev_bottom = "final", None
+            fresh = fresh or not convention
             continue
         kinds = info.bar_kinds or ["single"] * len(info.systems)
         lines = [ln for ln in info.lines if _norm(ln.text) not in repeated]
@@ -1021,35 +1116,46 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
                 head, src = info.ocr[j], "ocr"
             title = head.text if src == "text" else clean_title(head.text)
             headed += is_heading(title)
+            indent = (info.number, j) in indented
             if CONTINUATION_RE.search(title):
                 # "Segue la Fuga" closes a piece: what follows on this
                 # page (an ossia, a variant) doesn't open one.
                 prev_kind = kinds[j]
                 prev_bottom = info.systems[j].bottom
+                fresh = False
                 continue
-            if is_heading(title) and (
+            # Barlines are often misread on scans; when the edition indents
+            # first systems, that is the more reliable sign of a new piece.
+            ended = indent or fresh or (prev_kind == "final" and not convention)
+            accepted = is_heading(title) and (
                 not is_tempo_only(title)
                 # A tempo heading at the very top of a text page is the
                 # page's title area, not a tempo change over a later bar.
                 or (src == "text" and j == 0)
-                or _tempo_opens(head, info.systems[j], prev_kind != "single")
-            ):
+                or _tempo_opens(head, info.systems[j], indent or prev_kind != "single")
+            )
+            if accepted and src != "text":
                 # Text-layer headings are clean already; OCR'd ones carry
-                # debris from the whole band.
-                page_starts.append((j, title if src == "text" else tidy_title(title), src))
-            elif prev_kind == "final" and not _split_half(info.systems[j], prev_bottom):
-                # A final barline (thin + thick) closed the previous piece:
-                # this system opens the next one even if its heading (e.g. a
-                # bare number) wasn't legible.
+                # debris from the whole band. Prose (a footnote) or a lone
+                # lowercase word ("air" inside the music) is no heading.
+                title = tidy_title(title)
+                accepted = bool(title) and (" " in title or not title[:1].islower())
+            if accepted:
+                page_starts.append((j, title, src))
+            elif ended and not _split_half(info.systems[j], prev_bottom):
+                # A final barline (thin + thick) closed the previous piece,
+                # or this system is indented: it opens the next one even if
+                # its heading (e.g. a bare number) wasn't legible.
                 page_starts.append((j, "", "layout"))
             prev_kind = kinds[j]
             prev_bottom = info.systems[j].bottom
+            fresh = False
         prev_kind, prev_bottom = kinds[-1], None
         if headed >= INDEX_PAGE_MIN_HEADINGS and headed * 2 >= len(info.systems):
             # A page where most systems have a heading is an edition's index
             # of incipits / contents page, not music to navigate to; what
             # follows it starts fresh, like after a title page.
-            prev_kind = "final"
+            prev_kind, fresh = "final", True
             continue
         for j, cleaned, src in page_starts:
             starts.append((info, j, cleaned, src))

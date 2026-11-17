@@ -20,21 +20,24 @@ def _page(
     width: int = 800,
     height: int = 1000,
     final: tuple[int, ...] = (),
+    indent: tuple[int, ...] = (),
 ):
     """A white page with ``systems`` systems of joined 5-line staves.
 
-    Systems whose index is in ``final`` end with a thin+thick final barline.
+    Systems whose index is in ``final`` end with a thin+thick final barline;
+    those in ``indent`` start 60 px further right (a piece's first system).
     """
     img = np.full((height, width), 255, dtype=np.uint8)
     y = 120
     for k in range(systems):
         sys_top = y
+        left = 120 if k in indent else 60
         for _ in range(staves_per_system):
             for line in range(5):
-                img[y + line * 10, 60:740] = 0
+                img[y + line * 10, left:740] = 0
             y += 80
         # Left system barline joining the staves of this system.
-        img[sys_top : y - 40, 60] = 0
+        img[sys_top : y - 40, left] = 0
         if k in final:
             img[sys_top : y - 40, 733] = 0
             img[sys_top : y - 40, 736:740] = 0
@@ -504,7 +507,12 @@ def test_normalize_titles_prelude_and_fugue():
     ("titles", "expected"),
     [
         (["Preludio", "Fuge"], ["Preludio", "Fuge"]),
-        (["Fugue No. 2", "Fuga"], ["Fugue 2", "Fugue 3"]),
+        (["Fugue No. 2", "Fuga"], ["Fugue 2", "Fugue"]),  # no preludes: as printed
+        # An unconfirmed jump (nothing printed after it) is a misread.
+        (
+            ["Prelude 1", "Fuga", "Prelude 9", "Fuga"],
+            ["Prelude 1", "Fuga 1", "Prelude 2", "Fuga 2"],
+        ),
         (["Praeambulum I"], ["Praeambulum 1"]),
         (["Fuga IIII"], ["Fuga"]),  # not a Roman numeral
         (["Fuga XIV"], ["Fuga 14"]),
@@ -515,6 +523,12 @@ def test_normalize_titles_prelude_and_fugue():
         (["Praeludium 1", "", "Praeludium 2"], ["Praeludium 1", "Fuga 1", "Praeludium 2"]),
         (["Fuga", "Prelude 1"], ["Fuga", "Prelude 1"]),
         (["", "Fuga 1"], ["", "Fuga 1"]),
+        # A jump confirmed by the next printed number re-anchors the sequence
+        # (pieces were missed), instead of overriding every later number.
+        (
+            ["Prelude 1", "Fuga", "Prelude 7", "", "Fuga", "Prelude 8"],
+            ["Prelude 1", "Fuga 1", "Prelude 7", None, "Fuga 7", "Prelude 8"],
+        ),
     ],
 )
 def test_normalize_titles_cases(titles, expected):
@@ -565,7 +579,10 @@ def test_continuation_notes_are_not_headings():
         ("La Follette RONDEAU au ar", "La Follette RONDEAU"),
         ("Mr A La Boiteuse", "La Boiteuse"),
         ("Les Soupirs Tendrement", "Les Soupirs Tendrement"),
-        ("Gigue. Les Cyclopes", "Les Cyclopes Gigue"),
+        ("Gigue. Les Cyclopes", "Les Cyclopes — Gigue"),
+        ("LA VIRGINITE Sous le Domino. Modéré", "La Virginite — Modéré"),
+        ("LES COUCOUS BÉNÉVOLES Allegretto", "Les Coucous Bénévoles — Allegretto"),
+        ("La Folle Allegro", "La Folle Allegro"),
         ("no heading here", "no heading here"),
     ],
 )
@@ -660,3 +677,44 @@ def test_sparse_outline_gets_detected_movements(monkeypatch):
         (5, "Menuetto", "ocr"),
     ]
     assert all(s.incipit_png for s in sections)
+
+
+def test_indented_first_systems_open_sections(monkeypatch):
+    """Editions indent each piece's first system: an indented system opens a
+    section (even under a bare tempo word after a misread barline), and
+    once the edition is known to do so, a final barline alone doesn't."""
+    data = _pdf_from_pages(
+        _page(systems=2, indent=(0,), final=(1,)),
+        _page(systems=2, indent=(1,), final=(1,)),
+        _page(systems=2),
+        _page(systems=2, indent=(0,)),
+    )
+    heads = iter([_ocr("", ""), _ocr("", ""), _ocr("", ""), _ocr("Allegro", "")])
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(heads))
+    sections = toc.extract_sections(data)
+    assert [(s.page, s.source, s.title) for s in sections] == [
+        (1, "layout", "1"),
+        (2, "layout", "2"),
+        (4, "ocr", "Allegro"),
+    ]
+
+
+def test_partial_system_is_not_an_indent():
+    """A system starting far right (a line continued after a page turn) is
+    not a piece's indented first system."""
+    gray = _page(systems=2)
+    info = toc._PageInfo(1, gray.shape, toc.page_systems(gray), [])
+    info.systems[1].staves[0].left = 400
+    assert toc._indented([info]) == set()
+    assert toc._indented([toc._PageInfo(1, gray.shape, [], [])]) == set()
+
+
+def test_stray_and_prose_titles_are_dropped(monkeypatch):
+    """A lone lowercase word ("air" inside the music) or a footnote is no
+    title: the start, if any, is barline-only."""
+    data = _pdf_from_pages(_page(systems=1), _page(systems=1))
+    long_note = "In case the character of the instrument permits, the soft pedal may be used"
+    heads = iter([_ocr("air"), _ocr(long_note + " sonatas")])
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(heads))
+    assert [(s.page, s.source) for s in toc.extract_sections(data)] == [(1, "layout")]
+    assert toc.tidy_title(long_note) == ""
