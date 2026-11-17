@@ -70,6 +70,27 @@ export const actions: Actions = {
 			return fail(500, { tocError: true });
 		}
 	},
+	report_toc: async ({ request, cookies, params, fetch }) => {
+		const token = cookies.get('access_token');
+		if (!token) {
+			return fail(401, { reportError: true });
+		}
+		const comment = String((await request.formData()).get('comment') ?? '').slice(0, 1000);
+		try {
+			const res = await apiFetch(fetch, token)(`/scores/${params.id}/sections/report`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ comment })
+			});
+			if (!res.ok) {
+				return fail(res.status, { reportError: true });
+			}
+			return { tocReported: true };
+		} catch (error) {
+			console.error('Report TOC error:', error);
+			return fail(500, { reportError: true });
+		}
+	},
 	update_score: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) {

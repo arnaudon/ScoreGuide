@@ -125,3 +125,17 @@ export interface ActiveModels {
 	complete: string;
 	imslp_complete: string;
 }
+
+/** A user's report that a score's table of contents is wrong (admin view). */
+export interface TocReport {
+	id: number;
+	score_id: number;
+	score_title: string;
+	composer: string;
+	pdf_path: string;
+	username: string;
+	comment: string;
+	sections: { title: string; page: number; source: string }[];
+	resolved: boolean;
+	created_at: string;
+}

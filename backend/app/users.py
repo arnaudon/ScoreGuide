@@ -13,13 +13,13 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
 from pydantic import BaseModel
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, delete, func, select
 
 from app import config
 from app.db import get_session
 from app.email_utils import send_email
 from app.rate_limit import limiter
-from shared.scores import Score
+from shared.scores import Score, TocReport
 from shared.user import User
 
 PASSWORD_RESET_PURPOSE = "password_reset"
@@ -500,6 +500,8 @@ def delete_account(
     session: Session = Depends(get_session),
 ):
     """Delete current user."""
+    # Reports they filed on scores (theirs or not) go with them.
+    session.exec(delete(TocReport).where(col(TocReport.user_id) == current_user.id))  # type: ignore[call-overload]
     session.delete(current_user)
     session.commit()
     return {"message": "Account deleted successfully"}

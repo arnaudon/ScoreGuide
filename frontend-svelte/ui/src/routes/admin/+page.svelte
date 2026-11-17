@@ -316,6 +316,54 @@
 	</div>
 </div>
 
+<section class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-6">
+	<h2 class="text-fancy-title mb-2 text-xl font-semibold">{m.toc_reports()}</h2>
+	<p class="text-muted-foreground mb-4 text-sm">{m.toc_reports_desc()}</p>
+	{#if data.tocReports.length}
+		<ul class="flex flex-col gap-3">
+			{#each data.tocReports as report (report.id)}
+				<li class={['rounded-md border p-3', report.resolved && 'opacity-60']}>
+					<div class="flex flex-wrap items-start justify-between gap-2">
+						<div class="min-w-0">
+							<p class="font-semibold">{report.score_title} — {report.composer}</p>
+							<p class="text-muted-foreground text-xs">
+								{report.username} · {new Date(report.created_at).toLocaleString()} · score #{report.score_id}
+								· <code class="select-all">{report.pdf_path}</code>
+							</p>
+						</div>
+						{#if report.resolved}
+							<span class="text-muted-foreground text-xs">{m.toc_report_resolved()}</span>
+						{:else}
+							<form method="POST" action="?/resolve_toc_report" use:enhance>
+								<input type="hidden" name="id" value={report.id} />
+								<Button type="submit" variant="outline" size="sm">{m.toc_report_resolve()}</Button>
+							</form>
+						{/if}
+					</div>
+					{#if report.comment}
+						<p class="mt-2 text-sm whitespace-pre-line">{report.comment}</p>
+					{/if}
+					<details class="mt-2 text-sm">
+						<summary class="text-muted-foreground cursor-pointer text-xs">
+							{m.toc_report_sections({ count: report.sections.length })}
+						</summary>
+						<ol class="mt-1 list-decimal pl-6 text-xs">
+							{#each report.sections as sec, i (i)}
+								<li>
+									p. {sec.page} — {sec.title}
+									<span class="text-muted-foreground">({sec.source})</span>
+								</li>
+							{/each}
+						</ol>
+					</details>
+				</li>
+			{/each}
+		</ul>
+	{:else}
+		<p class="text-muted-foreground text-sm">{m.toc_reports_none()}</p>
+	{/if}
+</section>
+
 <div class="mb-4 flex items-center justify-between">
 	<h2 class="text-fancy-title text-foreground text-xl font-semibold">{m.users()}</h2>
 </div>

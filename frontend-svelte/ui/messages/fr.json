@@ -273,5 +273,17 @@
 	"reader_tabs": "Partitions ouvertes",
 	"tab_close": "Fermer {title}",
 	"tab_open_another": "Ouvrir une autre partition",
-	"demo_login": "J'ai déjà un compte"
+	"demo_login": "J'ai déjà un compte",
+	"toc_report": "Sommaire incorrect ? Signalez-le",
+	"toc_report_placeholder": "Qu'est-ce qui ne va pas ? ex. préludes manquants, titres faux, la page 12 n'est pas un nouveau morceau… (facultatif)",
+	"toc_report_send": "Envoyer",
+	"toc_report_thanks": "Merci ! Nous utiliserons cette partition pour améliorer la détection.",
+	"toc_report_error": "Impossible d'envoyer le signalement. Réessayez.",
+	"toc_report_cancel": "Annuler",
+	"toc_reports": "Sommaires signalés",
+	"toc_reports_desc": "Partitions dont le sommaire a été signalé comme incorrect. Le nom du fichier PDF permet de reproduire la détection.",
+	"toc_reports_none": "Aucun signalement.",
+	"toc_report_resolve": "Marquer comme traité",
+	"toc_report_resolved": "Traité",
+	"toc_report_sections": "{count} sections au moment du signalement"
 }

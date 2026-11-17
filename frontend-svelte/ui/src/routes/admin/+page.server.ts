@@ -2,6 +2,7 @@ import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
+import type { TocReport } from '#lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -43,7 +44,13 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 			activeModels = resData.models || { main: '', imslp: '', complete: '', imslp_complete: '' };
 		}
 
-		return { users, stats, progress, activeModels };
+		let tocReports: TocReport[] = [];
+		const reportsResponse = await api('/admin/toc-reports');
+		if (reportsResponse.ok) {
+			tocReports = await reportsResponse.json();
+		}
+
+		return { users, stats, progress, activeModels, tocReports };
 	} catch (error) {
 		// redirect() throws a Redirect, which we must let propagate.
 		if (isRedirect(error)) throw error;
@@ -54,11 +61,25 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 		users: [],
 		stats: { total_works: 0, total_composers: 0 },
 		progress: { status: 'idle', page: 0, total: 0 },
-		activeModels: { main: '', imslp: '', complete: '', imslp_complete: '' }
+		activeModels: { main: '', imslp: '', complete: '', imslp_complete: '' },
+		tocReports: [] as TocReport[]
 	};
 };
 
 export const actions: Actions = {
+	resolve_toc_report: async ({ request, cookies, fetch }) => {
+		const token = cookies.get('access_token');
+		const id = (await request.formData()).get('id');
+		if (!token || !id || !/^\d+$/.test(String(id))) {
+			return fail(400, { error: 'Missing report id' });
+		}
+		const res = await apiFetch(fetch, token)(`/admin/toc-reports/${id}/resolve`, {
+			method: 'POST'
+		});
+		if (!res.ok) {
+			return fail(res.status, { error: 'Failed to resolve report' });
+		}
+	},
 	refill_credits: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		const data = await request.formData();
