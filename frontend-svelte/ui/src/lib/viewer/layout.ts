@@ -4,7 +4,7 @@
  * DOM and pdf.js so they can be unit-tested in node.
  */
 
-export type ViewerAction = 'next' | 'prev' | 'first' | 'last' | 'menu' | 'fullscreen';
+export type ViewerAction = 'next' | 'prev' | 'first' | 'last' | 'menu' | 'fullscreen' | 'contents';
 
 /** Show two pages side by side (like an open music stand) on wide screens. */
 export function isSpread(width: number, height: number, numPages: number): boolean {
@@ -41,18 +41,26 @@ export function fitScale(pageW: number, pageH: number, slotW: number, slotH: num
 }
 
 /** Tap zones: left third goes back, right third goes forward, middle
- * toggles the controls. */
-export function tapAction(x: number, width: number): ViewerAction {
+ * toggles the controls. The top-left corner opens the table of contents. */
+export function tapAction(x: number, width: number, y = Infinity, height = 0): ViewerAction {
 	if (width <= 0) return 'menu';
 	const ratio = x / width;
+	if (ratio < 1 / 3 && height > 0 && y < height * CORNER) return 'contents';
 	if (ratio < 1 / 3) return 'prev';
 	if (ratio > 2 / 3) return 'next';
 	return 'menu';
 }
 
-/** A mostly-horizontal drag of at least 50px is a page turn. */
-export function swipeAction(dx: number, dy: number): ViewerAction | null {
+/** Share of the height that counts as the top-left "contents" corner. */
+const CORNER = 0.15;
+/** Width of the left strip a swipe must start in to pull out the contents. */
+const EDGE = 40;
+
+/** A mostly-horizontal drag of at least 50px is a page turn; one that
+ * starts at the left edge and moves right pulls out the contents instead. */
+export function swipeAction(dx: number, dy: number, startX = Infinity): ViewerAction | null {
 	if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return null;
+	if (dx > 0 && startX < EDGE) return 'contents';
 	return dx < 0 ? 'next' : 'prev';
 }
 

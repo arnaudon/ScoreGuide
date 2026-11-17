@@ -4,6 +4,7 @@
 	import { page as appPage } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
 	import ListIcon from '@lucide/svelte/icons/list';
+	import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import Maximize from '@lucide/svelte/icons/maximize';
@@ -12,6 +13,7 @@
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import ScoreContents from '#lib/components/ScoreContents.svelte';
 	import ScoreViewer from '#lib/components/ScoreViewer.svelte';
+	import ReaderTabs from '#lib/components/ReaderTabs.svelte';
 	import AnnotationLayer, { type Tool } from '#lib/components/AnnotationLayer.svelte';
 	import AnnotationTools, { COLORS } from '#lib/components/AnnotationTools.svelte';
 	import { annotationsApi, localAnnotationsApi } from '#lib/annotations.js';
@@ -23,29 +25,37 @@
 	const pill =
 		'text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none';
 	let sheetOpen = $state(false);
-	// Larger screens: a side panel next to the score, open by default and
-	// collapsible (remembered per browser). Small screens (and full screen):
-	// the viewer's own contents drawer.
-	let tocPanelOpen = $state(true);
+	// Larger screens: a foldable side panel next to the score. It starts
+	// open only when there is something to navigate (2+ sections) and the
+	// reader hasn't folded it before (remembered per browser); toggling it
+	// on this page overrides that. Small screens (and full screen): the
+	// viewer's own contents drawer.
+	let tocPanelPref = $state(true);
+	let tocPanelToggled: boolean | null = $state(null);
+	let tocPanelOpen = $derived(tocPanelToggled ?? (tocPanelPref && data.toc.sections.length > 1));
 	let currentPage = $state(0);
 	const TOC_PANEL_KEY = 'reader.tocPanelOpen';
 
 	onMount(() => {
 		try {
-			tocPanelOpen = localStorage.getItem(TOC_PANEL_KEY) !== 'false';
+			tocPanelPref = localStorage.getItem(TOC_PANEL_KEY) !== 'false';
 		} catch {
 			// Storage unavailable (private mode…): keep the default.
 		}
 	});
 
+	function setTocPanel(open: boolean) {
+		tocPanelToggled = open;
+		try {
+			localStorage.setItem(TOC_PANEL_KEY, String(open));
+		} catch {
+			// Not persisted; still toggled for this visit.
+		}
+	}
+
 	function toggleContents() {
 		if (window.matchMedia('(min-width: 768px)').matches) {
-			tocPanelOpen = !tocPanelOpen;
-			try {
-				localStorage.setItem(TOC_PANEL_KEY, String(tocPanelOpen));
-			} catch {
-				// Not persisted; still toggled for this visit.
-			}
+			setTocPanel(!tocPanelOpen);
 		} else {
 			viewer?.openContents();
 		}
@@ -92,6 +102,12 @@
 <div
 	class="flex h-[calc(100dvh-5rem)] min-h-[28rem] w-full flex-col gap-4 p-1 sm:p-2 lg:h-[calc(100dvh-8rem)]"
 >
+	<ReaderTabs
+		currentId={Number(appPage.params.id)}
+		current={data.score?.id
+			? { id: data.score.id, title: data.score.title ?? '', composer: data.score.composer ?? '' }
+			: null}
+	/>
 	{#if data.score}
 		<header class="flex items-center justify-between gap-3">
 			<div class="min-w-0">
@@ -163,8 +179,20 @@
 			{#if tocPanelOpen}
 				<aside
 					aria-label={m.toc_contents()}
-					class="bg-card shadow-card hidden w-64 shrink-0 overflow-y-auto rounded-md border p-3 md:block lg:w-72"
+					class="bg-card shadow-card hidden w-64 shrink-0 flex-col gap-2 overflow-y-auto rounded-md border p-3 md:flex lg:w-72"
 				>
+					<div class="flex items-center justify-between gap-2">
+						<h2 class="text-sm font-semibold">{m.toc_contents()}</h2>
+						<button
+							type="button"
+							class="text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex size-8 items-center justify-center rounded-md"
+							onclick={() => setTocPanel(false)}
+							aria-label={m.toc_fold()}
+							title={m.toc_fold()}
+						>
+							<PanelLeftClose class="size-4" />
+						</button>
+					</div>
 					<ScoreContents
 						toc={data.toc}
 						error={!!form?.tocError}
@@ -176,61 +204,67 @@
 			{/if}
 			<div class="bg-card shadow-card relative min-h-0 flex-1 overflow-hidden rounded-md border">
 				{#if pdfUrl}
-					<ScoreViewer
-						bind:this={viewer}
-						bind:page={currentPage}
-						url={pdfUrl}
-						storageKey={`reader.page.${data.score.id}`}
-						label={data.score.title ?? 'PDF'}
-						interactive={tool === null}
-					>
-						{#snippet overlay({ page, width, height })}
-							{#if notes}
-								<AnnotationLayer
-									{width}
-									{height}
-									items={notes.forPage(page)}
-									{tool}
-									color={penColor}
-									onCreate={(d) => notes.create(page, d)}
-									onUpdate={(id, d) => notes.update(id, d)}
-									onDelete={(id) => notes.remove(id)}
-								/>
-							{/if}
-						{/snippet}
-						{#snippet tools()}
-							{#if notes}
-								<AnnotationTools
-									bind:tool
-									bind:color={penColor}
-									canUndo={notes.canUndo}
-									onUndo={() => notes.undo()}
-								/>
-							{/if}
-						{/snippet}
-						{#snippet banner()}
-							{#if notes?.error}
-								<div
-									role="alert"
-									class="bg-destructive text-destructive-foreground flex items-center gap-3 rounded-md px-3 py-2 text-sm shadow-lg"
-								>
-									{notes.error === 'load' ? m.annotations_load_error() : m.annotations_save_error()}
-									<button type="button" class="underline" onclick={() => notes?.dismissError()}
-										>{m.dismiss()}</button
+					<!-- A fresh viewer per score (tabs switch scores in place), so the
+					     page it restores and saves never leaks from one to the next. -->
+					{#key data.score.id}
+						<ScoreViewer
+							bind:this={viewer}
+							bind:page={currentPage}
+							url={pdfUrl}
+							storageKey={`reader.page.${data.score.id}`}
+							label={data.score.title ?? 'PDF'}
+							interactive={tool === null}
+						>
+							{#snippet overlay({ page, width, height })}
+								{#if notes}
+									<AnnotationLayer
+										{width}
+										{height}
+										items={notes.forPage(page)}
+										{tool}
+										color={penColor}
+										onCreate={(d) => notes.create(page, d)}
+										onUpdate={(id, d) => notes.update(id, d)}
+										onDelete={(id) => notes.remove(id)}
+									/>
+								{/if}
+							{/snippet}
+							{#snippet tools()}
+								{#if notes}
+									<AnnotationTools
+										bind:tool
+										bind:color={penColor}
+										canUndo={notes.canUndo}
+										onUndo={() => notes.undo()}
+									/>
+								{/if}
+							{/snippet}
+							{#snippet banner()}
+								{#if notes?.error}
+									<div
+										role="alert"
+										class="bg-destructive text-destructive-foreground flex items-center gap-3 rounded-md px-3 py-2 text-sm shadow-lg"
 									>
-								</div>
-							{/if}
-						{/snippet}
-						{#snippet contents(goTo)}
-							<ScoreContents
-								toc={data.toc}
-								error={!!form?.tocError}
-								canNavigate
-								{currentPage}
-								onSelect={goTo}
-							/>
-						{/snippet}
-					</ScoreViewer>
+										{notes.error === 'load'
+											? m.annotations_load_error()
+											: m.annotations_save_error()}
+										<button type="button" class="underline" onclick={() => notes?.dismissError()}
+											>{m.dismiss()}</button
+										>
+									</div>
+								{/if}
+							{/snippet}
+							{#snippet contents(goTo)}
+								<ScoreContents
+									toc={data.toc}
+									error={!!form?.tocError}
+									canNavigate
+									{currentPage}
+									onSelect={goTo}
+								/>
+							{/snippet}
+						</ScoreViewer>
+					{/key}
 				{:else}
 					<div class="text-muted-foreground flex h-full items-center justify-center">
 						{m.no_pdf_available()}

@@ -42,22 +42,31 @@
 <ModeWatcher />
 
 {#if data.loggedIn}
-	<Sidebar.Provider style="--sidebar-width: 10rem;">
+	<Sidebar.Provider style="--sidebar-width: 4rem;">
 		<AppSidebar />
 		<Sidebar.Inset class="bg-background text-foreground flex w-full flex-1 flex-col">
 			<main class="w-full flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-				<Sidebar.Trigger class="mb-4" />
+				<!-- Desktop: the icon rail is always shown. Mobile: opens the drawer. -->
+				<Sidebar.Trigger class="mb-4 md:hidden" />
 				{#if data.isDemo}
 					<div
 						role="status"
 						class="bg-muted text-muted-foreground mb-4 flex flex-col gap-2 rounded-md p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
 					>
 						<span>{m.demo_banner()}</span>
-						<form method="POST" action="/logout" use:enhance>
+						<!-- Both leave the demo first; "create" opens the sign-up form. -->
+						<form method="POST" action="/logout" use:enhance class="flex shrink-0 gap-4">
+							<button
+								type="submit"
+								name="next"
+								value="signup"
+								class="text-primary font-medium whitespace-nowrap hover:underline"
+								>{m.demo_signup()}</button
+							>
 							<button
 								type="submit"
 								class="text-primary font-medium whitespace-nowrap hover:underline"
-								>{m.demo_signup()}</button
+								>{m.demo_login()}</button
 							>
 						</form>
 					</div>

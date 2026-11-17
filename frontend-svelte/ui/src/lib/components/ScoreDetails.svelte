@@ -91,10 +91,7 @@
 	{/if}
 
 	{#if about}
-		<section class="flex flex-col gap-1.5">
-			<h3 class="text-foreground text-sm font-semibold">{m.label_long_description()}</h3>
-			<p class="text-muted-foreground text-sm leading-relaxed whitespace-pre-line">{about}</p>
-		</section>
+		<p class="text-muted-foreground text-sm leading-relaxed whitespace-pre-line">{about}</p>
 	{/if}
 
 	{#if youtube || permlink}

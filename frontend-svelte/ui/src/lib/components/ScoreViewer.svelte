@@ -320,6 +320,11 @@
 			case 'fullscreen':
 				void toggleFullscreen();
 				break;
+			case 'contents':
+				// Without a table of contents these gestures stay page turns.
+				if (contents) contentsOpen = true;
+				else page = prevPage(page, numPages, spread);
+				break;
 		}
 	}
 
@@ -351,11 +356,11 @@
 		if (!interactive || !start || !numPages) return;
 		const dx = e.clientX - start.x;
 		const dy = e.clientY - start.y;
-		const swipe = swipeAction(dx, dy);
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const swipe = swipeAction(dx, dy, start.x - rect.left);
 		if (swipe) return act(swipe);
 		if (Math.hypot(dx, dy) < 10 && e.timeStamp - start.t < 600) {
-			const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-			act(tapAction(e.clientX - rect.left, rect.width));
+			act(tapAction(e.clientX - rect.left, rect.width, e.clientY - rect.top, rect.height));
 		}
 	}
 
@@ -507,7 +512,17 @@
 		</div>
 	{/if}
 
-	<!-- Exit button: always obvious in full screen -->
+	<!-- Contents and exit buttons: always obvious in full screen -->
+	{#if fullscreen && controlsVisible && contents}
+		<button
+			type="button"
+			class="absolute top-3 left-3 z-20 inline-flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white shadow-lg backdrop-blur hover:bg-black/85"
+			onclick={() => (contentsOpen = true)}
+		>
+			<ListIcon class="size-4" />
+			{m.toc_contents()}
+		</button>
+	{/if}
 	{#if fullscreen && controlsVisible}
 		<button
 			type="button"

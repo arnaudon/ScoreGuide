@@ -1,111 +1,119 @@
+<!--
+	@component
+	App navigation: a narrow rail of icons on desktop (labels as tooltips and
+	for screen readers), a drawer with icons and labels on mobile.
+-->
 <script lang="ts">
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
+	import { useSidebar } from '#lib/components/ui/sidebar/context.svelte.js';
 	import DarkModeToggle from './DarkModeToggle.svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { setLocale } from '#lib/paraglide/runtime.js';
+	import { getLocale, setLocale } from '#lib/paraglide/runtime.js';
 	import * as m from '#lib/paraglide/messages.js';
 	import { enhance } from '$app/forms';
-
-	function setLanguage(lang: 'en' | 'fr') {
-		setLocale(lang);
-	}
+	import BookOpen from '@lucide/svelte/icons/book-open';
+	import House from '@lucide/svelte/icons/house';
+	import LibraryBig from '@lucide/svelte/icons/library-big';
+	import LogOut from '@lucide/svelte/icons/log-out';
+	import Shield from '@lucide/svelte/icons/shield';
+	import User from '@lucide/svelte/icons/user';
 
 	// `/` only matches the exact home route; every other nav target also
-	// matches its own sub-routes (e.g. /reader/[id] keeps "PDF Viewer" active).
+	// matches its own sub-routes (e.g. /reader/[id] keeps the reader active).
 	function isActive(href: string) {
 		const path = page.url.pathname;
 		return href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
 	}
+
+	let items = $derived([
+		{ href: resolve('/'), match: '/', label: m.nav_home(), icon: House },
+		{
+			href: resolve('/db-viewer'),
+			match: '/db-viewer',
+			label: m.nav_db_viewer(),
+			icon: LibraryBig
+		},
+		{ href: resolve('/reader'), match: '/reader', label: m.nav_pdf_viewer(), icon: BookOpen },
+		{ href: resolve('/account'), match: '/account', label: m.nav_account(), icon: User },
+		...(page.data.isAdmin
+			? [{ href: resolve('/admin'), match: '/admin', label: m.nav_admin(), icon: Shield }]
+			: [])
+	]);
+
+	// Labels show as tooltips on the desktop rail; the mobile drawer
+	// prints them next to the icons instead.
+	const sidebar = useSidebar();
+	let tip = $derived({ hidden: sidebar.isMobile });
+
+	let other: 'en' | 'fr' = $derived(getLocale() === 'fr' ? 'en' : 'fr');
+
+	const button =
+		'h-11 justify-center md:size-11 md:p-0 [&>svg]:size-5 max-md:justify-start max-md:gap-3';
 </script>
 
 <Sidebar.Root>
-	<Sidebar.Header class="flex flex-col items-center gap-2 p-4 text-center">
-		<img src="/logo.png" alt="ScoreGuide Logo" class="h-12 w-auto" />
-		<h2 class="text-foreground text-xl font-bold">ScoreGuide</h2>
+	<Sidebar.Header class="items-center p-2 pt-4">
+		<a href={resolve('/')} title="ScoreGuide">
+			<img src="/logo.png" alt="ScoreGuide" class="h-9 w-auto" />
+		</a>
 	</Sidebar.Header>
 	<Sidebar.Content>
-		<Sidebar.Group>
+		<Sidebar.Group class="p-2">
 			<Sidebar.GroupContent>
-				<Sidebar.Menu>
-					<Sidebar.MenuItem>
-						<Sidebar.MenuButton isActive={isActive('/')}>
-							{#snippet child({ props })}
-								<a href={resolve('/')} {...props}>{m.nav_home()}</a>
-							{/snippet}
-						</Sidebar.MenuButton>
-					</Sidebar.MenuItem>
-					<Sidebar.MenuItem>
-						<Sidebar.MenuButton isActive={isActive('/db-viewer')}>
-							{#snippet child({ props })}
-								<a href={resolve('db-viewer')} {...props}>{m.nav_db_viewer()}</a>
-							{/snippet}
-						</Sidebar.MenuButton>
-					</Sidebar.MenuItem>
-					<Sidebar.MenuItem>
-						<Sidebar.MenuButton isActive={isActive('/reader')}>
-							{#snippet child({ props })}
-								<a href={resolve('reader')} {...props}>{m.nav_pdf_viewer()}</a>
-							{/snippet}
-						</Sidebar.MenuButton>
-					</Sidebar.MenuItem>
-					<Sidebar.MenuItem>
-						<Sidebar.MenuButton isActive={isActive('/account')}>
-							{#snippet child({ props })}
-								<a href={resolve('account')} {...props}>{m.nav_account()}</a>
-							{/snippet}
-						</Sidebar.MenuButton>
-					</Sidebar.MenuItem>
-					{#if page.data.isAdmin}
+				<Sidebar.Menu class="items-center gap-1 max-md:items-stretch">
+					{#each items as item (item.match)}
 						<Sidebar.MenuItem>
-							<Sidebar.MenuButton isActive={isActive('/admin')}>
+							<Sidebar.MenuButton
+								isActive={isActive(item.match)}
+								class={button}
+								tooltipContent={item.label}
+								tooltipContentProps={tip}
+							>
 								{#snippet child({ props })}
-									<a href={resolve('admin')} {...props}>{m.nav_admin()}</a>
+									<a href={item.href} aria-label={item.label} {...props}>
+										<item.icon />
+										<span class="md:sr-only">{item.label}</span>
+									</a>
 								{/snippet}
 							</Sidebar.MenuButton>
 						</Sidebar.MenuItem>
-					{/if}
+					{/each}
 				</Sidebar.Menu>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
-	<Sidebar.Footer class="gap-4 p-4">
-		<Sidebar.Menu>
+	<Sidebar.Footer class="items-center gap-2 p-2 pb-4 max-md:items-stretch">
+		<Sidebar.Menu class="items-center max-md:items-stretch">
 			<Sidebar.MenuItem>
-				<Sidebar.MenuButton class="justify-center text-center">
+				<Sidebar.MenuButton
+					class={button}
+					tooltipContent={m.nav_logout()}
+					tooltipContentProps={tip}
+				>
 					{#snippet child({ props })}
-						<form method="POST" action="/logout" class="w-full" use:enhance>
-							<button type="submit" {...props}>{m.nav_logout()}</button>
+						<form method="POST" action="/logout" use:enhance>
+							<!-- After the spread: the tooltip trigger sets type="button". -->
+							<button {...props} type="submit" aria-label={m.nav_logout()}>
+								<LogOut />
+								<span class="md:sr-only">{m.nav_logout()}</span>
+							</button>
 						</form>
 					{/snippet}
 				</Sidebar.MenuButton>
 			</Sidebar.MenuItem>
 		</Sidebar.Menu>
-		<div class="flex items-center gap-2">
+		<div class="flex flex-col items-center gap-2 max-md:flex-row">
 			<DarkModeToggle />
-			<div
-				class="flex rounded-md border text-xs font-semibold"
-				role="group"
-				aria-label={m.language_switch()}
+			<button
+				type="button"
+				onclick={() => setLocale(other)}
+				aria-label={other === 'en' ? m.language_switch_to_en() : m.language_switch_to_fr()}
+				title={other === 'en' ? m.language_switch_to_en() : m.language_switch_to_fr()}
+				class="border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring size-9 rounded-md border text-xs font-semibold uppercase focus-visible:ring-2 focus-visible:outline-none"
 			>
-				<button
-					type="button"
-					onclick={() => setLanguage('en')}
-					aria-label={m.language_switch_to_en()}
-					class="hover:bg-muted p-2"
-				>
-					EN
-				</button>
-				<div class="bg-border w-[1px]"></div>
-				<button
-					type="button"
-					onclick={() => setLanguage('fr')}
-					aria-label={m.language_switch_to_fr()}
-					class="hover:bg-muted p-2"
-				>
-					FR
-				</button>
-			</div>
+				{other}
+			</button>
 		</div>
 	</Sidebar.Footer>
 </Sidebar.Root>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import type { PageProps } from './$types';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -8,7 +9,8 @@
 	import * as m from '#lib/paraglide/messages.js';
 
 	let { form }: PageProps = $props();
-	let isRegister = $state(false);
+	// ?signup (from the demo banner) opens straight on the sign-up form.
+	let isRegister = $state(page.url.searchParams.has('signup'));
 	let submitting = $state(false);
 </script>
 

@@ -101,6 +101,23 @@ describe('ScoreViewer.svelte', { timeout: 45_000 }, () => {
 		await expect.element(page.getByRole('button', { name: 'Movement II' })).not.toBeInTheDocument();
 	});
 
+	it('opens the contents from full screen and from the top-left corner', async () => {
+		const contents = createRawSnippet(() => ({
+			render: () => '<button type="button">Movement II</button>'
+		}));
+		render(ScoreViewer, { target: sizedTarget(500, 700), props: { url: pdfUrl, contents } });
+		await expect.element(page.getByText('1 / 5')).toBeInTheDocument();
+		const stage = page.getByRole('presentation');
+		await stage.click({ position: { x: 20, y: 20 } });
+		await expect.element(page.getByRole('button', { name: 'Movement II' })).toBeInTheDocument();
+		await expect.element(page.getByText('1 / 5')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Close' }).last().click();
+
+		await page.getByRole('button', { name: 'Full screen' }).click();
+		await page.getByRole('button', { name: 'Contents' }).first().click();
+		await expect.element(page.getByRole('button', { name: 'Movement II' })).toBeInTheDocument();
+	});
+
 	it('reports a PDF that fails to load', async () => {
 		render(ScoreViewer, {
 			target: sizedTarget(500, 700),

@@ -8,8 +8,10 @@ export const load: PageServerLoad = async ({ cookies }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ cookies }) => {
+	default: async ({ cookies, request }) => {
 		cookies.delete('access_token', { path: '/', httpOnly: true, secure: !dev, sameSite: 'lax' });
-		redirect(303, '/login');
+		// The demo banner's "create an account" lands on the sign-up form.
+		const form = await request.formData().catch(() => null);
+		redirect(303, form?.get('next') === 'signup' ? '/login?signup' : '/login');
 	}
 };

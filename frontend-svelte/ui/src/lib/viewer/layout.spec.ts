@@ -71,6 +71,13 @@ describe('layout', () => {
 		expect(swipeAction(80, 10)).toBe('prev');
 		expect(swipeAction(30, 0)).toBeNull();
 		expect(swipeAction(60, 60)).toBeNull();
+		// Top-left corner and a swipe in from the left edge open the contents.
+		expect(tapAction(10, 300, 20, 400)).toBe('contents');
+		expect(tapAction(10, 300, 200, 400)).toBe('prev');
+		expect(tapAction(290, 300, 20, 400)).toBe('next');
+		expect(swipeAction(80, 10, 12)).toBe('contents');
+		expect(swipeAction(80, 10, 200)).toBe('prev');
+		expect(swipeAction(-80, 10, 12)).toBe('next');
 	});
 
 	it('maps keys, including pedal keys', () => {
