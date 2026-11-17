@@ -13,8 +13,10 @@ const EMPTY_DEFAULTS = {
 	users: [],
 	stats: { total_works: 0, total_composers: 0 },
 	progress: { status: 'idle', page: 0, total: 0 },
-	activeModels: { main: '', imslp: '', complete: '', imslp_complete: '' }
+	activeModels: { main: '', imslp: '', complete: '', imslp_complete: '' },
+	tocReports: []
 };
+const REPORTS = [{ id: 1, score_title: 'WTC II', comment: 'no preludes' }];
 
 describe('admin load', () => {
 	let errSpy: ReturnType<typeof vi.spyOn>;
@@ -44,13 +46,15 @@ describe('admin load', () => {
 			.mockResolvedValueOnce(jsonResponse(USERS)) // /users
 			.mockResolvedValueOnce(jsonResponse(STATS)) // /imslp/stats
 			.mockResolvedValueOnce(jsonResponse(PROGRESS)) // /imslp/progress
-			.mockResolvedValueOnce(jsonResponse(MODELS)); // /admin/model
+			.mockResolvedValueOnce(jsonResponse(MODELS)) // /admin/model
+			.mockResolvedValueOnce(jsonResponse(REPORTS)); // /admin/toc-reports
 		const result = await load(event({ cookies: makeCookies({ access_token: 'tok' }), fetch }));
 		expect(result).toEqual({
 			users: USERS,
 			stats: STATS,
 			progress: PROGRESS,
-			activeModels: MODELS.models
+			activeModels: MODELS.models,
+			tocReports: REPORTS
 		});
 	});
 
@@ -58,6 +62,7 @@ describe('admin load', () => {
 		const fetch = vi
 			.fn()
 			.mockResolvedValueOnce(jsonResponse(true))
+			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
@@ -253,5 +258,37 @@ describe('admin action failures are surfaced', () => {
 			})
 		);
 		expect(result).toMatchObject({ data: { formId: 'credits' } });
+	});
+});
+
+describe('resolve_toc_report action', () => {
+	const form = (id?: string) => {
+		const body = new FormData();
+		if (id) body.set('id', id);
+		return new Request('http://x/admin', { method: 'POST', body });
+	};
+
+	it('fails 400 without a numeric id', async () => {
+		for (const id of [undefined, '../x']) {
+			const result = await actions.resolve_toc_report(
+				event({ request: form(id), cookies: makeCookies({ access_token: 'tok' }), fetch: vi.fn() })
+			);
+			expect(isActionFailure(result) && result.status).toBe(400);
+		}
+	});
+
+	it('posts to the backend and relays its failure', async () => {
+		const ok = vi.fn(async () => jsonResponse({ resolved: true }));
+		const done = await actions.resolve_toc_report(
+			event({ request: form('3'), cookies: makeCookies({ access_token: 'tok' }), fetch: ok })
+		);
+		expect(done).toBeUndefined();
+		expect(String((ok.mock.calls[0] as unknown[])[0])).toContain('/admin/toc-reports/3/resolve');
+
+		const bad = vi.fn(async () => new Response(null, { status: 404 }));
+		const failed = await actions.resolve_toc_report(
+			event({ request: form('3'), cookies: makeCookies({ access_token: 'tok' }), fetch: bad })
+		);
+		expect(isActionFailure(failed) && failed.status).toBe(404);
 	});
 });

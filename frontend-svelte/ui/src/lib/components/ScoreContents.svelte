@@ -23,6 +23,12 @@
 	} = $props();
 
 	let rebuilding = $state(false);
+	// "This table of contents is wrong": a short note sent to the admins,
+	// with a snapshot of the sections, to improve the detector.
+	let reportOpen = $state(false);
+	let reporting = $state(false);
+	let reported = $state(false);
+	let reportFailed = $state(false);
 
 	// The section being read: the last one starting at or before the page.
 	let activeId = $derived.by(() => {
@@ -90,5 +96,51 @@
 				{m.toc_rebuild()}
 			</Button>
 		</form>
+	{/if}
+
+	{#if toc.status !== 'running' && !page.data.isDemo}
+		{#if reported}
+			<p role="status" class="text-muted-foreground text-sm">{m.toc_report_thanks()}</p>
+		{:else if !reportOpen}
+			<button
+				type="button"
+				class="text-muted-foreground hover:text-foreground self-start text-xs underline-offset-2 hover:underline"
+				onclick={() => (reportOpen = true)}>{m.toc_report()}</button
+			>
+		{:else}
+			<form
+				method="POST"
+				action="?/report_toc"
+				class="flex flex-col gap-2"
+				use:enhance={() => {
+					reporting = true;
+					reportFailed = false;
+					return async ({ result }) => {
+						reporting = false;
+						if (result.type === 'success') reported = true;
+						else reportFailed = true;
+					};
+				}}
+			>
+				<label for="toc-report-comment" class="text-sm font-medium">{m.toc_report()}</label>
+				<textarea
+					id="toc-report-comment"
+					name="comment"
+					maxlength="1000"
+					rows="3"
+					placeholder={m.toc_report_placeholder()}
+					class="border-input bg-background focus-visible:ring-ring rounded-md border p-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+				></textarea>
+				{#if reportFailed}
+					<p role="alert" class="text-destructive text-sm">{m.toc_report_error()}</p>
+				{/if}
+				<div class="flex gap-2">
+					<Button type="submit" size="sm" disabled={reporting}>{m.toc_report_send()}</Button>
+					<Button type="button" variant="ghost" size="sm" onclick={() => (reportOpen = false)}
+						>{m.toc_report_cancel()}</Button
+					>
+				</div>
+			</form>
+		{/if}
 	{/if}
 </div>

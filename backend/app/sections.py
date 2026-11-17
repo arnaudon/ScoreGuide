@@ -16,8 +16,8 @@ from app.db import get_session
 from app.file_helper import file_helper
 from app.rate_limit import limiter
 from app.toc import extract_sections
-from app.users import get_current_user
-from shared.scores import Score, ScoreSection
+from app.users import get_admin_user, get_current_user
+from shared.scores import Score, ScoreSection, TocReport, TocReportIn
 from shared.user import User
 
 logger = logging.getLogger(__name__)
@@ -58,12 +58,18 @@ def _sections(score_id: int, session: Session) -> list[ScoreSection]:
     )
 
 
-def delete_sections(score_id: int, session: Session) -> None:
+def _clear_sections(score_id: int, session: Session) -> None:
     """Remove a score's sections and their stored incipit images (no commit)."""
     for sec in _sections(score_id, session):
         if sec.incipit_path:
             file_helper.delete_pdf(sec.incipit_path)
     session.exec(delete(ScoreSection).where(col(ScoreSection.score_id) == score_id))  # type: ignore[call-overload]
+
+
+def delete_sections(score_id: int, session: Session) -> None:
+    """Remove a score's sections, their incipit images and reports (no commit)."""
+    _clear_sections(score_id, session)
+    session.exec(delete(TocReport).where(col(TocReport.score_id) == score_id))  # type: ignore[call-overload]
 
 
 def generate_sections(score_id: int, pdf_path: str, engine: Engine) -> None:
@@ -73,7 +79,7 @@ def generate_sections(score_id: int, pdf_path: str, engine: Engine) -> None:
             data = file_helper.download_pdf(pdf_path)["Body"].read()
             detected = extract_sections(data)
             with Session(engine) as session:
-                delete_sections(score_id, session)
+                _clear_sections(score_id, session)
                 for position, sec in enumerate(detected):
                     incipit_path = ""
                     if sec.incipit_png:
@@ -163,3 +169,82 @@ def get_incipit(
         media_type="image/png",
         headers={"Cache-Control": "private, max-age=86400, immutable"},
     )
+
+
+class TocReportOut(BaseModel):
+    """A report as listed for admins, with what's needed to reproduce it."""
+
+    id: int
+    score_id: int
+    score_title: str
+    composer: str
+    pdf_path: str
+    username: str
+    comment: str
+    sections: list
+    resolved: bool
+    created_at: str
+
+
+@router.post("/scores/{score_id}/sections/report", status_code=201)
+@limiter.limit("5/minute")
+def report_sections(
+    request: Request,
+    score_id: int,
+    body: TocReportIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Session = Depends(get_session),
+) -> dict[str, int]:
+    """Flag the score's table of contents as wrong, keeping a snapshot of it."""
+    _owned_score(score_id, current_user, session)
+    snapshot = [
+        {"title": s.title, "page": s.page, "source": s.source} for s in _sections(score_id, session)
+    ]
+    report = TocReport(
+        score_id=score_id,
+        user_id=current_user.id,  # type: ignore[arg-type]
+        comment=body.comment.strip(),
+        sections=snapshot,
+    )
+    session.add(report)
+    session.commit()
+    session.refresh(report)
+    return {"id": report.id}  # type: ignore[dict-item]
+
+
+@router.get("/admin/toc-reports", dependencies=[Depends(get_admin_user)])
+def list_reports(session: Session = Depends(get_session)) -> list[TocReportOut]:
+    """All table-of-contents reports, open ones first, newest first."""
+    rows = session.exec(
+        select(TocReport, Score, User)
+        .join(Score, col(Score.id) == TocReport.score_id)
+        .join(User, col(User.id) == TocReport.user_id)
+        .order_by(col(TocReport.resolved), col(TocReport.created_at).desc())
+    ).all()
+    return [
+        TocReportOut(
+            id=r.id,  # type: ignore[arg-type]
+            score_id=r.score_id,
+            score_title=score.title,
+            composer=score.composer,
+            pdf_path=score.pdf_path,
+            username=user.username,
+            comment=r.comment,
+            sections=r.sections,
+            resolved=r.resolved,
+            created_at=r.created_at.isoformat(),
+        )
+        for r, score, user in rows
+    ]
+
+
+@router.post("/admin/toc-reports/{report_id}/resolve", dependencies=[Depends(get_admin_user)])
+def resolve_report(report_id: int, session: Session = Depends(get_session)) -> dict[str, bool]:
+    """Mark a report as handled."""
+    report = session.get(TocReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    report.resolved = True
+    session.add(report)
+    session.commit()
+    return {"resolved": True}

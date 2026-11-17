@@ -273,5 +273,17 @@
 	"reader_tabs": "Open scores",
 	"tab_close": "Close {title}",
 	"tab_open_another": "Open another score",
-	"demo_login": "I already have an account"
+	"demo_login": "I already have an account",
+	"toc_report": "Contents wrong? Report it",
+	"toc_report_placeholder": "What's wrong? e.g. preludes missing, wrong titles, page 12 is not a new piece… (optional)",
+	"toc_report_send": "Send report",
+	"toc_report_thanks": "Thanks! We'll use this score to improve the detection.",
+	"toc_report_error": "Couldn't send the report. Please try again.",
+	"toc_report_cancel": "Cancel",
+	"toc_reports": "Reported tables of contents",
+	"toc_reports_desc": "Scores whose users flagged the contents as wrong. The PDF file name lets you reproduce the detection.",
+	"toc_reports_none": "No reports.",
+	"toc_report_resolve": "Mark as handled",
+	"toc_report_resolved": "Handled",
+	"toc_report_sections": "{count} sections at report time"
 }

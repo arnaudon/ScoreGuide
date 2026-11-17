@@ -1,10 +1,12 @@
 """Score models."""
 
+from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel
-from sqlmodel import Field, Relationship, SQLModel
+from pydantic import Field as PydanticField
+from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from shared.user import User
@@ -81,6 +83,34 @@ class ScoreSection(SQLModel, table=True):
     # How the entry was found: outline | text | ocr | layout | manual
     source: str = Field(default="")
     incipit_path: str = Field(default="")
+
+
+def _now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+class TocReportIn(BaseModel):
+    """Request body: a user flags a score's table of contents as wrong."""
+
+    comment: str = PydanticField(default="", max_length=1000)
+
+
+class TocReport(SQLModel, table=True):
+    """A user's report that a score's generated table of contents is wrong.
+
+    Keeps a snapshot of the sections at report time, so the detector can be
+    compared against what the user saw even after a rebuild.
+    """
+
+    __tablename__ = "toc_report"  # type: ignore[reportAssignmentType]
+
+    id: int | None = Field(default=None, primary_key=True)
+    score_id: int = Field(foreign_key="score.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    comment: str = Field(default="")
+    sections: list = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    resolved: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=_now)
 
 
 class Scores(BaseModel):
