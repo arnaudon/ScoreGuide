@@ -8,8 +8,11 @@ export const INSTRUMENTS = [
 	'harpsichord',
 	'guitar',
 	'violin',
+	'viola',
 	'cello',
 	'flute',
+	'clarinet',
+	'trumpet',
 	'voice',
 	'chorus',
 	'orchestra'
@@ -32,8 +35,11 @@ const INSTRUMENT_LABELS: Record<string, () => string> = {
 	harpsichord: m.instrument_harpsichord,
 	guitar: m.instrument_guitar,
 	violin: m.instrument_violin,
+	viola: m.instrument_viola,
 	cello: m.instrument_cello,
 	flute: m.instrument_flute,
+	clarinet: m.instrument_clarinet,
+	trumpet: m.instrument_trumpet,
 	voice: m.instrument_voice,
 	chorus: m.instrument_chorus,
 	orchestra: m.instrument_orchestra
@@ -50,6 +56,12 @@ const PERIOD_LABELS: Record<string, () => string> = {
 };
 
 export const instrumentLabel = (value: string) => INSTRUMENT_LABELS[value]?.() ?? value;
+/** The search filter for a profile's preferred instrument ("" when not one of ours). */
+export function defaultInstrument(preferred: string | null | undefined): string {
+	const value = (preferred ?? '').trim().toLowerCase();
+	return (INSTRUMENTS as readonly string[]).includes(value) ? value : '';
+}
+
 export const periodLabel = (value: string) => PERIOD_LABELS[value]?.() ?? value;
 
 /**

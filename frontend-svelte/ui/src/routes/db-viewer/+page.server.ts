@@ -267,7 +267,9 @@ export const actions: Actions = {
 				return fail(scoreRes.status, { error: m.err_add_score() });
 			}
 
-			return { success: true, scoreAdded: true };
+			const saved = (await scoreRes.json().catch(() => null)) as { id?: unknown } | null;
+			const scoreId = typeof saved?.id === 'number' ? saved.id : null;
+			return { success: true, scoreAdded: true, scoreId };
 		} catch (error) {
 			console.error('Add IMSLP error:', error);
 			return fail(500, { error: m.err_backend_unreachable() });

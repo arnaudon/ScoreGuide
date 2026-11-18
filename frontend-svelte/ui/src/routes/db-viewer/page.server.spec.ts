@@ -213,7 +213,7 @@ describe('add_imslp action', () => {
 				fetch
 			})
 		);
-		expect(result).toEqual({ success: true, scoreAdded: true });
+		expect(result).toEqual({ success: true, scoreAdded: true, scoreId: 1 });
 		const saved = JSON.parse(fetch.mock.calls[2][1]!.body as string);
 		expect(saved).toMatchObject({ title: 'X', composer: 'Y', pdf_path: 'beethoven.pdf' });
 	});

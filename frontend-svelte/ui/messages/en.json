@@ -332,5 +332,12 @@
 	"imslp_sync_completed": "Last sync completed: {works} works, {removed} removed.",
 	"imslp_sync_cancelled": "Sync stopped at position {start} ({works} works stored). Resume to continue.",
 	"imslp_sync_error": "Sync stopped at position {start}: {error}",
-	"imslp_sync_updated": "Updated {time}"
+	"imslp_sync_updated": "Updated {time}",
+	"instrument_viola": "Viola",
+	"instrument_clarinet": "Clarinet",
+	"instrument_trumpet": "Trumpet",
+	"imslp_home_title": "Add a score from IMSLP",
+	"imslp_home_desc": "Search the free IMSLP catalogue, then add the PDF to your library.",
+	"imslp_added": "Added to your library.",
+	"imslp_open_added": "Open it"
 }

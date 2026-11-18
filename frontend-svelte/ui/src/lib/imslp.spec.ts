@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { scoreFromImslp, instrumentLabel, periodLabel, INSTRUMENTS, PERIODS } from './imslp.js';
+import {
+	defaultInstrument,
+	scoreFromImslp,
+	instrumentLabel,
+	periodLabel,
+	INSTRUMENTS,
+	PERIODS
+} from './imslp.js';
 
 describe('scoreFromImslp', () => {
 	it('links the work and adds the catalogue number to the title', () => {
@@ -48,5 +55,18 @@ describe('labels', () => {
 		for (const v of PERIODS) expect(periodLabel(v)).not.toBe('');
 		expect(instrumentLabel('lute')).toBe('lute');
 		expect(periodLabel('Other')).toBe('Other');
+	});
+});
+
+describe('defaultInstrument', () => {
+	it('uses the profile instrument when it is a filter value', () => {
+		expect(defaultInstrument('piano')).toBe('piano');
+		expect(defaultInstrument(' Viola ')).toBe('viola');
+	});
+
+	it('falls back to all instruments otherwise', () => {
+		expect(defaultInstrument('other')).toBe('');
+		expect(defaultInstrument(null)).toBe('');
+		expect(defaultInstrument(undefined)).toBe('');
 	});
 });
