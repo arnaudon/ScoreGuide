@@ -16,6 +16,7 @@ an interrupted sync (cancel, error, deploy) resumes where it stopped.
 """
 
 import contextlib
+import html
 import json
 import logging
 import os
@@ -136,21 +137,62 @@ def normalize(value: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", plain).split())
 
 
+_ACCIDENTALS = {"sharp": "♯", "flat": "♭", "natural": "♮"}
+_KEY = re.compile(r"([A-Ga-g])(#|b|-sharp|-flat)?")
+
+
+def _key_name(arg: str) -> str:
+    """IMSLP's {{K|bb}} shorthand: upper case is major, lower case minor."""
+    m = _KEY.fullmatch(arg.strip())
+    if not m:
+        return arg
+    note, acc = m.groups()
+    sign = {"#": "-sharp", "b": "-flat"}.get(acc or "", acc or "")
+    return f"{note.upper()}{sign} {'major' if note.isupper() else 'minor'}"
+
+
 def _template_args(match: re.Match) -> str:
-    args = match.group(1).split("|")[1:]
-    return " ".join(a for a in args if "=" not in a)
+    name, *parts = match.group(1).split("|")
+    name = name.strip().lower()
+    args = [a.strip() for a in parts if "=" not in a]
+    if name.startswith("#subitem"):  # a movement: {{#subitem:id=..|title=Largo}}
+        return next((a.split("=", 1)[1] for a in parts if a.startswith("title=")), "")
+    if name in _ACCIDENTALS:
+        return _ACCIDENTALS[name]
+    if name in ("k", "key") and args:
+        return _key_name(args[0])
+    if name == "tons":  # "in all keys"
+        return "Various"
+    if name == "linkwork":  # title, catalogue number, composer...
+        return ", ".join(a for a in args[:2] if a)
+    if name == "wc" and args:  # {{WC|worldcat id|label}}
+        return args[-1]
+    if name.startswith("link"):  # LinkDed|First|Last, LinkComp...: a person
+        return " ".join(args[:2])
+    if re.fullmatch(r"[a-z]{2}", name) and not args:  # {{EN}}: language flag
+        return ""
+    return " ".join(args)
+
+
+# A field can start mid-line ("organ |Tags=...") or on an indented line.
+_INLINE_FIELD = re.compile(r"[ \t]+\|(?=[A-Z][A-Za-z/ ]{1,40}=)")
 
 
 def clean_wiki(value: str) -> str:
     """Wikitext to plain text: drop markup, keep link labels and template arguments."""
     t = re.sub(r"<!--.*?-->", "", value, flags=re.S)
-    t = re.sub(r"<br\s*/?>", ", ", t, flags=re.I)
+    t = re.sub(r"<br\s*/?>", "\n", t, flags=re.I)
     t = re.sub(r"<[^>]+>", "", t)
     for _ in range(3):  # nested templates, innermost first
         t = re.sub(r"\{\{([^{}]*)\}\}", _template_args, t)
     t = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]*)\]\]", r"\1", t)
     t = re.sub(r"\[https?://\S+\s*([^\]]*)\]", r"\1", t)
     t = t.replace("'''", "").replace("''", "")
+    t = html.unescape(t)
+    # One line per list item or <br>: drop list markers (":", "#", "*"), join with commas.
+    lines = (re.sub(r"^[\s:#*]+", "", line).strip(" ,") for line in t.splitlines())
+    t = ", ".join(line for line in lines if line)
+    t = re.sub(r"([;,:])(\s*[;,])+", r"\1", t)
     return " ".join(t.split()).strip(" ,;")
 
 
@@ -166,6 +208,7 @@ def parse_work_info(wikitext: str) -> dict[str, str]:
     end = re.search(r"\|\s*\*{5}", body)
     if end:
         body = body[: end.start()]
+    body = _INLINE_FIELD.sub("\n|", body)
     return {k.strip(): clean_wiki(v) for k, v in _FIELD.findall(body)}
 
 
@@ -261,7 +304,8 @@ def build_row(item: dict[str, Any], wikitext: str) -> dict[str, Any]:
     )
     style = info.get("Piece Style", "")
     genre = parse_genre(info.get("Tags", ""))
-    key = info.get("Key", "")
+    # "Various (together with 13 Preludes, Op.32...)": the cross-reference is noise here.
+    key = re.sub(r"\s*\(together with\b.*", "", info.get("Key", ""), flags=re.S)
     instrumentation = info.get("Instrumentation", "")
     searchable = [title, catalogue, composer, info.get("Alternative Title", ""), key]
     return {
@@ -334,6 +378,75 @@ def _has_pageid(item: Any) -> bool:
     return isinstance(item, dict) and str((item.get("intvals") or {}).get("pageid", "")).isdigit()
 
 
+def _pages_by_title(client: ImslpClient, titles: list[str]) -> dict[str, tuple[int, str, bool]]:
+    """Page id, wikitext and whether it was a redirect, keyed by requested title."""
+    found: dict[str, tuple[int, str, bool]] = {}
+    for i in range(0, len(titles), WIKI_BATCH):
+        batch = titles[i : i + WIKI_BATCH]
+        data = client.get_json(
+            WIKI_API,
+            params={
+                "action": "query",
+                "format": "json",
+                "maxlag": 5,
+                "redirects": 1,
+                "prop": "revisions",
+                "rvprop": "content",
+                "titles": "|".join(batch),
+            },
+        )
+        query = data.get("query") or {}
+        normalized = {n["from"]: n["to"] for n in query.get("normalized") or []}
+        redirects = {r["from"]: r["to"] for r in query.get("redirects") or []}
+        pages = query.get("pages") or {}
+        by_title = {}
+        for page in pages.values() if isinstance(pages, dict) else pages:
+            if "pageid" in page and "missing" not in page:
+                rev = (page.get("revisions") or [{}])[0]
+                by_title[page.get("title")] = (int(page["pageid"]), rev.get("*") or "")
+        for title in batch:
+            name = normalized.get(title, title)
+            target = redirects.get(name, name)
+            if target in by_title:
+                found[title] = (*by_title[target], target != name)
+    return found
+
+
+def _work_items(client: ImslpClient, data: dict[str, Any]) -> tuple[list[dict], dict[int, str]]:
+    """The list page's works with a trustworthy page id, and wikitexts already fetched.
+
+    IMSLP's work list is not always consistent: some works come without a page
+    id, and several different titles can share one. Those are looked up by
+    title instead (one extra request per 50); titles that turn out to be
+    redirects to another work are dropped, since that work has its own entry.
+    """
+    items = [v for v in data.values() if isinstance(v, dict) and v.get("id")]
+    titles: dict[int, set[str]] = {}
+    for item in items:
+        if _has_pageid(item):
+            titles.setdefault(int(item["intvals"]["pageid"]), set()).add(item["id"])
+    doubtful = [
+        item["id"]
+        for item in items
+        if not _has_pageid(item) or len(titles[int(item["intvals"]["pageid"])]) > 1
+    ]
+    resolved = _pages_by_title(client, doubtful) if doubtful else {}
+    skip = set(doubtful)  # not found on the wiki (deleted or renamed)
+    texts: dict[int, str] = {}
+    works = []
+    for item in items:
+        if item["id"] in resolved:
+            pageid, text, redirect = resolved[item["id"]]
+            if redirect:
+                continue
+            item = {**item, "intvals": {**(item.get("intvals") or {}), "pageid": str(pageid)}}
+            texts[pageid] = text
+        elif item["id"] in skip:
+            continue
+        works.append(item)
+    return works, texts
+
+
 def _store(session: Session, items: list[dict[str, Any]], wikitexts: dict[int, str]) -> int:
     """Upsert works by IMSLP page id; adopt matching rows from the old scraper."""
     rows = {}
@@ -393,11 +506,12 @@ def sync_catalogue(engine: Engine, restart: bool = False, client: ImslpClient | 
                         break
                     data = client.get_json(LIST_URL.format(start=state["start"]))
                     meta = data.pop("metadata", {}) if isinstance(data, dict) else {}
-                    items = [v for v in (data or {}).values() if _has_pageid(v)]
-                    for i in range(0, len(items), WIKI_BATCH):
-                        batch = items[i : i + WIKI_BATCH]
-                        ids = [int(it["intvals"]["pageid"]) for it in batch]
-                        state["works"] += _store(session, batch, _wikitexts(client, ids))
+                    items, texts = _work_items(client, data or {})
+                    missing = [int(it["intvals"]["pageid"]) for it in items]
+                    missing = [p for p in missing if p not in texts]
+                    for i in range(0, len(missing), WIKI_BATCH):
+                        texts.update(_wikitexts(client, missing[i : i + WIKI_BATCH]))
+                    state["works"] += _store(session, items, texts)
                     state["start"] += LIST_PAGE
                     if not data or not meta.get("moreresultsavailable"):
                         state["removed"] = _finish(session, state["run_started"])
