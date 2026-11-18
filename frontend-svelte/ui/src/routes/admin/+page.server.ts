@@ -2,7 +2,7 @@ import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
-import type { TocReport } from '#lib/types.js';
+import type { ImslpProgress, TocReport } from '#lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -31,17 +31,17 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 			stats = await statsResponse.json();
 		}
 
-		let progress = { status: 'idle', page: 0, total: 0 };
+		let progress: ImslpProgress = { status: 'idle', start: 0, works: 0, error: '' };
 		const progressResponse = await api('/imslp/progress', { method: 'POST' });
 		if (progressResponse.ok) {
 			progress = await progressResponse.json();
 		}
 
-		let activeModels = { main: '', imslp: '', complete: '', imslp_complete: '' };
+		let activeModels = { main: '', imslp: '', complete: '' };
 		const modelResponse = await api('/admin/model');
 		if (modelResponse.ok) {
 			const resData = await modelResponse.json();
-			activeModels = resData.models || { main: '', imslp: '', complete: '', imslp_complete: '' };
+			activeModels = resData.models || { main: '', imslp: '', complete: '' };
 		}
 
 		let tocReports: TocReport[] = [];
@@ -60,8 +60,8 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	return {
 		users: [],
 		stats: { total_works: 0, total_composers: 0 },
-		progress: { status: 'idle', page: 0, total: 0 },
-		activeModels: { main: '', imslp: '', complete: '', imslp_complete: '' },
+		progress: { status: 'idle', start: 0, works: 0, error: '' } as ImslpProgress,
+		activeModels: { main: '', imslp: '', complete: '' },
 		tocReports: [] as TocReport[]
 	};
 };
@@ -137,8 +137,7 @@ export const actions: Actions = {
 		const models = {
 			main: data.get('model_main')?.toString() || '',
 			imslp: data.get('model_imslp')?.toString() || '',
-			complete: data.get('model_complete')?.toString() || '',
-			imslp_complete: data.get('model_imslp_complete')?.toString() || ''
+			complete: data.get('model_complete')?.toString() || ''
 		};
 		const api = apiFetch(fetch, token);
 		const res = await api('/admin/model', {
@@ -158,14 +157,11 @@ export const actions: Actions = {
 	},
 	update: async ({ request, cookies, fetch }) => {
 		const data = await request.formData();
-		// Clamp to a sane integer — the value lands in the backend URL path.
-		const maxPages = Math.min(
-			10000,
-			Math.max(1, parseInt(data.get('max_pages')?.toString() || '300', 10) || 300)
-		);
+		// Resume a stopped sync unless asked to start over.
+		const query = data.get('restart') === 'true' ? '?restart=true' : '';
 		const token = cookies.get('access_token');
 		const api = apiFetch(fetch, token);
-		return imslpResult(await api(`/imslp/start/${maxPages}`, { method: 'POST' }));
+		return imslpResult(await api(`/imslp/start${query}`, { method: 'POST' }));
 	},
 	empty: async ({ cookies, fetch }) => {
 		const token = cookies.get('access_token');

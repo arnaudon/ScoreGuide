@@ -1,201 +1,465 @@
-"""Imslp scrapping module."""
+"""IMSLP catalogue: a local copy of IMSLP's works, synced politely, and its search.
 
-import asyncio
+The sync reads IMSLP's work list (1,000 works per request) and, for every 50
+works, one MediaWiki API request returning their pages' wikitext, from which
+the work details (key, year, style, instrumentation, tags, files) are parsed.
+No AI is involved. A full pass is ~300 + ~5,600 requests.
+
+IMSLP has blocked us before for unusual traffic, so the client is deliberately
+gentle: a single request at a time, at least ``IMSLP_SYNC_DELAY`` seconds
+apart (default 3), an identifying User-Agent, MediaWiki ``maxlag``, long
+backoffs on 429/5xx/maxlag (honouring ``Retry-After``), and it stops outright
+on any other 4xx (e.g. 403: possibly blocked) or after repeated failures.
+
+Progress is stored in the ``imslp_sync`` Setting row after every list page, so
+an interrupted sync (cancel, error, deploy) resumes where it stopped.
+"""
+
+import contextlib
 import json
 import logging
 import os
+import re
+import threading
+import time
+import unicodedata
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
 import httpx
-import requests
-from bs4 import BeautifulSoup
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy.dialects.postgresql import insert
-from sqlmodel import Session, func, select, text
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
+from sqlalchemy import ColumnElement
+from sqlalchemy.engine import Engine
+from sqlmodel import Session, col, delete, func, literal, or_, select, text
 
-from app.agent import run_imslp_complete_agent
-from app.db import engine, get_session
+from app.db import get_session
+from app.rate_limit import limiter
 from app.users import get_admin_user, get_current_user
-from shared.scores import IMSLP
+from shared.scores import IMSLP, Period, Score
 from shared.settings import Setting
+from shared.user import User
 
 logger = logging.getLogger(__name__)
 
-# Module-level state shared by the /imslp/start, /imslp/progress, and
-# /imslp/cancel endpoints. This only works correctly when the backend runs
-# with a single uvicorn worker (see Dockerfile.backend) — each worker would
-# otherwise see its own copy. If we ever need to scale out, move this to a
-# DB row (e.g. on the Setting table) or Redis.
-progress_tracker = {"status": "idle", "page": 0, "cancel_requested": False}
 router = APIRouter(prefix="/imslp", tags=["imslp"])
 
+USER_AGENT = "ScoreGuide/1.0 (+https://scoreguide.ch; IMSLP catalogue sync, one request at a time)"
+LIST_URL = (
+    "https://imslp.org/imslpscripts/API.ISCR.php?account=worklist/disclaimer=accepted/"
+    "sort=id/type=2/start={start}/retformat=json"
+)
+WIKI_API = "https://imslp.org/api.php"
+LIST_PAGE = 1000  # works per work-list request (fixed by IMSLP)
+WIKI_BATCH = 50  # MediaWiki's limit of pages per query for non-bot clients
+MAX_FAILURES = 6  # consecutive retryable failures before giving up
+MAX_BACKOFF = 900.0
+STATE_KEY = "imslp_sync"
 
-def get_metadata(response, bypass=False) -> dict:
-    """return a dictionary of metadata from the page"""
-    if bypass:
+
+def _delay() -> float:
+    return float(os.getenv("IMSLP_SYNC_DELAY", "3"))
+
+
+def _now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+class ImslpUnavailable(Exception):
+    """IMSLP refused or kept failing: the sync stops (and can be resumed later)."""
+
+
+class _Retry(Exception):
+    def __init__(self, reason: str, retry_after: str | None = None):
+        super().__init__(reason)
+        self.retry_after = retry_after
+
+
+class ImslpClient:
+    """Sequential HTTP client: one request at a time, ``interval`` seconds apart."""
+
+    def __init__(
+        self,
+        interval: float | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+        http: httpx.Client | None = None,
+    ):
+        self.interval = _delay() if interval is None else interval
+        self.sleep = sleep
+        self.http = http or httpx.Client(
+            headers={"User-Agent": USER_AGENT}, timeout=60, follow_redirects=True
+        )
+        self._last = 0.0
+
+    def get_json(self, url: str, params: dict[str, Any] | None = None) -> Any:
+        """GET ``url`` as JSON, waiting between requests and backing off on errors."""
+        failures = 0
+        while True:
+            wait = self._last + self.interval - time.monotonic()
+            if wait > 0:
+                self.sleep(wait)
+            self._last = time.monotonic()
+            try:
+                resp = self.http.get(url, params=params)
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    raise _Retry(f"HTTP {resp.status_code}", resp.headers.get("Retry-After"))
+                if resp.status_code >= 400:
+                    # 403 & co: possibly blocked. Never insist.
+                    raise ImslpUnavailable(f"IMSLP answered HTTP {resp.status_code}; stopped")
+                data = resp.json()
+                error = data.get("error") if isinstance(data, dict) else None
+                if isinstance(error, dict) and error.get("code") == "maxlag":
+                    raise _Retry("maxlag", resp.headers.get("Retry-After"))
+                return data
+            except (_Retry, httpx.TransportError, ValueError) as e:
+                failures += 1
+                if failures >= MAX_FAILURES:
+                    raise ImslpUnavailable(f"IMSLP kept failing ({e}); stopped") from e
+                backoff = min(MAX_BACKOFF, 30.0 * 2 ** (failures - 1))
+                retry_after = getattr(e, "retry_after", None)
+                if retry_after and retry_after.isdigit():
+                    backoff = min(MAX_BACKOFF, max(backoff, float(retry_after)))
+                logger.warning("IMSLP request failed (%s), retrying in %.0fs", e, backoff)
+                self.sleep(backoff)
+
+
+# --- Parsing ----------------------------------------------------------------
+
+_ASCII = str.maketrans({"ø": "o", "æ": "ae", "œ": "oe", "ß": "ss", "ł": "l", "đ": "d", "ð": "d"})
+
+
+def normalize(value: str) -> str:
+    """Lower-case, accent-free, punctuation-free text for matching."""
+    decomposed = unicodedata.normalize("NFKD", value.lower().translate(_ASCII))
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", plain).split())
+
+
+def _template_args(match: re.Match) -> str:
+    args = match.group(1).split("|")[1:]
+    return " ".join(a for a in args if "=" not in a)
+
+
+def clean_wiki(value: str) -> str:
+    """Wikitext to plain text: drop markup, keep link labels and template arguments."""
+    t = re.sub(r"<!--.*?-->", "", value, flags=re.S)
+    t = re.sub(r"<br\s*/?>", ", ", t, flags=re.I)
+    t = re.sub(r"<[^>]+>", "", t)
+    for _ in range(3):  # nested templates, innermost first
+        t = re.sub(r"\{\{([^{}]*)\}\}", _template_args, t)
+    t = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]*)\]\]", r"\1", t)
+    t = re.sub(r"\[https?://\S+\s*([^\]]*)\]", r"\1", t)
+    t = t.replace("'''", "").replace("''", "")
+    return " ".join(t.split()).strip(" ,;")
+
+
+_FIELD = re.compile(r"^\|\s*([^=\n|]+?)\s*=(.*?)(?=^\||\Z)", re.M | re.S)
+
+
+def parse_work_info(wikitext: str) -> dict[str, str]:
+    """The ``|Field=value`` pairs of an IMSLP work page's WORK INFO section."""
+    start = wikitext.find("*****WORK INFO*****")
+    if start < 0:
         return {}
-    soup = BeautifulSoup(response.text, "html.parser")
-    gen_info = soup.find("span", id="General_Information")
-    if gen_info is None:
-        return {}
-
-    table = gen_info.find_next("table")
-    if table is None:
-        return {}
-
-    data = {}
-    for row in table.find_all("tr"):
-        header = row.find("th")
-        value = row.find("td")
-        if header and value:
-            key = header.get_text(" ", strip=True)
-            val = value.get_text(" ", strip=True)
-            data[key] = val
-    return data
+    body = wikitext[start + len("*****WORK INFO*****") :]
+    end = re.search(r"\|\s*\*{5}", body)
+    if end:
+        body = body[: end.start()]
+    return {k.strip(): clean_wiki(v) for k, v in _FIELD.findall(body)}
 
 
-def get_pdfs(response):
-    """return a list of pdf urls"""
-    soup = BeautifulSoup(response.text, "html.parser")
-    links = soup.find_all("a", href=True)
-    pdf_landing_pages = [link["href"] for link in links if "Special:ImagefromIndex" in link["href"]]
-
-    session = requests.Session()
-    cookies = {"imslpdisclaimeraccepted": "yes"}
-    pdf_urls = []
-    for pdf_landing_page in pdf_landing_pages:
-        response = session.get(str(pdf_landing_page), cookies=cookies, allow_redirects=True)
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        links = soup.find_all("span", id="sm_dl_wait")
-        if links:
-            pdf_urls += [link["data-id"] for link in links]
-        # try redirect
-        else:
-            response = session.head(str(pdf_landing_page), cookies=cookies, allow_redirects=True)
-            pdf_url = response.url
-            if pdf_url.endswith("pdf"):
-                pdf_urls.append(pdf_url)
-            else:
-                print(pdf_url)
-    print(pdf_urls)
-    return pdf_urls
+def parse_files(wikitext: str) -> list[dict[str, str]]:
+    """The score files listed on a work page: file name, description, copyright."""
+    files = []
+    for block in wikitext.split("{{#fte:imslpfile")[1:]:
+        names = dict(re.findall(r"^\|\s*File Name (\d+)\s*=([^\n]*)", block, re.M))
+        descs = dict(re.findall(r"^\|\s*File Description (\d+)\s*=([^\n]*)", block, re.M))
+        rights = re.search(r"^\|\s*Copyright\s*=([^\n]*)", block, re.M)
+        for num, name in names.items():
+            files.append(
+                {
+                    "file": name.strip(),
+                    "description": clean_wiki(descs.get(num, "")),
+                    "copyright": clean_wiki(rights.group(1)) if rights else "",
+                }
+            )
+    return files
 
 
-async def get_page(start):
-    """Get a page of works from IMSLP."""
-    url = (
-        "https://imslp.org/imslpscripts/API.ISCR.php?account=worklist/"
-        f"disclaimer=accepted/sort=id/type=2/start={start}"
+def parse_year(*values: str) -> int:
+    """First plausible year (1000-2099) in the values, 0 when unknown."""
+    for value in values:
+        m = re.search(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)", value)
+        if m:
+            return int(m.group(1))
+    return 0
+
+
+_PERIOD_WORDS = [
+    ("postmodern", Period.Postmodernist),
+    ("contemporary", Period.Postmodernist),
+    ("modern", Period.Modernist),
+    ("romantic", Period.Romantic),
+    ("classical", Period.Classical),
+    ("baroque", Period.Baroque),
+    ("renaissance", Period.Renaissance),
+    ("medieval", Period.Medieval),
+]
+_PERIOD_YEARS = [
+    (1400, Period.Medieval),
+    (1600, Period.Renaissance),
+    (1750, Period.Baroque),
+    (1820, Period.Classical),
+    (1910, Period.Romantic),
+    (1975, Period.Modernist),
+]
+
+
+def parse_period(style: str, year: int) -> Period | None:
+    """Period from IMSLP's Piece Style, else from the composition year."""
+    lowered = style.lower()
+    for word, period in _PERIOD_WORDS:
+        if word in lowered:
+            return period
+    if not year:
+        return None
+    for limit, period in _PERIOD_YEARS:
+        if year < limit:
+            return period
+    return Period.Postmodernist
+
+
+# IMSLP tag abbreviations for instruments and forces: not genres.
+_INSTRUMENT_TAGS = {
+    "pf", "org", "hpd", "vn", "va", "vc", "db", "fl", "ob", "cl", "bn", "hn", "tpt", "tbn",
+    "tu", "gtr", "hp", "perc", "timp", "ch", "orch", "str", "voice", "voices", "sop", "alt",
+    "ten", "bar", "bass", "mez", "rec", "lute", "sax", "acc", "cel", "man", "pic", "ehn",
+    "bcl", "kbd", "hmn", "pf4h", "band", "mixed", "unacc", "pf6h", "cbn", "cornet",
+}  # fmt: skip
+
+
+def parse_genre(tags: str) -> str:
+    """The first genre-like IMSLP tag ("sonatas ; pf" -> "Sonatas")."""
+    for tag in (t.strip() for t in tags.split(";")):
+        words = tag.lower().split()
+        if not tag or any(c.isdigit() for c in tag) or all(w in _INSTRUMENT_TAGS for w in words):
+            continue
+        return tag[0].upper() + tag[1:]
+    return ""
+
+
+def build_row(item: dict[str, Any], wikitext: str) -> dict[str, Any]:
+    """IMSLP table values for one work-list item and its page's wikitext."""
+    intvals = item.get("intvals") or {}
+    info = parse_work_info(wikitext)
+    title = intvals.get("worktitle") or info.get("Work Title") or str(item.get("id", ""))
+    composer = intvals.get("composer", "")
+    catalogue = info.get("Opus/Catalogue Number", "")
+    year = parse_year(
+        info.get("Year/Date of Composition", ""), info.get("Year of First Publication", "")
     )
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, timeout=60)
-    data = response.json()
-    data.pop("metadata")
-    return data
-
-
-async def fix_entry(entry, session):
-    """Fix missing values in the entry using an agent."""
-
-    setting = await asyncio.to_thread(session.get, Setting, "model_imslp_complete")
-    model = setting.value if setting else os.getenv("MODEL", "test")
-
-    try:
-        output = await run_imslp_complete_agent(entry.model_dump_json(), model)
-        for key, value in output.model_dump().items():
-            setattr(entry, key, value)
-    except Exception as e:
-        logger.error("Failed to fix entry: %s", e)
-
-
-async def add_entry(i, item, session, overwrite=False):
-    """Add an entry to the database."""
-    entry_exists = await asyncio.to_thread(session.get, IMSLP, int(i))
-    if not overwrite and entry_exists:
-        return
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(item["permlink"], timeout=60)
-    metadata = get_metadata(response)
-    entry = IMSLP(
-        id=int(i),
-        title=metadata.get("Work Title", item["intvals"]["worktitle"]),
-        composer=metadata.get("Composer", item["intvals"]["composer"]),
-        permlink=item["permlink"],
-        instrumentation=metadata.get("Instrumentation", ""),
-        style=metadata.get("Piece Style", ""),
-        period=metadata.get("Composer Time Period Comp. Period", ""),
-        year=metadata.get("Year/Date of Composition Y/D of Comp.", ""),
-        key=metadata.get("Key", ""),
-        score_metadata=json.dumps(metadata),
-    )
-    await fix_entry(entry, session)
-    stmt = insert(IMSLP).values(entry.model_dump())
-    update_columns = {
-        col.name: stmt.excluded[col.name]
-        for col in IMSLP.metadata.tables["imslp"].columns
-        if col.name != "id"
+    style = info.get("Piece Style", "")
+    genre = parse_genre(info.get("Tags", ""))
+    key = info.get("Key", "")
+    instrumentation = info.get("Instrumentation", "")
+    searchable = [title, catalogue, composer, info.get("Alternative Title", ""), key]
+    return {
+        "title": title[:500],
+        "composer": composer[:300],
+        "catalogue": catalogue[:200],
+        "year": year,
+        "period": parse_period(style, year),
+        "genre": genre[:200],
+        "form": "",
+        "style": style[:200],
+        "key": key[:200],
+        "instrumentation": instrumentation[:500],
+        "permlink": item.get("permlink", ""),
+        "score_metadata": json.dumps(info, ensure_ascii=False),
+        "pdf_urls": json.dumps(parse_files(wikitext), ensure_ascii=False),
+        "search_text": normalize(" ".join([*searchable, instrumentation, genre])),
     }
-    stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_columns)
-    await asyncio.to_thread(session.exec, stmt)
-    await asyncio.to_thread(session.commit)
 
 
-async def get_works():
-    """Get all works from IMSLP."""
-    progress_tracker["status"] = "processing"
+# --- Sync -------------------------------------------------------------------
+
+_running = threading.Lock()
+_cancel = threading.Event()
+
+
+def load_state(session: Session) -> dict[str, Any]:
+    """The persisted sync state (status, list position, counters, last error)."""
+    row = session.get(Setting, STATE_KEY)
+    state: dict[str, Any] = {"status": "idle", "start": 0, "works": 0, "error": ""}
+    if row:
+        with contextlib.suppress(ValueError):
+            state.update(json.loads(row.value))
+    return state
+
+
+def save_state(session: Session, state: dict[str, Any]) -> None:
+    """Persist the sync state (commits)."""
+    state["updated_at"] = _now().isoformat(timespec="seconds")
+    row = session.get(Setting, STATE_KEY) or Setting(key=STATE_KEY, value="")
+    row.value = json.dumps(state)
+    session.add(row)
+    session.commit()
+
+
+def _wikitexts(client: ImslpClient, pageids: list[int]) -> dict[int, str]:
+    data = client.get_json(
+        WIKI_API,
+        params={
+            "action": "query",
+            "format": "json",
+            "maxlag": 5,
+            "prop": "revisions",
+            "rvprop": "content",
+            "pageids": "|".join(str(p) for p in pageids),
+        },
+    )
+    pages = (data.get("query") or {}).get("pages") or {}
+    out = {}
+    for page in pages.values() if isinstance(pages, dict) else pages:
+        revisions = page.get("revisions") or [{}]
+        rev = revisions[0]
+        content = rev.get("*") or rev.get("content") or ""
+        if "pageid" in page:
+            out[int(page["pageid"])] = content
+    return out
+
+
+def _has_pageid(item: Any) -> bool:
+    return isinstance(item, dict) and str((item.get("intvals") or {}).get("pageid", "")).isdigit()
+
+
+def _store(session: Session, items: list[dict[str, Any]], wikitexts: dict[int, str]) -> int:
+    """Upsert works by IMSLP page id; adopt matching rows from the old scraper."""
+    rows = {}
+    for item in items:
+        pageid = int(item["intvals"]["pageid"])
+        rows[pageid] = build_row(item, wikitexts.get(pageid, ""))
+    existing = {
+        r.pageid: r for r in session.exec(select(IMSLP).where(col(IMSLP.pageid).in_(list(rows))))
+    }
+    permlinks = [r["permlink"] for p, r in rows.items() if p not in existing]
+    legacy = {
+        r.permlink: r
+        for r in session.exec(
+            select(IMSLP).where(col(IMSLP.pageid).is_(None), col(IMSLP.permlink).in_(permlinks))
+        )
+    }
+    now = _now()
+    for pageid, values in rows.items():
+        # Rows from the old scraper keep their id, so scores linked to them stay linked.
+        entry = existing.get(pageid) or legacy.pop(values["permlink"], None) or IMSLP(**values)
+        for field, value in values.items():
+            setattr(entry, field, value)
+        entry.pageid = pageid
+        entry.synced_at = now
+        session.add(entry)
+    session.commit()
+    return len(rows)
+
+
+def _finish(session: Session, run_started: str) -> int:
+    """After a complete pass: drop works no longer on IMSLP and old-scraper rows."""
+    started = datetime.fromisoformat(run_started)
+    stale = or_(col(IMSLP.pageid).is_(None), col(IMSLP.synced_at) < started)
+    removed = session.exec(select(func.count()).select_from(IMSLP).where(stale)).one()
+    session.exec(delete(IMSLP).where(stale))  # type: ignore[call-overload]
+    session.commit()
+    return removed
+
+
+def sync_catalogue(engine: Engine, restart: bool = False, client: ImslpClient | None = None):
+    """Background job: (re)sync the IMSLP catalogue, resuming a stopped pass."""
+    if not _running.acquire(blocking=False):
+        return
+    _cancel.clear()
+    try:
+        with Session(engine) as session:
+            state = load_state(session)
+            if restart or state["status"] in ("idle", "completed") or not state.get("run_started"):
+                state.update(start=0, works=0, run_started=_now().isoformat(timespec="seconds"))
+            state.update(status="running", error="")
+            save_state(session, state)
+            client = client or ImslpClient()
+            try:
+                while True:
+                    if _cancel.is_set():
+                        state["status"] = "cancelled"
+                        break
+                    data = client.get_json(LIST_URL.format(start=state["start"]))
+                    meta = data.pop("metadata", {}) if isinstance(data, dict) else {}
+                    items = [v for v in (data or {}).values() if _has_pageid(v)]
+                    for i in range(0, len(items), WIKI_BATCH):
+                        batch = items[i : i + WIKI_BATCH]
+                        ids = [int(it["intvals"]["pageid"]) for it in batch]
+                        state["works"] += _store(session, batch, _wikitexts(client, ids))
+                    state["start"] += LIST_PAGE
+                    if not data or not meta.get("moreresultsavailable"):
+                        state["removed"] = _finish(session, state["run_started"])
+                        state["status"] = "completed"
+                        break
+                    save_state(session, state)
+            except ImslpUnavailable as e:
+                logger.error("IMSLP sync stopped: %s", e)
+                state.update(status="error", error=str(e))
+            except Exception as e:
+                logger.exception("IMSLP sync failed")
+                state.update(status="error", error=f"{type(e).__name__}: {e}"[:500])
+            session.rollback()  # a failed flush leaves the session unusable
+            save_state(session, state)
+    finally:
+        _running.release()
+
+
+def resume_interrupted(engine: Engine) -> None:  # pragma: no cover - startup hook
+    """Restart a sync that was running when the backend stopped (e.g. a deploy)."""
     with Session(engine) as session:
-        for i in range(0, progress_tracker["total"]):
-            progress_tracker["page"] = i
-            start = int(i * 1000)
-            await asyncio.sleep(10)  # don't fetch too fast to reduce LLM cost
-            data = await get_page(start)
-
-            # last page, we stop
-            if not data:
-                break
-
-            # add entries
-            for item_id, item in data.items():
-                item_id = int(item_id) + start
-                await add_entry(item_id, item, session)
-
-                # cancelled by user
-                if progress_tracker["cancel_requested"]:
-                    progress_tracker["status"] = "cancelled"
-                    return
-
-    progress_tracker["status"] = "completed"
+        if load_state(session)["status"] != "running":
+            return
+    threading.Thread(target=sync_catalogue, args=(engine,), daemon=True).start()
 
 
-@router.post("/start/{max_pages}", dependencies=[Depends(get_admin_user)])
-def update_imslp_database(max_pages: int, background_tasks: BackgroundTasks):
-    """Update the Imslp database."""
-    progress_tracker["cancel_requested"] = False
-    background_tasks.add_task(get_works)
-    progress_tracker["page"] = 0
-    progress_tracker["status"] = "starting"
-    progress_tracker["total"] = max_pages
-    return {"message": "Task started successfully!"}
+@router.post("/start", dependencies=[Depends(get_admin_user)])
+def start_sync(
+    background_tasks: BackgroundTasks,
+    restart: bool = False,
+    session: Session = Depends(get_session),
+):
+    """Start the IMSLP sync, resuming a stopped pass unless ``restart``."""
+    if _running.locked():
+        raise HTTPException(status_code=409, detail="A sync is already running")
+    engine = session.get_bind()
+    assert isinstance(engine, Engine)
+    background_tasks.add_task(sync_catalogue, engine, restart)
+    return {"message": "Sync started"}
 
 
 @router.post("/progress", dependencies=[Depends(get_admin_user)])
-def get_progress():
-    """Get the progress of the IMSLP update"""
-    return progress_tracker
+def get_progress(session: Session = Depends(get_session)):
+    """The sync state, and whether it is running in this process."""
+    return {**load_state(session), "running": _running.locked()}
 
 
 @router.post("/cancel", dependencies=[Depends(get_admin_user)])
-def cancel():
-    """Cancel the IMSLP update"""
-    progress_tracker["cancel_requested"] = True
-    progress_tracker["status"] = "cancelling"
+def cancel(session: Session = Depends(get_session)):
+    """Stop the sync after the current page; it can be resumed later."""
+    _cancel.set()
+    if not _running.locked():
+        state = load_state(session)
+        if state["status"] == "running":
+            state["status"] = "cancelled"
+            save_state(session, state)
+    return {"message": "Cancelling"}
 
 
 @router.get("/stats", dependencies=[Depends(get_admin_user)])
 def get_imslp_stats(session: Session = Depends(get_session)):
     """Get IMSLP stats"""
-
     return {
         "total_works": session.exec(select(func.count()).select_from(IMSLP)).one(),
         "total_composers": session.exec(select(func.count(func.distinct(IMSLP.composer)))).one(),
@@ -205,11 +469,120 @@ def get_imslp_stats(session: Session = Depends(get_session)):
 @router.post("/empty", dependencies=[Depends(get_admin_user)])
 def empty(session: Session = Depends(get_session)):
     """Empty the IMSLP table."""
+    if _running.locked():
+        raise HTTPException(status_code=409, detail="A sync is running")
     if session.bind and session.bind.dialect.name == "postgresql":
         session.execute(text("TRUNCATE TABLE imslp RESTART IDENTITY CASCADE;"))  # pragma: no cover
     else:
         session.execute(text("DELETE FROM imslp;"))
+    state = session.get(Setting, STATE_KEY)
+    if state:
+        session.delete(state)
     session.commit()
+
+
+# --- Search -----------------------------------------------------------------
+
+
+class ImslpResult(BaseModel):
+    """A catalogue entry as returned by the search."""
+
+    id: int
+    title: str
+    composer: str
+    catalogue: str
+    year: int
+    period: Period | None
+    genre: str
+    key: str
+    instrumentation: str
+    permlink: str
+    in_library: bool
+
+
+class ImslpSearch(BaseModel):
+    """One page of search results."""
+
+    total: int
+    results: list[ImslpResult]
+
+
+@router.get("/search")
+@limiter.limit("120/minute")
+def search(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    q: Annotated[str, Query(max_length=200)] = "",
+    instrument: Annotated[str, Query(max_length=50)] = "",
+    period: Period | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    offset: Annotated[int, Query(ge=0, le=5000)] = 0,
+    session: Session = Depends(get_session),
+) -> ImslpSearch:
+    """Search the catalogue by title, composer, catalogue number or key.
+
+    Words match anywhere, ignoring case and accents ("frederic chopin nocturne").
+    When nothing matches, Postgres falls back to a typo-tolerant search.
+    """
+    tokens = normalize(q).split()[:8]
+    if not tokens:
+        return ImslpSearch(total=0, results=[])
+    stmt = select(IMSLP)
+    for token in tokens:
+        stmt = stmt.where(col(IMSLP.search_text).contains(token))
+    if instrument.strip():
+        stmt = stmt.where(func.lower(IMSLP.instrumentation).contains(instrument.strip().lower()))
+    if period:
+        stmt = stmt.where(IMSLP.period == period)
+    ordered = stmt.order_by(func.length(IMSLP.title), IMSLP.title, IMSLP.id)
+
+    total = session.exec(select(func.count()).select_from(stmt.subquery())).one()
+    rows = list(session.exec(ordered.offset(offset).limit(limit)))
+    if not total and session.bind and session.bind.dialect.name == "postgresql":  # pragma: no cover
+        # Typo-tolerant: every word must be close to a word of the entry
+        # (pg_trgm's indexed <% operator), best matches first.
+        fuzzy = select(IMSLP)
+        for token in tokens:
+            fuzzy = fuzzy.where(literal(token).op("<%")(IMSLP.search_text))
+        if instrument.strip():
+            fuzzy = fuzzy.where(
+                func.lower(IMSLP.instrumentation).contains(instrument.strip().lower())
+            )
+        if period:
+            fuzzy = fuzzy.where(IMSLP.period == period)
+        closeness: ColumnElement[float] = func.word_similarity(tokens[0], IMSLP.search_text)
+        for token in tokens[1:]:
+            closeness = closeness + func.word_similarity(token, IMSLP.search_text)
+        total = session.exec(select(func.count()).select_from(fuzzy.subquery())).one()
+        rows = list(session.exec(fuzzy.order_by(closeness.desc()).offset(offset).limit(limit)))
+
+    ids = [r.id for r in rows]
+    owned = set(
+        session.exec(
+            select(Score.imslp_id).where(
+                Score.user_id == current_user.id, col(Score.imslp_id).in_(ids)
+            )
+        )
+    )
+    return ImslpSearch(
+        total=total,
+        results=[
+            ImslpResult(
+                id=r.id,  # type: ignore[arg-type]
+                title=r.title,
+                composer=r.composer,
+                catalogue=r.catalogue,
+                year=r.year,
+                period=r.period,
+                genre=r.genre,
+                key=r.key,
+                instrumentation=r.instrumentation,
+                permlink=r.permlink,
+                in_library=r.id in owned,
+            )
+            for r in rows
+        ],
+    )
 
 
 @router.get("/scores_by_ids", dependencies=[Depends(get_current_user)])
@@ -227,4 +600,4 @@ def get_by_ids(score_ids: str, session: Session = Depends(get_session)):
     ):
         raise HTTPException(status_code=422, detail=detail)
 
-    return session.exec(select(IMSLP).where(IMSLP.id.in_(ids))).all()
+    return session.exec(select(IMSLP).where(col(IMSLP.id).in_(ids))).all()

@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { scoreFromImslp } from '#lib/imslp.js';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
@@ -254,18 +255,7 @@ export const actions: Actions = {
 				return fail(404, { error: m.err_imslp_not_found() });
 			}
 
-			const imslpScore = imslpScores[0];
-
-			const newScore = {
-				title: imslpScore.title,
-				composer: imslpScore.composer,
-				pdf_path: filename,
-				instrumentation: imslpScore.instrumentation || '',
-				style: imslpScore.style || '',
-				period: imslpScore.period || '',
-				year: imslpScore.year && !isNaN(Number(imslpScore.year)) ? Number(imslpScore.year) : null,
-				key: imslpScore.key || ''
-			};
+			const newScore = scoreFromImslp(imslpScores[0], filename);
 
 			const scoreRes = await api('/scores', {
 				method: 'POST',

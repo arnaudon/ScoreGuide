@@ -5,7 +5,7 @@ Package name: `app`. Entry point: `app.main:app`.
 ## Layout
 
 - `app/main.py` — FastAPI app, routes for scores, PDFs, three agent endpoints, admin model config, `/health`.
-- `app/agent.py` — four pydantic-ai agents (`run_agent`, `run_imslp_agent`, `run_complete_agent`, `run_imslp_complete_agent`) + the `<user_request>` wrapping and `ModelHTTPError` mapping helpers.
+- `app/agent.py` — three pydantic-ai agents (`run_agent`, `run_imslp_agent`, `run_complete_agent`) + the `<user_request>` wrapping and `ModelHTTPError` mapping helpers.
 - `app/credits.py` — `consume_credit` async context manager with atomic debit/refund (`UPDATE … WHERE credits > 0`).
 - `app/users.py` — JWT (`pyjwt` + argon2) auth, `get_current_user` / `get_admin_user` dependencies, `POST /token`, `/user` CRUD.
 - `app/imslp.py` — IMSLP scraper + admin endpoints (`/imslp/start`, `/progress`, `/cancel`, `/stats`, `/empty`). Single-worker only (see `Dockerfile.backend`).

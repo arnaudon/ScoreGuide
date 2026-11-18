@@ -1,7 +1,7 @@
 <script lang="ts">
 	import PlayIcon from '@lucide/svelte/icons/circle-play';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
-	import type { IMSLPScore, Score } from '#lib/types.js';
+	import type { IMSLPScore, ImslpResult, Score } from '#lib/types.js';
 	import { localizedField } from '#lib/i18n/score.js';
 	import * as m from '#lib/paraglide/messages.js';
 
@@ -9,7 +9,7 @@
 	 * Read-only overview of a score's metadata, shared by the library,
 	 * the reader and the chat results. Empty fields are left out.
 	 */
-	let { score }: { score: Score | IMSLPScore } = $props();
+	let { score }: { score: Score | IMSLPScore | ImslpResult } = $props();
 
 	const rec = $derived(score as unknown as Record<string, unknown>);
 	const str = (key: string) => {
@@ -31,7 +31,7 @@
 			{ label: m.label_period(), value: str('period') },
 			{ label: m.label_key_signature(), value: str('key') },
 			{ label: m.label_instrumentation(), value: str('instrumentation') }
-		].filter((c) => c.value)
+		].filter((c) => c.value && c.value !== '0')
 	);
 	let difficulty = $derived(str('difficulty'));
 	let summary = $derived(localizedField(score, 'short_description'));
