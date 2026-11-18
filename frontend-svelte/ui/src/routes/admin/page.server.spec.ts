@@ -14,8 +14,10 @@ const EMPTY_DEFAULTS = {
 	stats: { total_works: 0, total_composers: 0 },
 	progress: { status: 'idle', start: 0, works: 0, error: '' },
 	activeModels: { main: '', imslp: '', complete: '' },
+	credentials: null,
 	tocReports: []
 };
+const CREDENTIALS = { google_api_key: { set: true, source: 'env', hint: '…abcd' } };
 const REPORTS = [{ id: 1, score_title: 'WTC II', comment: 'no preludes' }];
 
 describe('admin load', () => {
@@ -47,6 +49,7 @@ describe('admin load', () => {
 			.mockResolvedValueOnce(jsonResponse(STATS)) // /imslp/stats
 			.mockResolvedValueOnce(jsonResponse(PROGRESS)) // /imslp/progress
 			.mockResolvedValueOnce(jsonResponse(MODELS)) // /admin/model
+			.mockResolvedValueOnce(jsonResponse(CREDENTIALS)) // /admin/credentials
 			.mockResolvedValueOnce(jsonResponse(REPORTS)); // /admin/toc-reports
 		const result = await load(event({ cookies: makeCookies({ access_token: 'tok' }), fetch }));
 		expect(result).toEqual({
@@ -54,6 +57,7 @@ describe('admin load', () => {
 			stats: STATS,
 			progress: PROGRESS,
 			activeModels: MODELS.models,
+			credentials: CREDENTIALS,
 			tocReports: REPORTS
 		});
 	});
@@ -62,6 +66,7 @@ describe('admin load', () => {
 		const fetch = vi
 			.fn()
 			.mockResolvedValueOnce(jsonResponse(true))
+			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
@@ -140,6 +145,41 @@ describe('set_credits action', () => {
 		);
 		const body = JSON.parse(fetch.mock.calls[0][1]!.body as string);
 		expect(body).toEqual({ max_credits: 42 });
+	});
+});
+
+describe('set_credentials action', () => {
+	it('sends only typed values and requested clears', async () => {
+		const fetch = makeFetch();
+		const result = await actions.set_credentials(
+			event({
+				request: fakeRequest({
+					google_api_key: '  AIza-new  ',
+					infomaniak_api_key: '',
+					infomaniak_product_id: '42',
+					clear_infomaniak_api_key: 'on'
+				}),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(fetch.mock.calls[0][0]).toContain('/admin/credentials');
+		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({
+			credentials: {
+				google_api_key: 'AIza-new',
+				infomaniak_api_key: '',
+				infomaniak_product_id: '42'
+			}
+		});
+		expect(result).toEqual({ formId: 'credentials', success: true });
+	});
+
+	it('fails when the backend refuses', async () => {
+		const fetch = makeFetch().mockResolvedValueOnce(new Response(null, { status: 403 }));
+		const result = await actions.set_credentials(
+			event({ request: fakeRequest({}), cookies: makeCookies({ access_token: 'tok' }), fetch })
+		);
+		expect(isActionFailure(result)).toBe(true);
 	});
 });
 

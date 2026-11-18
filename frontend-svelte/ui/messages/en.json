@@ -354,5 +354,18 @@
 	"home_periods": "Your periods",
 	"home_most_played": "Most played",
 	"home_repertoire": "Your repertoire",
-	"home_stat_periods": "Periods"
+	"home_stat_periods": "Periods",
+	"ai_providers": "AI providers",
+	"ai_providers_desc": "Keys for the agents' models. Saved keys are never shown again, only their last characters. Leave a field empty to keep its value. Without a key here, the server's environment variable is used.",
+	"credential_google_api_key": "Google AI API key",
+	"credential_infomaniak_api_key": "Infomaniak AI token",
+	"credential_infomaniak_product_id": "Infomaniak AI product ID",
+	"credential_not_set": "Not set",
+	"credential_set_admin": "Set here ({hint})",
+	"credential_set_env": "From the server environment ({hint})",
+	"credential_keep_placeholder": "Leave empty to keep the current value",
+	"credential_new_placeholder": "Paste the value",
+	"credential_clear": "Remove the saved value (use the server environment)",
+	"credentials_saved": "Saved.",
+	"err_save_credentials": "Could not save the keys."
 }

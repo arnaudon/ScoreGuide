@@ -2,7 +2,9 @@ import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
-import type { ImslpProgress, TocReport } from '#lib/types.js';
+import type { Credentials, ImslpProgress, TocReport } from '#lib/types.js';
+
+const CREDENTIAL_NAMES = ['google_api_key', 'infomaniak_api_key', 'infomaniak_product_id'];
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -44,13 +46,19 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 			activeModels = resData.models || { main: '', imslp: '', complete: '' };
 		}
 
+		let credentials: Credentials | null = null;
+		const credentialsResponse = await api('/admin/credentials');
+		if (credentialsResponse.ok) {
+			credentials = await credentialsResponse.json();
+		}
+
 		let tocReports: TocReport[] = [];
 		const reportsResponse = await api('/admin/toc-reports');
 		if (reportsResponse.ok) {
 			tocReports = await reportsResponse.json();
 		}
 
-		return { users, stats, progress, activeModels, tocReports };
+		return { users, stats, progress, activeModels, credentials, tocReports };
 	} catch (error) {
 		// redirect() throws a Redirect, which we must let propagate.
 		if (isRedirect(error)) throw error;
@@ -62,6 +70,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 		stats: { total_works: 0, total_composers: 0 },
 		progress: { status: 'idle', start: 0, works: 0, error: '' } as ImslpProgress,
 		activeModels: { main: '', imslp: '', complete: '' },
+		credentials: null as Credentials | null,
 		tocReports: [] as TocReport[]
 	};
 };
@@ -130,6 +139,28 @@ export const actions: Actions = {
 				error: result.detail || m.err_update_credits()
 			});
 		}
+	},
+	set_credentials: async ({ request, cookies, fetch }) => {
+		const token = cookies.get('access_token');
+		const data = await request.formData();
+		// Only send what the admin typed (or asked to clear): blank fields keep
+		// the stored value, since the page never has it.
+		const credentials: Record<string, string> = {};
+		for (const name of CREDENTIAL_NAMES) {
+			const value = data.get(name)?.toString().trim() ?? '';
+			if (value) credentials[name] = value;
+			if (data.get(`clear_${name}`) === 'on') credentials[name] = '';
+		}
+		const api = apiFetch(fetch, token);
+		const res = await api('/admin/credentials', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ credentials })
+		});
+		if (!res.ok) {
+			return fail(res.status, { formId: 'credentials', error: m.err_save_credentials() });
+		}
+		return { formId: 'credentials', success: true };
 	},
 	set_models: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');

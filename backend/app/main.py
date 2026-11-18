@@ -21,7 +21,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import annotations, config, db, imslp, sections, users
+from app import annotations, config, db, imslp, llm, sections, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
 from app.credits import consume_credit
 from app.db import get_async_session, get_session
@@ -110,6 +110,7 @@ app.add_middleware(
 app.include_router(users.router, tags=["users"])
 app.include_router(imslp.router, tags=["imslp"])
 app.include_router(sections.router, tags=["sections"])
+app.include_router(llm.router)
 app.include_router(annotations.router, tags=["annotations"])
 
 
@@ -159,6 +160,15 @@ def get_score(
     return score
 
 
+async def _agent_model(session: AsyncSession, setting_key: str):
+    """The agent's model, or 503 before any credit is spent if its provider lacks a key."""
+    try:
+        return await llm.agent_model(session, setting_key)
+    except llm.MissingCredential as e:
+        logger.error("AI provider not configured: %s", e)
+        raise HTTPException(status_code=503, detail="AI provider not configured") from e
+
+
 @app.post("/complete_score")
 @limiter.limit(config.AGENT_RATE_LIMIT)
 async def complete_score(
@@ -168,8 +178,7 @@ async def complete_score(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Complete a score."""
-    setting = await session.get(Setting, "model_complete")
-    model = setting.value if setting else os.getenv("MODEL", "test")
+    model = await _agent_model(session, "model_complete")
 
     async with consume_credit(current_user.id, session):
         try:
@@ -263,8 +272,7 @@ async def run_imslp_agent_api(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Run the imslp agent."""
-    setting = await session.get(Setting, "model_imslp")
-    model = setting.value if setting else os.getenv("MODEL", "test")
+    model = await _agent_model(session, "model_imslp")
 
     async with consume_credit(current_user.id, session):
         try:
@@ -285,8 +293,7 @@ async def run_main_agent(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Run the agent."""
-    setting = await session.get(Setting, "model_main")
-    model = setting.value if setting else os.getenv("MODEL", "test")
+    model = await _agent_model(session, "model_main")
 
     # Validate before consuming a credit so malformed payloads don't debit.
     try:

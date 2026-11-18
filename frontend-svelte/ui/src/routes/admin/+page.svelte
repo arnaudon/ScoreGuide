@@ -42,8 +42,37 @@
 		{ value: 'google:gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
 		{ value: 'google:gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
 		{ value: 'google:gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-		{ value: 'google:gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview' }
+		{ value: 'google:gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview' },
+		// Infomaniak AI Services (open models hosted in Switzerland); check the
+		// exact model names in the Infomaniak Manager.
+		{ value: 'infomaniak:Qwen/Qwen3.5-397B-A17B-FP8', label: 'Infomaniak · Qwen 3.5 397B' },
+		{ value: 'infomaniak:moonshotai/Kimi-K2.6', label: 'Infomaniak · Kimi K2.6' },
+		{
+			value: 'infomaniak:mistralai/Mistral-Small-4-119B-2603',
+			label: 'Infomaniak · Mistral Small 4'
+		},
+		{ value: 'infomaniak:google/gemma-4-31B-it', label: 'Infomaniak · Gemma 4 31B' },
+		{ value: 'infomaniak:swiss-ai/Apertus-v1.5-70B', label: 'Infomaniak · Apertus 70B' }
 	];
+
+	const CREDENTIAL_FIELDS = [
+		{ name: 'google_api_key', label: () => m.credential_google_api_key(), secret: true },
+		{ name: 'infomaniak_api_key', label: () => m.credential_infomaniak_api_key(), secret: true },
+		{
+			name: 'infomaniak_product_id',
+			label: () => m.credential_infomaniak_product_id(),
+			secret: false
+		}
+	] as const;
+	let savingCredentials = $state(false);
+
+	function credentialState(name: (typeof CREDENTIAL_FIELDS)[number]['name']) {
+		const status = data.credentials?.[name];
+		if (!status?.set) return m.credential_not_set();
+		return status.source === 'admin'
+			? m.credential_set_admin({ hint: status.hint })
+			: m.credential_set_env({ hint: status.hint });
+	}
 	const DEFAULT_MODEL = 'google:gemini-2.5-flash';
 
 	function optionsFor(current: string) {
@@ -242,6 +271,67 @@
 				disabled={savingModels}
 			>
 				{savingModels ? m.saving() : m.save()}
+			</button>
+		</form>
+	</div>
+
+	<div class="bg-card text-card-foreground shadow-card rounded-md border p-6">
+		<h2 class="text-fancy-title mb-2 text-xl font-semibold">{m.ai_providers()}</h2>
+		<p class="text-muted-foreground mb-4 text-sm">{m.ai_providers_desc()}</p>
+		<form
+			method="POST"
+			action="?/set_credentials"
+			class="flex flex-col gap-4"
+			autocomplete="off"
+			use:enhance={() => {
+				savingCredentials = true;
+				return async ({ update }) => {
+					savingCredentials = false;
+					await update();
+				};
+			}}
+		>
+			{#each CREDENTIAL_FIELDS as field (field.name)}
+				<div class="space-y-2">
+					<div class="flex items-baseline justify-between gap-3">
+						<label for={field.name} class="text-sm leading-none font-medium">{field.label()}</label>
+						<span
+							class="text-xs {data.credentials?.[field.name]?.set
+								? 'text-success'
+								: 'text-muted-foreground'}">{credentialState(field.name)}</span
+						>
+					</div>
+					<input
+						id={field.name}
+						name={field.name}
+						type={field.secret ? 'password' : 'text'}
+						autocomplete="off"
+						spellcheck="false"
+						placeholder={data.credentials?.[field.name]?.set
+							? m.credential_keep_placeholder()
+							: m.credential_new_placeholder()}
+						class="border-input bg-background focus:ring-ring flex h-10 w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
+					/>
+					{#if data.credentials?.[field.name]?.source === 'admin'}
+						<label class="text-muted-foreground flex items-center gap-2 text-xs">
+							<input type="checkbox" name="clear_{field.name}" />
+							{m.credential_clear()}
+						</label>
+					{/if}
+				</div>
+			{/each}
+			{#if form?.formId === 'credentials' && form?.error}
+				<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
+			{/if}
+			{#if form?.formId === 'credentials' && form?.success}
+				<p role="status" class="text-success text-sm font-medium">{m.credentials_saved()}</p>
+			{/if}
+			<button
+				class="ring-offset-background focus-visible:ring-ring bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center self-start rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+				type="submit"
+				disabled={savingCredentials}
+			>
+				{savingCredentials ? m.saving() : m.save()}
 			</button>
 		</form>
 	</div>
