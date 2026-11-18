@@ -20,21 +20,24 @@ def _page(
     width: int = 800,
     height: int = 1000,
     final: tuple[int, ...] = (),
+    indent: tuple[int, ...] = (),
 ):
     """A white page with ``systems`` systems of joined 5-line staves.
 
-    Systems whose index is in ``final`` end with a thin+thick final barline.
+    Systems whose index is in ``final`` end with a thin+thick final barline;
+    those in ``indent`` start 60 px further right (a piece's first system).
     """
     img = np.full((height, width), 255, dtype=np.uint8)
     y = 120
     for k in range(systems):
         sys_top = y
+        left = 120 if k in indent else 60
         for _ in range(staves_per_system):
             for line in range(5):
-                img[y + line * 10, 60:740] = 0
+                img[y + line * 10, left:740] = 0
             y += 80
         # Left system barline joining the staves of this system.
-        img[sys_top : y - 40, 60] = 0
+        img[sys_top : y - 40, left] = 0
         if k in final:
             img[sys_top : y - 40, 733] = 0
             img[sys_top : y - 40, 736:740] = 0
@@ -349,3 +352,369 @@ def test_first_system_opens_even_when_heading_is_rejected(monkeypatch):
     data = _pdf_from_pages(_page(systems=1))
     monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: [toc.OcrText("Allegro", 600)])
     assert [(s.page, s.source) for s in toc.extract_sections(data)] == [(1, "layout")]
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Praeludium I", "Præludium II", "Präludium", "Praludium", "Prelude", "Prélude", "Preludio"]
+    + ["Praeambulum", "Fuga I", "Fughetta"],
+)
+def test_prelude_spellings_are_piece_titles(title):
+    """German editions spell it Praeludium (Peters, Bach-Gesellschaft, Henle)."""
+    assert toc.PIECE_RE.search(title)
+    assert toc.is_heading(title) and not toc.is_tempo_only(title)
+
+
+def test_is_scanned():
+    """A page that is one big image is a scan; engraved vector pages aren't."""
+    import pypdfium2 as pdfium
+
+    scan = pdfium.PdfDocument(_pdf_from_pages(_page()))
+    engraved = pdfium.PdfDocument((DATA / "engraved.pdf").read_bytes())
+    try:
+        assert toc.is_scanned(scan[0])
+        assert not toc.is_scanned(engraved[0])
+    finally:
+        scan.close()
+        engraved.close()
+
+
+def test_scan_hidden_text_layer_falls_back_to_ocr(monkeypatch):
+    """Scans with an invisible OCR text layer (Internet Archive, scanners):
+    the layer's heading is used when legible, Tesseract's otherwise."""
+    data = _pdf_from_pages(_page(), _page())
+    layers = iter(
+        [
+            [toc.TextLine("Edition Peters", 0.02, 9), toc.TextLine("Praeludium", 0.05, 14)],
+            [toc.TextLine("Edition Peters", 0.02, 9), toc.TextLine("Fnqa ЕШ", 0.05, 14)],
+        ]
+    )
+    monkeypatch.setattr(toc, "text_lines", lambda page: next(layers))
+    page_heads = iter([_ocr("Praeludium I.", ""), _ocr("Fuga II", "")])
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
+    sections = toc.extract_sections(data)
+    assert [(s.page, s.source, s.title) for s in sections] == [
+        (1, "text", "Praeludium 2"),
+        (2, "ocr", "Fuga 2"),
+    ]
+
+
+def _text_page(number: int, lines: list[toc.TextLine], final: tuple[int, ...] = ()):
+    gray = _page(systems=3, final=final)
+    systems = toc.page_systems(gray)
+    kinds = [toc.barline_kind(gray < toc.INK, s) for s in systems]
+    return toc._PageInfo(number, gray.shape, systems, lines, bar_kinds=kinds)
+
+
+def _above(gray_h: int, system: toc.System, offset: int = 15) -> float:
+    return (system.top - offset) / gray_h
+
+
+def test_text_heading_mid_page_opens_section():
+    """Engraved pages: a fugue starting below its prelude's last system is
+    found from the text in the band above that system."""
+    probe = _text_page(1, [])
+    h = probe.shape[0]
+    second, third = probe.systems[1], probe.systems[2]
+    page = _text_page(
+        1,
+        [
+            toc.TextLine("Praeludium I", 0.02, 14),
+            toc.TextLine("Fuga I", _above(h, third), 14),
+        ],
+    )
+    assert [(j, title, src) for _, j, title, src in toc._find_starts([page])] == [
+        (0, "Praeludium I", "text"),
+        (2, "Fuga I", "text"),
+    ]
+    # A tempo change above a later system (no final barline) isn't a piece.
+    page.lines = [
+        toc.TextLine("Praeludium I", 0.02, 14),
+        toc.TextLine("Adagio", _above(h, second), 9),
+    ]
+    assert [j for _, j, _, _ in toc._find_starts([page])] == [0]
+
+
+def test_text_page_final_barline_and_tempo():
+    """On text pages too, a final barline opens the next system and a bare
+    tempo word after it is a new movement's heading."""
+    probe = _text_page(1, [])
+    h = probe.shape[0]
+    first = _text_page(1, [toc.TextLine("Sonata No. 1", 0.02, 14)], final=(0, 1))
+    second = _text_page(2, [toc.TextLine("Presto", _above(h, probe.systems[2]), 9)], final=(1,))
+    starts = [(p.number, j, t, s) for p, j, t, s in toc._find_starts([first, second])]
+    assert starts == [
+        (1, 0, "Sonata No. 1", "text"),
+        (1, 1, "", "layout"),
+        (1, 2, "", "layout"),
+        (2, 2, "Presto", "text"),
+    ]
+
+
+def test_text_index_page_is_skipped():
+    """An engraved incipit index (a heading above most systems) is skipped."""
+    probe = _text_page(1, [])
+    h = probe.shape[0]
+    lines = [toc.TextLine("Praeludium I", 0.02, 14)] + [
+        toc.TextLine(f"Fuga {k}", _above(h, s), 14) for k, s in enumerate(probe.systems[1:])
+    ]
+    assert toc._find_starts([_text_page(1, lines)]) == []
+
+
+def test_normalize_titles_prelude_and_fugue():
+    """Noisy OCR headings become "<Kind> <n>" with one spelling per kind;
+    fugues take their prelude's number; untitled starts are checked
+    against the prelude/fugue alternation."""
+    titles = [
+        "BWV870 Prelude",  # numbered back from the next piece
+        "Fuga",
+        "BWV di Bach Præludium 2. pp",
+        "Fuga 43 LN LS",  # "à 3" misread as part of the number
+        "",  # a missing piece: Prelude 3
+        "",  # misdetection after it
+        "Fuga 3 à 3",
+        "YU, BWV873 Prelude",
+        "",  # inside a complete pair: misdetection
+        "Fughetta",
+        "BWV874 Fassung di Bach Preeludium 6",  # skipped a piece: kept
+        "Prélude XXI",  # far off the sequence: continued instead
+        "Puga 2443",
+        "Prelude et Fugue 1.",  # an appendix restarts at 1
+        "Sonata No. 1",
+        "",
+    ]
+    assert toc.normalize_titles(titles) == [
+        "Prelude 1",
+        "Fuga 1",
+        "Prelude 2",
+        "Fuga 2",
+        "Prelude 3",
+        None,
+        "Fuga 3",
+        "Prelude 4",
+        None,
+        "Fuga 4",
+        "Prelude 6",
+        "Prelude 7",
+        "Fuga 7",
+        "Prelude 1",
+        "Sonata No. 1",
+        "",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("titles", "expected"),
+    [
+        (["Preludio", "Fuge"], ["Preludio", "Fuge"]),
+        (["Fugue No. 2", "Fuga"], ["Fugue 2", "Fugue"]),  # no preludes: as printed
+        # An unconfirmed jump (nothing printed after it) is a misread.
+        (
+            ["Prelude 1", "Fuga", "Prelude 9", "Fuga"],
+            ["Prelude 1", "Fuga 1", "Prelude 2", "Fuga 2"],
+        ),
+        (["Praeambulum I"], ["Praeambulum 1"]),
+        (["Fuga IIII"], ["Fuga"]),  # not a Roman numeral
+        (["Fuga XIV"], ["Fuga 14"]),
+        (["Praelud j"], ["Praeludium"]),
+        (["Fuga 1", "Praeludium", "Fuga II"], ["Fuga 1", "Praeludium 2", "Fuga 2"]),
+        (["Fuga 8", "", "Fuga 10"], ["Fuga 8", "", "Fuga 10"]),  # not a clear gap
+        (["Fuga 8", "", "Sonata", "Fuga 9"], ["Fuga 8", "", "Sonata", "Fuga 9"]),
+        (["Praeludium 1", "", "Praeludium 2"], ["Praeludium 1", "Fuga 1", "Praeludium 2"]),
+        (["Fuga", "Prelude 1"], ["Fuga", "Prelude 1"]),
+        (["", "Fuga 1"], ["", "Fuga 1"]),
+        # A jump confirmed by the next printed number re-anchors the sequence
+        # (pieces were missed), instead of overriding every later number.
+        (
+            ["Prelude 1", "Fuga", "Prelude 7", "", "Fuga", "Prelude 8"],
+            ["Prelude 1", "Fuga 1", "Prelude 7", None, "Fuga 7", "Prelude 8"],
+        ),
+    ],
+)
+def test_normalize_titles_cases(titles, expected):
+    assert toc.normalize_titles(titles) == expected
+
+
+def test_extract_sections_drops_misdetections(monkeypatch):
+    """A final barline misread inside a prelude doesn't add an entry, and a
+    'Segue la Fuga' direction doesn't open the system below it."""
+    data = _pdf_from_pages(_page(systems=2, final=(1,)), _page(systems=2), _page(systems=2))
+    page_heads = iter(
+        [
+            _ocr("Praeludium 1.", "Segue la Fuga"),
+            _ocr("", ""),  # after the (misread) final barline
+            _ocr("Fuga à 3", ""),
+        ]
+    )
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(page_heads))
+    sections = toc.extract_sections(data)
+    assert [(s.page, s.title) for s in sections] == [(1, "Praeludium 1"), (3, "Fuga 1")]
+
+
+def test_continuation_notes_are_not_headings():
+    """'Segue la Fuga' ends a prelude: it must not open a section."""
+    assert not toc.is_heading("Segue la Fuga")
+    assert not toc.is_heading("attacca subito la Fuga")
+    assert toc.is_heading("Fuga 3")
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("als Op. 120.) Jahre 1825.) Allegro moderato im TTT IS 7 Auk I", "Allegro moderato"),
+        ("Kéchel Nr.545 24 Allegro", "Allegro"),
+        ("4-96. Allegro moderato. 25 all", "Allegro moderato"),
+        ("noto. Andante con moto. 66.) 2 di", "Andante con moto"),
+        ("im September 1528.) Molto moderato I I", "Molto moderato"),
+        ("Allegro troppo. ma non", "Allegro troppo"),
+        ("la Allegro", "Allegro"),
+        ("LUDWIG KLEE JOSEPH HAYDN. Allegro moderato", "Allegro moderato"),
+        ("parts of movement in song-form. Moderato. JOSEPH HAYDN", "Moderato"),
+        ("Variatio 3. Canone all’ Unisuono. 1 Clav. TZ", "Variatio 3. Canone all’ Unisuono"),
+        ("Clav. Variatio 5. vero", "Variatio 5"),
+        ("I 1 Var. IV", "Var. IV"),
+        ("Var.I 2", "Var.I"),
+        ("Sonata No. 3 Allegro", "Sonata No. 3 Allegro"),
+        ("ua Joyeuse RONDEAU", "Joyeuse RONDEAU"),
+        ("La Follette RONDEAU au ar", "La Follette RONDEAU"),
+        ("Mr A La Boiteuse", "La Boiteuse"),
+        ("Les Soupirs Tendrement", "Les Soupirs Tendrement"),
+        ("Gigue. Les Cyclopes", "Les Cyclopes — Gigue"),
+        ("LA VIRGINITE Sous le Domino. Modéré", "La Virginite — Modéré"),
+        ("LES COUCOUS BÉNÉVOLES Allegretto", "Les Coucous Bénévoles — Allegretto"),
+        ("La Folle Allegro", "La Folle Allegro"),
+        ("no heading here", "no heading here"),
+    ],
+)
+def test_tidy_title(raw, expected):
+    assert toc.tidy_title(raw) == expected
+
+
+def test_named_pieces_and_roman_variations_are_headings():
+    assert toc.is_heading("La Boiteuse")
+    assert toc.is_heading("VAR. III")
+    assert toc.is_heading("Double")
+    assert not toc.is_heading("La Csi")
+
+
+def test_ocr_titles_are_tidied(monkeypatch):
+    data = _pdf_from_pages(_page())
+    heads = [_ocr("im September 1828.) Allegro. Aud", "")]
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: heads[0])
+    assert [s.title for s in toc.extract_sections(data)] == ["Allegro"]
+
+
+def _barline_system(img: np.ndarray, ink_cols: list[tuple[int, int]], gaps: bool = False):
+    """A one-system page whose right end has the given inked column ranges."""
+    for a, b in ink_cols:
+        img[120:330, a:b] = 0
+        if gaps:  # scanned: the line is broken in places
+            img[150:175, a:b] = 255
+    systems = toc.page_systems(img)
+    return img < toc.INK, systems[0]
+
+
+def test_engraved_thin_barline_is_single():
+    """Anti-aliased engraved barlines render ~3 px wide: still a single bar."""
+    ink, system = _barline_system(_page(systems=1), [(737, 740)])
+    assert toc.barline_kind(ink, system) == "single"
+
+
+def test_scanned_broken_final_barline():
+    """Scans break barlines; thin + thick still reads as a final barline."""
+    ink, system = _barline_system(_page(systems=1), [(733, 734), (736, 740)], gaps=True)
+    assert toc.barline_kind(ink, system) == "final"
+
+
+def test_skewed_scan_is_straightened():
+    """A page scanned 1.5° off still has its staves found."""
+    gray = _page(systems=3)
+    skewed = np.asarray(Image.fromarray(gray).rotate(1.5, fillcolor=255))
+    assert toc.find_staves(skewed) == [] or len(toc.find_staves(skewed)) < 6
+    assert abs(toc.skew_angle(skewed) + 1.5) <= 0.25
+    data = _pdf_from_pages(skewed)
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(data)
+    try:
+        assert len(toc.page_systems(toc._render_gray(pdf[0]))) == 3
+    finally:
+        pdf.close()
+
+
+def test_dense_page_staff_threshold():
+    """Busy music fills many rows past the base threshold; a threshold
+    relative to the fullest row still separates the five lines."""
+    gray = _page(systems=2)
+    lines = np.flatnonzero((gray < toc.INK).mean(axis=1) > 0.5)
+    # Dense notes: every row inside each staff inked over ~35% of the width,
+    # so at the base threshold each staff is one solid band.
+    for y in lines:
+        if y + 10 in lines:
+            gray[y + 1 : y + 10, 100:380] = 0
+    assert toc._staves_from_fill(gray < toc.INK, (gray < toc.INK).mean(axis=1)) == []
+    assert len(toc.find_staves(gray)) == 4
+
+
+def test_sparse_outline_gets_detected_movements(monkeypatch):
+    """An outline listing whole works only (one entry per many pages) keeps
+    its entries and gains the titled movements detected inside them."""
+    pages = [_page(systems=2, final=(1,) if k == 2 else ()) for k in range(8)]
+    writer = PdfWriter(clone_from=io.BytesIO(_pdf_from_pages(*pages)))
+    writer.add_outline_item("Sonata No. 1", 0)
+    buf = io.BytesIO()
+    writer.write(buf)
+    heads = {1: ("Sonata I", ""), 5: ("Menuetto", "")}
+    calls = iter(range(1, 9))
+    monkeypatch.setattr(
+        toc, "ocr_headings", lambda gray, systems: _ocr(*heads.get(next(calls), ("", "")))
+    )
+    sections = toc.extract_sections(buf.getvalue())
+    # Page 1's own heading is the outline entry; page 4's barline-only start
+    # is left out; page 5's Menuetto is added.
+    assert [(s.page, s.title, s.source) for s in sections] == [
+        (1, "Sonata No. 1", "outline"),
+        (5, "Menuetto", "ocr"),
+    ]
+    assert all(s.incipit_png for s in sections)
+
+
+def test_indented_first_systems_open_sections(monkeypatch):
+    """Editions indent each piece's first system: an indented system opens a
+    section (even under a bare tempo word after a misread barline), and
+    once the edition is known to do so, a final barline alone doesn't."""
+    data = _pdf_from_pages(
+        _page(systems=2, indent=(0,), final=(1,)),
+        _page(systems=2, indent=(1,), final=(1,)),
+        _page(systems=2),
+        _page(systems=2, indent=(0,)),
+    )
+    heads = iter([_ocr("", ""), _ocr("", ""), _ocr("", ""), _ocr("Allegro", "")])
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(heads))
+    sections = toc.extract_sections(data)
+    assert [(s.page, s.source, s.title) for s in sections] == [
+        (1, "layout", "1"),
+        (2, "layout", "2"),
+        (4, "ocr", "Allegro"),
+    ]
+
+
+def test_partial_system_is_not_an_indent():
+    """A system starting far right (a line continued after a page turn) is
+    not a piece's indented first system."""
+    gray = _page(systems=2)
+    info = toc._PageInfo(1, gray.shape, toc.page_systems(gray), [])
+    info.systems[1].staves[0].left = 400
+    assert toc._indented([info]) == set()
+    assert toc._indented([toc._PageInfo(1, gray.shape, [], [])]) == set()
+
+
+def test_stray_and_prose_titles_are_dropped(monkeypatch):
+    """A lone lowercase word ("air" inside the music) or a footnote is no
+    title: the start, if any, is barline-only."""
+    data = _pdf_from_pages(_page(systems=1), _page(systems=1))
+    long_note = "In case the character of the instrument permits, the soft pedal may be used"
+    heads = iter([_ocr("air"), _ocr(long_note + " sonatas")])
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(heads))
+    assert [(s.page, s.source) for s in toc.extract_sections(data)] == [(1, "layout")]
+    assert toc.tidy_title(long_note) == ""

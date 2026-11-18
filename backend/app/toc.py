@@ -26,27 +26,37 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pypdfium2 as pdfium
+import pypdfium2.raw as pdfium_c
 from PIL import Image
 from pypdf import PdfReader
 
 # Bump when detection improves enough that existing tables of contents are
 # worth rebuilding: entries store the version that produced them, and the
 # reader offers a rebuild when it is older than this.
-TOC_VERSION = 1
+TOC_VERSION = 2
 
 RENDER_DPI = 100
 # Darkness threshold (0-255 grayscale) below which a pixel counts as ink.
 INK = 140
 # Fraction of the page width a pixel row must be inked to be a staff line.
 STAFF_LINE_FILL = 0.25
+# Extra thresholds, as fractions of the fullest row, for dense pages.
+DENSE_FILL_FRACTIONS = (0.6, 0.75)
 # Minimum horizontal run (px) for ink to count as part of a staff line.
 LINE_RUN_MIN = 24
 # Share of the gap between two staves a left barline/brace must cover for
 # them to be one system (scans break thin lines, so not 100%).
 JOIN_MIN_COVERAGE = 0.7
+# Share of a system's height a column must be inked to be part of a barline.
+BARLINE_MIN_COVERAGE = 0.6
+# Minimum width of a lone thick (final) barline, in staff spaces.
+THICK_BAR_SPACES = 0.4
 
 TEMPO_RE = re.compile(
     r"\b(allegr\w*|adagi\w*|andant\w*|prest\w*|larg\w*|lento|moderato|vivace|grave|"
+    r"mod[ée]r[ée]\w*|lent(?:ement)?|vif|vite|vivement|gai(?:ement)?|gracieus\w*|"
+    r"tendrement|l[ée]g[èe]rement|gravement|majestueu\w*|anim[ée]|"
+    r"langsam|lebhaft|schnell|m[äa](?:ss|ß)ig|bewegt|"
     r"menuett?o?|minuet\w*|menuet|scherz\w*|rond\w*|finale|tempo di \w+|maestoso|"
     r"sarabande|courante|gigue|allemande|gavotte|bourr[ée]e|air|aria|polonaise)\b",
     re.IGNORECASE,
@@ -55,12 +65,15 @@ TEMPO_RE = re.compile(
 # inside a movement, so on their own they need more evidence (see _find_starts).
 TEMPO_ONLY_RE = re.compile(
     r"\b(allegr\w*|adagi\w*|andant\w*|prest\w*|larg\w*|lento|moderato|vivace|grave|"
+    r"mod[ée]r[ée]\w*|lent(?:ement)?|vif|vite|vivement|gai(?:ement)?|gracieus\w*|"
+    r"tendrement|l[ée]g[èe]rement|gravement|majestueu\w*|anim[ée]|"
+    r"langsam|lebhaft|schnell|m[äa](?:ss|ß)ig|bewegt|"
     r"maestoso|tempo di \w+)\b",
     re.IGNORECASE,
 )
 PIECE_RE = re.compile(
-    r"\b(sonat\w*|partita|suite|pr[ée]lud\w*|pr[äa]ludium|fug\w*|invention\w*|[ée]tude\w*|"
-    r"nocturne|mazurka|waltz|valse|impromptu|variat\w*|var\.\s*\d+|movement|satz|ballade|"
+    r"\b(sonat\w*|partita|suite|pr(?:[ée]|ae|æ|ee|[äa])lud\w*|pr(?:ae|æ|[äe])ambul\w*|fug\w*|puga|invention\w*|[ée]tude\w*|"
+    r"nocturne|mazurka|waltz|valse|impromptu|variat\w*|var\.(?:\s*(?:\d+|[ivxl]+\b))?|double|movement|satz|ballade|"
     r"fantasi\w*|toccata|concerto|op\.\s*\d+|no\.\s*\d+|nr\.\s*\d+|bwv\s*\d+|k\.\s*\d+)",
     re.IGNORECASE,
 )
@@ -200,19 +213,28 @@ def find_staves(gray: np.ndarray) -> list[Staff]:
     all ink (robust to scans whose staff lines are broken into short
     pieces) and only long horizontal runs (keeps the lines distinct on
     dense, heavily inked pages). False staves are rare either way thanks
-    to the five-evenly-spaced-lines check.
+    to the five-evenly-spaced-lines check. On dense pages (fast passages,
+    slightly skewed scans) many rows besides the staff lines pass the base
+    fill threshold and the lines merge into bands, so higher thresholds
+    relative to the page's fullest row are tried too.
     """
     ink = gray < INK
     _, w = ink.shape
-    by_all = _staves_from_fill(ink, ink.sum(axis=1) / w)
-    by_long = _staves_from_fill(ink, _long_horizontal(ink).sum(axis=1) / w)
-    return by_long if len(by_long) > len(by_all) else by_all
+    best: list[Staff] = []
+    for fill in (ink.sum(axis=1) / w, _long_horizontal(ink).sum(axis=1) / w):
+        for threshold in (STAFF_LINE_FILL, *(f * float(fill.max()) for f in DENSE_FILL_FRACTIONS)):
+            staves = _staves_from_fill(ink, fill, max(threshold, STAFF_LINE_FILL))
+            if len(staves) > len(best):
+                best = staves
+    return best
 
 
-def _staves_from_fill(ink: np.ndarray, fill: np.ndarray) -> list[Staff]:
+def _staves_from_fill(
+    ink: np.ndarray, fill: np.ndarray, threshold: float = STAFF_LINE_FILL
+) -> list[Staff]:
     """Staves from a row projection (fraction of each row that is ink)."""
     _, w = ink.shape
-    runs = _row_runs(fill > STAFF_LINE_FILL)
+    runs = _row_runs(fill > threshold)
     centers = [(a + b) / 2 for a, b in runs]
 
     # Staff-line spacing of this page, from the cleanly detected staves.
@@ -289,8 +311,17 @@ def barline_kind(ink: np.ndarray, system: System) -> str:
     w = ink.shape[1]
     x0, x1 = max(0, system.right - 10), min(w, system.right + 4)
     cov = ink[system.top : system.bottom + 1, x0:x1].mean(axis=0)
-    runs = _row_runs(cov > 0.8)
-    thick = any(b - a + 1 >= 3 for a, b in runs)
+    # Scanned barlines are broken and slightly skewed: 60% of the system
+    # height still rules out stems and beams, which cover one staff at most.
+    runs = _row_runs(cov > BARLINE_MIN_COVERAGE)
+    # Engraved PDFs render even thin barlines ~3 px wide (anti-aliasing):
+    # a lone line is thick only when it is about half a staff space wide;
+    # next to another line, when it is the wider of the two (thin + thick).
+    widths = [b - a + 1 for a, b in runs]
+    space = min((st.bottom - st.top) / 4 for st in system.staves)
+    thick = any(w >= max(4, THICK_BAR_SPACES * space) for w in widths) or (
+        len(widths) >= 2 and widths[-1] > widths[0]
+    )
     if not runs or (len(runs) < 2 and not thick):
         return "single"
     # Repeat dots: ink in the 2nd and 3rd staff spaces, left of the barline.
@@ -349,13 +380,18 @@ def _norm(text: str) -> str:
     return re.sub(r"\W+", " ", text.lower()).strip()
 
 
-def heading_for(lines: list[TextLine], header_bottom: float) -> str | None:
+def heading_for(lines: list[TextLine], header_bottom: float, header_top: float = 0.0) -> str | None:
     """Build a section title from the heading-area lines of a page, if any.
 
-    ``header_bottom`` is the page-fraction y of the first system's top: text
-    above it is where titles and the opening tempo marking live.
+    ``header_bottom`` is the page-fraction y of a system's top and
+    ``header_top`` that of the top of its heading band: text in between is
+    where titles and the opening tempo marking live.
     """
-    head = [ln for ln in lines if ln.top < header_bottom and not NOT_HEADING_RE.match(ln.text)]
+    head = [
+        ln
+        for ln in lines
+        if header_top <= ln.top < header_bottom and not NOT_HEADING_RE.match(ln.text)
+    ]
     titled = [ln for ln in head if PIECE_RE.search(ln.text)]
     tempo = [ln for ln in head if TEMPO_RE.search(ln.text) and len(ln.text) < 40]
     if not titled and not tempo:
@@ -466,7 +502,8 @@ def _noise(tok: str) -> bool:
     if not TOKEN_RE.match(tok):
         return True
     core = tok.strip(".,()'’")
-    if len(core) == 1 and not core.isdigit() and not ROMAN_RE.match(core):
+    # "à" stays: "Fuga à 3" (voices) must not read as "Fuga 3".
+    if len(core) == 1 and not core.isdigit() and not ROMAN_RE.match(core) and core != "à":
         return True
     mixed = re.search(r"[^\W\d_]", core) and re.search(r"\d", core)
     return bool(mixed and not PIECE_RE.fullmatch(core))
@@ -493,13 +530,162 @@ def clean_title(text: str) -> str:
     return " ".join(kept).strip(" .,")
 
 
+# Words that qualify a tempo / form heading ("Allegro ma non troppo",
+# "Canone alla Quinta", "Andante con moto"): kept inside a title.
+QUALIFIER_RE = re.compile(
+    r"(molto|assai|ma|non|troppo|con|moto|poco|più|piu|quasi|sostenuto|cantabile|espressivo|"
+    r"grazioso|giocoso|tranquillo|mosso|meno|sempre|vivo|brio|spirito|fuoco|un|e|ed|di|del|"
+    r"della|alla|all[’']?|al|il|lo|la|sehr|mässig|massig|nicht|zu|schnell|langsam|lebhaft|"
+    r"et|très|tres|un|peu|gai|gracieusement|tendrement|lentement|vivement|modéré|"
+    r"canon[ei]?|unisono|unisuono|seconda|terza|quarta|quinta|sexta|sesta|settima|ottava|"
+    r"nona|giga|fug[h]?etta|ouverture|quodlibet|delicatezza|tempo|primo)",
+    re.IGNORECASE,
+)
+# Catalogue / opus tokens: metadata, not part of a section title on
+# their own ("Kéchel Nr.545", "BWV873"); kept only right after a piece
+# word ("Sonata No. 3", "Var. 2").
+CATALOGUE_RE = re.compile(r"(op|no|nr|n°|bwv|k|kv|hob|d)\.?\s*[\dIVXL]", re.IGNORECASE)
+# "No." / "Op." in "Sonata No. 3": the number follows as its own token.
+NUMBER_PREFIX_RE = re.compile(r"(no|nr|op|n°)\.?", re.IGNORECASE)
+# French character-piece names: "La Joyeuse", "Les Tendres Plaintes",
+# "L'Enharmonique" (Rameau, Couperin...).
+NAMED_PIECE_RE = re.compile(
+    r"\b(?:L[aeAE][sS]?\s+|L[’'])[A-ZÀ-Ý][\w’'-]{3,}(?:\s+[A-ZÀ-Ý][\w’'-]{2,}){0,2}"
+)
+
+
+def _core(token: str) -> str:
+    return token.strip(".,;:()’'\"«»")
+
+
+def _is_vocab(token: str) -> bool:
+    core = _core(token)
+    return bool(core) and bool(
+        TEMPO_RE.fullmatch(core)
+        or PIECE_RE.fullmatch(core)
+        or PIECE_RE.fullmatch(token.rstrip(","))
+    )
+
+
+def _title_word(token: str, names: bool) -> bool:
+    """Can ``token`` precede a heading word as part of the title?
+
+    Qualifiers ("Molto moderato", "Canone alla Quinta. Variatio 15") and,
+    before a piece/form word (``names``), capitalised names ("La Follette
+    Rondeau"); not footnote/metronome debris (ends with ")" or holds
+    digits) nor abbreviations ("Clav.", "Op.").
+    """
+    core = _core(token)
+    abbreviation = token.endswith(".") and len(core) <= 4 and not QUALIFIER_RE.fullmatch(core)
+    if not core or token.endswith(")") or re.search(r"\d", token) or abbreviation:
+        return False
+    if QUALIFIER_RE.fullmatch(core):
+        return True
+    return names and bool(re.fullmatch(r"(?:L[ae]s?|L[’']\w+|[A-ZÀ-Ý][a-zà-ÿ’'-]{2,})", core))
+
+
+def _bare_piece_word(token: str) -> bool:
+    """A piece word without its own number ("Variatio", not "Var.II")."""
+    core = _core(token)
+    piece = PIECE_RE.fullmatch(core) or PIECE_RE.fullmatch(core + ".")
+    return bool(core.isalpha() and piece and not TEMPO_RE.fullmatch(core))
+
+
+def _piece_name(name: str) -> str:
+    """Normalise a matched piece name: one case style, title-cased.
+
+    "LA VIRGINITE Sous" (caps title, then a subtitle) → "La Virginite".
+    """
+    words = name.split()
+    caps = words[-1 if len(words) == 1 else 1].isupper()
+    kept = words[:2]
+    for word in words[2:]:
+        if word.isupper() != caps:
+            break
+        kept.append(word)
+    name = " ".join(kept)
+    return name.title() if name.isupper() else name
+
+
+# Longest heading text kept as-is when no heading vocabulary is found in it.
+MAX_UNTIDY_TITLE = 40
+
+
+def tidy_title(text: str) -> str:
+    """Cut a heading down to its title phrase, dropping OCR debris.
+
+    OCR'd bands also catch footnotes ("im September 1828.)", "parts of
+    movement in song-form"), metronome marks ("108.)"), fingerings,
+    editor names and catalogue numbers. The title is the run of heading
+    vocabulary (tempo / form words and their qualifiers, a number right
+    after a piece word) from the first capitalised tempo or piece word,
+    plus a name just before a piece word ("La Follette Rondeau"). Text
+    without heading vocabulary is returned unchanged.
+    """
+    named = NAMED_PIECE_RE.search(text)
+    tokens = text.split()
+    anchors = [k for k, t in enumerate(tokens) if _is_vocab(t) and not CATALOGUE_RE.match(t)]
+    if not anchors:
+        if named:
+            return _piece_name(named.group(0))
+        # Prose (a footnote mentioning "sonatas") is not a title.
+        return text if len(text) <= MAX_UNTIDY_TITLE else ""
+    # Headings are capitalised; footnote prose ("parts of movement") isn't.
+    start = end = next((k for k in anchors if _core(tokens[k])[:1].isupper()), anchors[0])
+    names = not TEMPO_ONLY_RE.search(tokens[start])
+    while start > 0 and _title_word(tokens[start - 1], names):
+        start -= 1
+    k = end + 1
+    while k < len(tokens):
+        tok, core = tokens[k], _core(tokens[k])
+        prev = tokens[k - 1]
+        after_piece = _bare_piece_word(prev) or NUMBER_PREFIX_RE.fullmatch(_core(prev))
+        number = re.fullmatch(r"\d{1,2}|[IVXL]+", core) or NUMBER_PREFIX_RE.fullmatch(core)
+        # "Fuga 3 à": the number of voices, read out of order.
+        voices = k + 1 < len(tokens) and _core(tokens[k + 1]) in ("à", "a")
+        is_number = bool(number) and not voices
+        if (
+            _is_vocab(tok)
+            or (core and QUALIFIER_RE.fullmatch(core))
+            or (after_piece and (is_number or CATALOGUE_RE.match(tok)))
+        ):
+            end = k
+        else:
+            break
+        k += 1
+    # Trailing connectors ("Allegro ma") aren't part of the title.
+    while (
+        end > start and len(_core(tokens[end])) <= 3 and QUALIFIER_RE.fullmatch(_core(tokens[end]))
+    ):
+        end -= 1
+    # Nor are leading ones ("la Allegro" from stray OCR letters), except an
+    # article opening a name ("La Follette Rondeau").
+    while (
+        start < end
+        and len(_core(tokens[start])) <= 2
+        and QUALIFIER_RE.fullmatch(_core(tokens[start]))
+        and not (tokens[start][0].isupper() and tokens[start + 1][0].isupper())
+    ):
+        start += 1
+    title = " ".join(tokens[start : end + 1]).strip(" .,;:")
+    if named and named.group(0) not in title:
+        name = _piece_name(named.group(0))
+        title = name if title in name else f"{name} — {title}"
+    return title
+
+
 def is_heading(text: str) -> bool:
     """Does OCR'd text above a system look like a piece/movement heading?
 
     Only real heading vocabulary counts: bare numbers or Roman numerals are
-    too often OCR debris from stems, barlines and fingerings.
+    too often OCR debris from stems, barlines and fingerings. Directions
+    like "Segue la Fuga" end a piece rather than open one.
     """
-    return bool(text and (PIECE_RE.search(text) or TEMPO_RE.search(text)))
+    return bool(
+        text
+        and (PIECE_RE.search(text) or TEMPO_RE.search(text) or NAMED_PIECE_RE.search(text))
+        and not CONTINUATION_RE.search(text)
+    )
 
 
 def is_tempo_only(text: str) -> bool:
@@ -508,6 +694,190 @@ def is_tempo_only(text: str) -> bool:
     return bool(TEMPO_ONLY_RE.search(text)) and not (
         PIECE_RE.search(stripped) or TEMPO_RE.search(stripped)
     )
+
+
+# --- title normalisation -----------------------------------------------------
+
+# Pieces of numbered prelude & fugue collections (WTC, Shostakovich op. 87,
+# ...): OCR'd headings around them are noisy ("BWV873 Prelude Cisb av I"),
+# so their titles are rebuilt as "<Kind> <number>".
+PRELUDE_RE = re.compile(
+    r"\b(pr(?:ae|æ|ä|a|ee)lud\w*|pr[ée]lud[ei]\w*|pr(?:ae|æ|ä|e)ambul\w*)", re.I
+)
+FUGUE_RE = re.compile(r"\b(fughett\w*|fug(?:a|ue|e)\b|puga\b)", re.I)
+# Directions to carry on into the next piece ("Segue la Fuga", "attacca
+# subito la Fuga"): printed at the end of a piece, never a heading.
+CONTINUATION_RE = re.compile(r"\b(segue|attacca|volti|folgt|suivez|suit)\b", re.I)
+# A piece number printed right after the kind word: "Fuga 2", "Fuga II.",
+# "Prelude No. 3" (not "Fuga à 3", which counts voices).
+_NUMBER_AFTER = r"\s*(?:no\.?|nr\.?|n°)?\s*(\d{1,2}|[IVXL]{1,6})\b\.?"
+MAX_PIECE_NUMBER = 48
+# A printed number may skip at most this many pieces ahead of the sequence.
+MAX_NUMBER_SKIP = 2
+_ROMAN = {"I": 1, "V": 5, "X": 10, "L": 50}
+
+
+def _roman_value(text: str) -> int | None:
+    if not ROMAN_RE.match(text):
+        return None
+    total = 0
+    for a, b in zip(text, text[1:] + " ", strict=True):
+        v = _ROMAN[a]
+        total += -v if b in _ROMAN and _ROMAN[b] > v else v
+    return total
+
+
+def _canonical_kind(word: str) -> str:
+    """Clean, consistent spelling of a prelude/fugue word from a heading."""
+    low = word.lower()
+    if low.startswith("fughett"):
+        return "Fughetta"
+    if low.startswith(("fug", "pug")):
+        return {"fugue": "Fugue", "fuge": "Fuge"}.get(low, "Fuga")
+    if "ambul" in low:
+        return "Praeambulum"
+    if re.match(r"pr[ée]lud", low):
+        return {"preludio": "Preludio", "prélude": "Prélude"}.get(low, "Prelude")
+    return "Praeludium"
+
+
+def _piece_number(title: str, match: re.Match[str]) -> int | None:
+    """The piece number printed after the kind word, if plausible."""
+    rest = title[match.end() :]
+    m = re.match(_NUMBER_AFTER, rest, re.I)
+    # "Fuga 3 à" is "Fuga à 3" read out of order: a number of voices.
+    if not m or re.match(r"\s*[àa]\b", rest[m.end() :]):
+        return None
+    raw = m.group(1)
+    n = int(raw) if raw.isdigit() else _roman_value(raw.upper())
+    return n if n and 1 <= n <= MAX_PIECE_NUMBER else None
+
+
+def _prelude_or_fugue(title: str) -> tuple[str, str, int | None] | None:
+    """("prelude" | "fugue", canonical kind word, number) of a heading.
+
+    A combined heading ("Praeludium und Fuga 2, c-Moll") opens with the
+    prelude; its number is the first one after either word.
+    """
+    pre, fug = PRELUDE_RE.search(title), FUGUE_RE.search(title)
+    first = min((m for m in (pre, fug) if m), key=lambda m: m.start(), default=None)
+    if first is None:
+        return None
+    number = next((n for m in (pre, fug) if m and (n := _piece_number(title, m))), None)
+    family = "prelude" if first is pre else "fugue"
+    return family, _canonical_kind(first.group(1)), number
+
+
+def _confirmed_later(parsed: list[tuple[str, str, int | None] | None], k: int, number: int) -> bool:
+    """Does the next printed number agree with ``number`` at piece ``k``?
+
+    Lets the sequence re-anchor when it went wrong earlier (e.g. a number
+    of voices taken for a fugue's number) instead of overriding every
+    correctly printed number after it.
+    """
+    steps = 0
+    for p in parsed[k + 1 :]:
+        if p is None:
+            continue
+        steps += p[0] == "prelude"
+        if p[2] is not None:
+            return abs(p[2] - (number + steps)) <= MAX_NUMBER_SKIP
+    return False
+
+
+def _number_pieces(parsed: list[tuple[str, str, int | None] | None]) -> list[int | None]:
+    """Piece number of every prelude/fugue, consistent with its neighbours.
+
+    A fugue takes the number of the prelude just before it (its own printed
+    number is often misread, e.g. "Fuga 2 à 3" → "2443", or absent). Other
+    numbers follow the sequence unless printed close ahead of it (a piece
+    may have been missed) or printed as 1 (an appendix restarts). Leading
+    unnumbered pieces are numbered back from the first known number.
+    """
+    numbers: list[int | None] = []
+    current: int | None = None
+    last_family = ""
+    for k, p in enumerate(parsed):
+        if p is None:
+            numbers.append(None)
+            continue
+        family, _, number = p
+        following = current + 1 if current is not None else None
+        if family == "fugue" and last_family == "prelude" and current is not None:
+            number = current
+        elif following is not None and (
+            number is None
+            or not (
+                number == 1
+                or following <= number <= following + MAX_NUMBER_SKIP
+                or _confirmed_later(parsed, k, number)
+            )
+        ):
+            number = following
+        current, last_family = number, family
+        numbers.append(number)
+    nxt: tuple[str, int] | None = None
+    for k in range(len(parsed) - 1, -1, -1):
+        p = parsed[k]
+        if p is None:
+            continue
+        if numbers[k] is None and nxt is not None:
+            same_pair = p[0] == "prelude" and nxt[0] == "fugue"
+            guess = nxt[1] if same_pair else nxt[1] - 1
+            numbers[k] = guess if guess >= 1 else None
+        n = numbers[k]
+        nxt = (p[0], n) if n is not None else None
+    return numbers
+
+
+def _most_common_word(parsed: list[tuple[str, str, int | None] | None], family: str) -> str:
+    words = [p[1] for p in parsed if p and p[0] == family]
+    default = "Praeludium" if family == "prelude" else "Fuga"
+    return max(words, key=words.count) if words else default
+
+
+def normalize_titles(titles: list[str]) -> list[str | None]:
+    """Rebuild prelude/fugue titles as "<Kind> <n>", dropping OCR debris.
+
+    Each family gets one spelling (the document's most common one), so the
+    list reads consistently. Untitled starts (from final barlines) between
+    two numbered pieces are checked against the prelude/fugue alternation:
+    one in place of a missing piece takes its title, the others are
+    misdetections (e.g. an unreadable repeat barline inside a prelude) and
+    come back as None, to be dropped. Other titles are left untouched.
+    """
+    parsed = [_prelude_or_fugue(t) if t else None for t in titles]
+    if any(p and p[0] == "prelude" for p in parsed):
+        numbers = _number_pieces(parsed)
+    else:
+        # Fugues without preludes (fugal finales of sonatas, a fugue
+        # collection): no pairing to infer numbers from, keep printed ones.
+        numbers = [p[2] if p else None for p in parsed]
+    words = {f: _most_common_word(parsed, f) for f in ("prelude", "fugue")}
+    out: list[str | None] = list(titles)
+    for k, p in enumerate(parsed):
+        if p is not None:
+            out[k] = f"{words[p[0]]} {numbers[k]}" if numbers[k] else words[p[0]]
+
+    known = [k for k, p in enumerate(parsed) if p is not None and numbers[k] is not None]
+    for a, b in zip(known, known[1:], strict=False):
+        gap = [k for k in range(a + 1, b) if not titles[k]]
+        if not gap or len(gap) != b - a - 1:
+            continue
+        fam_a, fam_b = parsed[a][0], parsed[b][0]  # type: ignore[index]
+        n_a, n_b = numbers[a], numbers[b]
+        assert n_a is not None and n_b is not None
+        missing = ("fugue", n_a) if fam_a == "prelude" else ("prelude", n_a + 1)
+        after_missing = ("prelude", n_a + 1) if fam_a == "prelude" else ("fugue", n_a + 1)
+        if (fam_b, n_b) == missing:
+            labels: list[str | None] = [None] * len(gap)
+        elif (fam_b, n_b) == after_missing:
+            labels = [f"{words[missing[0]]} {missing[1]}"] + [None] * (len(gap) - 1)
+        else:
+            continue
+        for k, label in zip(gap, labels, strict=True):
+            out[k] = label
+    return out
 
 
 # --- outline ---------------------------------------------------------------
@@ -561,9 +931,63 @@ def outline_sections(data: bytes) -> list[DetectedSection]:
 # --- main entry ------------------------------------------------------------
 
 
+# An image covering at least this share of the page makes it a scan.
+SCAN_IMAGE_COVERAGE = 0.5
+
+
+def is_scanned(page: pdfium.PdfPage) -> bool:
+    """Is the page a scanned image (possibly with an invisible OCR text layer)?
+
+    Scanners and archives (e.g. the Internet Archive) add a hidden OCR text
+    layer that is mostly garbage on music: it may still hold a legible
+    heading, but where it doesn't, Tesseract on the heading band is tried.
+    """
+    width, height = page.get_size()
+    for obj in page.get_objects(filter=[pdfium_c.FPDF_PAGEOBJ_IMAGE], max_depth=2):
+        left, bottom, right, top = obj.get_bounds()
+        if (right - left) * (top - bottom) >= SCAN_IMAGE_COVERAGE * width * height:
+            return True
+    return False
+
+
+# Skew angles (degrees) tried when straightening scanned pages.
+SKEW_ANGLES = np.linspace(-2.0, 2.0, 17)
+
+
+def skew_angle(gray: np.ndarray) -> float:
+    """Rotation (degrees) that makes the page's staff lines horizontal.
+
+    Scans are often a degree or two off: each staff line then spreads over
+    several pixel rows and no row is inked enough to be found. The angle
+    whose row projection is the most peaked (sum of squares) wins.
+    """
+    small = Image.fromarray(((gray[::2, ::2] < INK) * 255).astype(np.uint8))
+
+    def peakedness(angle: float) -> float:
+        rows = np.asarray(small.rotate(angle, resample=Image.Resampling.NEAREST)).sum(axis=1)
+        return float((rows.astype(np.float64) ** 2).sum())
+
+    def score(angle: float) -> tuple[float, float]:
+        # Tiny rotations change nothing at this resolution: prefer the
+        # smallest angle among equally good ones.
+        return peakedness(angle), -abs(angle)
+
+    coarse = float(max(SKEW_ANGLES, key=score))
+    step = float(SKEW_ANGLES[1] - SKEW_ANGLES[0])
+    return float(max(np.linspace(coarse - step, coarse + step, 11), key=score))
+
+
 def _render_gray(page: pdfium.PdfPage) -> np.ndarray:
     bitmap = page.render(scale=RENDER_DPI / 72, grayscale=True)
-    return np.asarray(bitmap.to_pil().convert("L"))
+    gray = np.asarray(bitmap.to_pil().convert("L"))
+    angle = skew_angle(gray)
+    if abs(angle) < 0.05:
+        return gray
+    rotated = np.asarray(
+        Image.fromarray(gray).rotate(angle, resample=Image.Resampling.BILINEAR, fillcolor=255)
+    )
+    # Rotating blurs thin lines a little: keep it only when it finds more staves.
+    return rotated if len(find_staves(rotated)) > len(find_staves(gray)) else gray
 
 
 @dataclass
@@ -602,9 +1026,58 @@ def _split_half(system: System, prev_bottom: int | None) -> bool:
     return system.top - prev_bottom < 1.5 * staff_h
 
 
+def _text_headings(info: _PageInfo, lines: list[TextLine]) -> list[OcrText]:
+    """Heading text above every system of a page, from its text layer.
+
+    The first system's heading area is everything above it (titles,
+    composer, opening tempo); later systems use the band just above them,
+    like OCR, so a piece starting mid-page (a fugue after its prelude) is
+    found too. ``left`` is the system's own left: text-layer lines are
+    whole lines, so their horizontal position isn't meaningful.
+    """
+    h = info.shape[0]
+    out: list[OcrText] = []
+    prev: int | None = None
+    for system in info.systems:
+        top, bottom = (
+            (0, system.top) if prev is None else (_heading_band(system, prev)[0], system.top)
+        )
+        out.append(OcrText(heading_for(lines, bottom / h, top / h) or "", system.left))
+        prev = system.bottom
+    return out
+
+
+# A system starting this share of the page width right of the document's
+# usual system start is indented: engravers indent the first system of
+# each piece / movement.
+INDENT_FRACTION = 0.04
+# A larger offset is a partial system (the end of a line continued after a
+# page turn, an ossia), not an indent.
+INDENT_MAX_FRACTION = 0.15
+# With at least this many indented systems, a document follows that
+# convention, and a section start without a heading must be indented.
+INDENT_CONVENTION_MIN = 3
+
+
+def _indented(pages: list[_PageInfo]) -> set[tuple[int, int]]:
+    """(page number, system index) of every indented system."""
+    lefts = [s.left for info in pages for s in info.systems]
+    if not lefts:
+        return set()
+    usual = float(np.median(lefts))
+    return {
+        (info.number, j)
+        for info in pages
+        for j, s in enumerate(info.systems)
+        if INDENT_FRACTION < (s.left - usual) / info.shape[1] <= INDENT_MAX_FRACTION
+    }
+
+
 def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]]:
     """Pick (page, system index, title, source) for every section start."""
     n = len(pages)
+    indented = _indented(pages)
+    convention = len(indented) >= INDENT_CONVENTION_MIN
     counts: dict[str, int] = {}
     for info in pages:
         for key in {_norm(ln.text) for ln in info.lines}:
@@ -618,45 +1091,103 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
     # end", so it always opens a section even without a legible heading.
     prev_kind = "final"
     prev_bottom: int | None = None  # previous system's bottom, same page only
+    fresh = True  # no music yet, or only front matter / an index since
     for info in pages:
         if not info.systems:
-            # Title/preface page: the music after it starts fresh.
+            # Title/preface page: the music after it starts fresh, unless
+            # the edition indents first systems (then it may as well be a
+            # blank page inside a piece).
             prev_kind, prev_bottom = "final", None
+            fresh = fresh or not convention
             continue
-        h, _ = info.shape
         kinds = info.bar_kinds or ["single"] * len(info.systems)
         lines = [ln for ln in info.lines if _norm(ln.text) not in repeated]
-        title = heading_for(lines, info.systems[0].top / h)
-        if title:
-            starts.append((info, 0, title, "text"))
-            prev_kind, prev_bottom = kinds[-1], None
-            continue
+        if info.lines:
+            # Engraved PDF: headings from the text layer, already clean.
+            heads, source = _text_headings(info, lines), "text"
+        else:
+            heads, source = info.ocr, "ocr"
         page_starts = []
-        for j, ocr in enumerate(info.ocr):
-            title = clean_title(ocr.text)
-            if is_heading(title) and (
+        headed = 0
+        for j, head in enumerate(heads):
+            src = source
+            if src == "text" and not head.text and info.ocr:
+                # Scan with a hidden text layer that has no heading here.
+                head, src = info.ocr[j], "ocr"
+            title = head.text if src == "text" else clean_title(head.text)
+            headed += is_heading(title)
+            indent = (info.number, j) in indented
+            if CONTINUATION_RE.search(title):
+                # "Segue la Fuga" closes a piece: what follows on this
+                # page (an ossia, a variant) doesn't open one.
+                prev_kind = kinds[j]
+                prev_bottom = info.systems[j].bottom
+                fresh = False
+                continue
+            # Barlines are often misread on scans; when the edition indents
+            # first systems, that is the more reliable sign of a new piece.
+            ended = indent or fresh or (prev_kind == "final" and not convention)
+            accepted = is_heading(title) and (
                 not is_tempo_only(title)
-                or _tempo_opens(ocr, info.systems[j], prev_kind != "single")
-            ):
-                page_starts.append((j, title, "ocr"))
-            elif prev_kind == "final" and not _split_half(info.systems[j], prev_bottom):
-                # A final barline (thin + thick) closed the previous piece:
-                # this system opens the next one even if its heading (e.g. a
-                # bare number) wasn't legible.
+                # A tempo heading at the very top of a text page is the
+                # page's title area, not a tempo change over a later bar.
+                or (src == "text" and j == 0)
+                or _tempo_opens(head, info.systems[j], indent or prev_kind != "single")
+            )
+            if accepted and src != "text":
+                # Text-layer headings are clean already; OCR'd ones carry
+                # debris from the whole band. Prose (a footnote) or a lone
+                # lowercase word ("air" inside the music) is no heading.
+                title = tidy_title(title)
+                accepted = bool(title) and (" " in title or not title[:1].islower())
+            if accepted:
+                page_starts.append((j, title, src))
+            elif ended and not _split_half(info.systems[j], prev_bottom):
+                # A final barline (thin + thick) closed the previous piece,
+                # or this system is indented: it opens the next one even if
+                # its heading (e.g. a bare number) wasn't legible.
                 page_starts.append((j, "", "layout"))
             prev_kind = kinds[j]
             prev_bottom = info.systems[j].bottom
+            fresh = False
         prev_kind, prev_bottom = kinds[-1], None
-        headed = sum(1 for ocr in info.ocr if is_heading(clean_title(ocr.text)))
         if headed >= INDEX_PAGE_MIN_HEADINGS and headed * 2 >= len(info.systems):
             # A page where most systems have a heading is an edition's index
             # of incipits / contents page, not music to navigate to; what
             # follows it starts fresh, like after a title page.
-            prev_kind = "final"
+            prev_kind, fresh = "final", True
             continue
-        for j, cleaned, source in page_starts:
-            starts.append((info, j, cleaned, source))
+        for j, cleaned, src in page_starts:
+            starts.append((info, j, cleaned, src))
     return starts
+
+
+# An outline with fewer entries than one per this many pages lists whole
+# works only (e.g. "Sonata No. 1", "Sonata No. 2"...): their movements are
+# detected too and listed under each entry.
+OUTLINE_SPARSE_PAGES = 8
+
+
+def _sparse_outline(outline: list[DetectedSection], n_pages: int) -> bool:
+    return n_pages >= OUTLINE_SPARSE_PAGES * len(outline)
+
+
+def _merge_outline(
+    outline: list[DetectedSection], detected: list[tuple[int, int, DetectedSection]]
+) -> list[DetectedSection]:
+    """Outline entries plus the titled sections detected inside them.
+
+    A detection at the top of an outline entry's page is that entry itself;
+    untitled (barline-only) detections would be meaningless numbers next to
+    the outline's titles, so they are left out.
+    """
+    first_pages = {sec.page for sec in outline}
+    keyed = [((sec.page, -1), sec) for sec in outline]
+    for page, sys_idx, sec in detected:
+        if sec.source == "layout" or (page in first_pages and sys_idx == 0):
+            continue
+        keyed.append(((page, sys_idx), sec))
+    return [sec for _, sec in sorted(keyed, key=lambda item: item[0])]
 
 
 def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection]:
@@ -666,13 +1197,13 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
     try:
         n = min(len(pdf), max_pages)
 
-        if outline:
-            for sec in outline:
-                if sec.page <= n:
-                    gray = _render_gray(pdf[sec.page - 1])
-                    systems = page_systems(gray)
-                    if systems:
-                        sec.incipit_png = crop_incipit(gray, systems[0])
+        for sec in outline:
+            if sec.page <= n:
+                gray = _render_gray(pdf[sec.page - 1])
+                systems = page_systems(gray)
+                if systems:
+                    sec.incipit_png = crop_incipit(gray, systems[0])
+        if outline and not _sparse_outline(outline, n):
             return outline
 
         # Pass 1: per-page features only (rendered pages are ~1 MB each, so a
@@ -683,27 +1214,30 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
             gray = _render_gray(page)
             systems = page_systems(gray)
             lines = text_lines(page)
-            # Scans have no text layer: read the headings with OCR instead.
-            ocr = ocr_headings(gray, systems) if systems and not lines else []
+            # Scans have no text layer, or a hidden OCR one that is mostly
+            # garbage on music: read the headings with Tesseract too.
+            ocr = ocr_headings(gray, systems) if systems and (not lines or is_scanned(page)) else []
             ink = gray < INK
             kinds = [barline_kind(ink, s) for s in systems]
             pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr, kinds))
 
         # Pass 2: re-render only the pages that need an incipit crop.
-        sections: list[DetectedSection] = []
-        for info, sys_idx, title, source in _find_starts(pages):
+        starts = _find_starts(pages)
+        titles = normalize_titles([title for _, _, title, _ in starts])
+        detected: list[tuple[int, int, DetectedSection]] = []
+        for (info, sys_idx, _, source), title in zip(starts, titles, strict=True):
+            if title is None:
+                continue
             gray = _render_gray(pdf[info.number - 1])
-            sections.append(
-                DetectedSection(
-                    title=title,
-                    page=info.number,
-                    source=source,
-                    incipit_png=crop_incipit(gray, info.systems[sys_idx]),
-                )
+            sec = DetectedSection(
+                title=title or str(len(detected) + 1),
+                page=info.number,
+                source=source,
+                incipit_png=crop_incipit(gray, info.systems[sys_idx]),
             )
-        for k, sec in enumerate(sections, start=1):
-            if not sec.title:
-                sec.title = str(k)
-        return sections
+            detected.append((info.number, sys_idx, sec))
+        if outline:
+            return _merge_outline(outline, detected)
+        return [sec for _, _, sec in detected]
     finally:
         pdf.close()
