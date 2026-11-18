@@ -332,5 +332,12 @@
 	"imslp_sync_completed": "Dernière synchronisation terminée : {works} œuvres, {removed} supprimées.",
 	"imslp_sync_cancelled": "Synchronisation arrêtée à la position {start} ({works} œuvres enregistrées). Reprenez pour continuer.",
 	"imslp_sync_error": "Synchronisation arrêtée à la position {start} : {error}",
-	"imslp_sync_updated": "Mis à jour {time}"
+	"imslp_sync_updated": "Mis à jour {time}",
+	"instrument_viola": "Alto",
+	"instrument_clarinet": "Clarinette",
+	"instrument_trumpet": "Trompette",
+	"imslp_home_title": "Ajouter une partition depuis IMSLP",
+	"imslp_home_desc": "Cherchez dans le catalogue gratuit d'IMSLP, puis ajoutez le PDF à votre bibliothèque.",
+	"imslp_added": "Ajoutée à votre bibliothèque.",
+	"imslp_open_added": "L'ouvrir"
 }

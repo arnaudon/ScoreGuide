@@ -32,6 +32,7 @@
 	} from '#lib/components/ui/data-table/index.js';
 	import type { Score, IMSLPScore, ImslpResult } from '#lib/types.js';
 	import ImslpSearch from '#lib/components/ImslpSearch.svelte';
+	import ImslpAddDialog from '#lib/components/ImslpAddDialog.svelte';
 	import AgentChat from '#lib/components/AgentChat.svelte';
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import DataTableSortButton from './data-table-sort-button.svelte';
@@ -46,11 +47,9 @@
 	let recompleting = $state(false);
 	let recompleteError = $state<string | null>(null);
 	let deleteError = $state<string | null>(null);
-	let addImslpError = $state<string | null>(null);
 	let sheetOpen = $state(false);
 	let editOpen = $state(false);
 	let manualFiles = $state<FileList | undefined>();
-	let imslpFiles = $state<FileList | undefined>();
 	let selectedScore = $derived(data.scores.find((s: Score) => s.id === selectedScoreId));
 
 	function openDetails(id: number) {
@@ -323,10 +322,10 @@
 				</Tabs.Content>
 				<Tabs.Content value="imslp">
 					<ImslpSearch
+						preferredInstrument={data.user?.instrument}
 						onSelect={(work) => {
 							if (uploading) return;
 							agentSelectedScore = work;
-							addImslpError = null;
 							imslpSheetOpen = true;
 						}}
 					/>
@@ -386,7 +385,6 @@
 																onclick={() => {
 																	if (!uploading) {
 																		agentSelectedScore = row.original;
-																		addImslpError = null;
 																		imslpSheetOpen = true;
 																	}
 																}}
@@ -747,90 +745,6 @@
 	</Dialog.Content>
 </Dialog.Root>
 
-<Dialog.Root bind:open={imslpSheetOpen}>
-	<Dialog.Content>
-		<Dialog.Header>
-			<Dialog.Title class="text-fancy-title text-2xl"
-				>{agentSelectedScore?.title || m.imslp_score_details()}</Dialog.Title
-			>
-			<Dialog.Description
-				>{agentSelectedScore?.composer || m.imslp_score_details_desc()}</Dialog.Description
-			>
-		</Dialog.Header>
-		{#if agentSelectedScore}
-			<ScoreDetails score={agentSelectedScore} />
-
-			<div class="border-border flex flex-col gap-4 border-t pt-4">
-				<h3 class="text-foreground font-semibold">{m.add_this_score()}</h3>
-				<p class="text-muted-foreground text-sm">
-					{m.download_pdf_imslp()}<br />
-					<a
-						href={agentSelectedScore.permlink}
-						target="_blank"
-						rel="external noopener noreferrer"
-						class="text-primary break-all hover:underline">{agentSelectedScore.permlink}</a
-					>
-				</p>
-				<p class="text-muted-foreground text-sm">
-					{m.upload_pdf_below()}
-				</p>
-				<form
-					method="POST"
-					action="?/add_imslp"
-					enctype="multipart/form-data"
-					use:enhance={() => {
-						uploading = true;
-						addImslpError = null;
-						return async ({ update, result }) => {
-							uploading = false;
-							// Keep the sheet, chosen score and PDF on failure so the user can retry.
-							if (result.type === 'failure') {
-								addImslpError = (result.data?.error as string) || m.err_add_score();
-								return;
-							}
-							agentSelectedScore = null;
-							imslpSheetOpen = false;
-							imslpFiles = undefined;
-							await update();
-						};
-					}}
-					class="flex flex-col gap-4"
-				>
-					<input type="hidden" name="imslp_id" value={agentSelectedScore.id} />
-					<div class="space-y-2">
-						<label for="agent_file_sheet" class="text-sm leading-none font-medium"
-							>{m.pdf_file()}</label
-						>
-						<div class="relative">
-							<Input
-								id="agent_file_sheet"
-								name="file"
-								type="file"
-								accept="application/pdf"
-								required
-								class="sr-only"
-								bind:files={imslpFiles}
-							/>
-							<label
-								for="agent_file_sheet"
-								class="border-input hover:bg-accent hover:text-accent-foreground flex h-9 w-full cursor-pointer items-center rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
-							>
-								<span class="text-muted-foreground truncate">
-									{imslpFiles && imslpFiles.length > 0 ? imslpFiles[0].name : m.choose_file()}
-								</span>
-							</label>
-						</div>
-					</div>
-					<Button type="submit" disabled={uploading} class="w-full">
-						{uploading ? m.adding() : m.add_score()}
-					</Button>
-					{#if addImslpError}
-						<p role="alert" class="text-destructive text-sm font-medium">{addImslpError}</p>
-					{/if}
-				</form>
-			</div>
-		{/if}
-	</Dialog.Content>
-</Dialog.Root>
+<ImslpAddDialog bind:work={agentSelectedScore} bind:open={imslpSheetOpen} />
 
 <EditScoreDialog bind:open={editOpen} score={selectedScore} />

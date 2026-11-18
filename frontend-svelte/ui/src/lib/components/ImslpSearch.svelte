@@ -4,18 +4,35 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import type { ImslpResult, ImslpSearch } from '#lib/types.js';
-	import { periodLabel, INSTRUMENTS, PERIODS, instrumentLabel } from '#lib/imslp.js';
+	import { untrack } from 'svelte';
+	import {
+		defaultInstrument,
+		periodLabel,
+		INSTRUMENTS,
+		PERIODS,
+		instrumentLabel
+	} from '#lib/imslp.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	/**
 	 * Instant search of the local IMSLP catalogue (no AI, no credits): words
-	 * match title, composer, catalogue number and key, ignoring accents.
+	 * match title, composer, catalogue number and key, ignoring accents. The
+	 * instrument filter starts on the user's preferred instrument.
 	 */
-	let { onSelect }: { onSelect: (work: ImslpResult) => void } = $props();
+	let {
+		onSelect,
+		preferredInstrument = null,
+		listClass = ''
+	}: {
+		onSelect: (work: ImslpResult) => void;
+		preferredInstrument?: string | null;
+		/** Extra classes for the results list, e.g. a max height. */
+		listClass?: string;
+	} = $props();
 
 	const PAGE = 20;
 	let q = $state('');
-	let instrument = $state('');
+	let instrument = $state(untrack(() => defaultInstrument(preferredInstrument)));
 	let period = $state('');
 	let results = $state<ImslpResult[]>([]);
 	let total = $state(0);
@@ -132,7 +149,7 @@
 	</p>
 
 	{#if results.length}
-		<ul class="flex flex-col divide-y rounded-md border">
+		<ul class="flex flex-col divide-y rounded-md border {listClass}">
 			{#each results as work (work.id)}
 				<li class="flex items-center gap-2">
 					<button

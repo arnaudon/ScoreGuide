@@ -4,6 +4,8 @@
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
 	import AgentChat from '#lib/components/AgentChat.svelte';
+	import ImslpSearch from '#lib/components/ImslpSearch.svelte';
+	import ImslpAddDialog from '#lib/components/ImslpAddDialog.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { mainAgentHistoryStore } from '#lib/stores/chat.svelte.js';
 	import {
@@ -22,12 +24,15 @@
 		renderComponent
 	} from '#lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
-	import type { Score } from '#lib/types.js';
+	import type { ImslpResult, Score } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	let { form, data } = $props();
 	let sheetOpen = $state(false);
 	let selectedScoreDetails = $state<Score | null>(null);
+	let imslpWork = $state<ImslpResult | null>(null);
+	let imslpOpen = $state(false);
+	let addedScoreId = $state<number | null | undefined>(undefined);
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 5 });
 	let sorting = $state<SortingState>([]);
@@ -141,6 +146,35 @@
 
 			{m.empty_db_p2()}
 		</div>
+	{/if}
+	{#if !data.isDemo}
+		<section
+			class="bg-card shadow-card mb-4 flex shrink-0 flex-col gap-2 rounded-md border p-4"
+			aria-labelledby="imslp-home-title"
+		>
+			<h2 id="imslp-home-title" class="text-foreground font-semibold">{m.imslp_home_title()}</h2>
+			<p class="text-muted-foreground text-sm">{m.imslp_home_desc()}</p>
+			<ImslpSearch
+				preferredInstrument={data.user.instrument}
+				listClass="max-h-64 overflow-y-auto"
+				onSelect={(work) => {
+					imslpWork = work;
+					addedScoreId = undefined;
+					imslpOpen = true;
+				}}
+			/>
+			{#if addedScoreId !== undefined}
+				<p role="status" class="text-sm">
+					{m.imslp_added()}
+					{#if addedScoreId !== null}
+						<a
+							href={resolve('/reader/[id]', { id: String(addedScoreId) })}
+							class="text-primary font-medium hover:underline">{m.imslp_open_added()}</a
+						>
+					{/if}
+				</p>
+			{/if}
+		</section>
 	{/if}
 	<AgentChat
 		{form}
@@ -263,3 +297,10 @@
 		{/if}
 	</Dialog.Content>
 </Dialog.Root>
+
+<ImslpAddDialog
+	bind:work={imslpWork}
+	bind:open={imslpOpen}
+	action="/db-viewer?/add_imslp"
+	onAdded={(id) => (addedScoreId = id)}
+/>
