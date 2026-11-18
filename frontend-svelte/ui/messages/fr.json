@@ -285,5 +285,11 @@
 	"toc_reports_none": "Aucun signalement.",
 	"toc_report_resolve": "Marquer comme traité",
 	"toc_report_resolved": "Traité",
-	"toc_report_sections": "{count} sections au moment du signalement"
+	"toc_report_sections": "{count} sections au moment du signalement",
+	"toc_confidence": "Fiabilité de la détection : {level}",
+	"toc_confidence_high": "élevée",
+	"toc_confidence_medium": "moyenne",
+	"toc_confidence_low": "faible",
+	"toc_confidence_low_hint": "Plusieurs entrées ont été devinées d'après la mise en page de la musique. Vérifiez-les, ou signalez le sommaire s'il est faux.",
+	"toc_outdated": "Une détection améliorée est disponible. Reconstruisez le sommaire pour en profiter."
 }

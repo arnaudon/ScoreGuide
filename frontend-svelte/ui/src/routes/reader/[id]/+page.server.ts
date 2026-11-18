@@ -35,7 +35,13 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 	return { score: null, toc: EMPTY_TOC };
 };
 
-const EMPTY_TOC: SectionsResponse = { status: 'none', sections: [] };
+const EMPTY_TOC: SectionsResponse = {
+	status: 'none',
+	sections: [],
+	confidence: null,
+	version: null,
+	latest_version: 1
+};
 
 /** The table of contents is optional: never fail the page over it. */
 async function loadSections(
