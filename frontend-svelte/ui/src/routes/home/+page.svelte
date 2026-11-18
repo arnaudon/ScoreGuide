@@ -147,16 +147,115 @@
 			{m.empty_db_p2()}
 		</div>
 	{/if}
+	<div class="min-h-0 flex-1">
+		<AgentChat
+			{form}
+			action="?/ask"
+			title={m.hello_user({ name: data.user.username })}
+			emptyMessage={m.what_to_play()}
+			placeholder={m.agent_placeholder_main()}
+			{onResult}
+			user={data.user}
+			store={mainAgentHistoryStore}
+		>
+			{#snippet resultSnippet({ msg, isLast })}
+				<p class="text-muted-foreground mt-2 whitespace-pre-wrap">{msg.answer}</p>
+				{#if isLast && Array.isArray(msg.scores) && msg.scores.length > 0}
+					<div
+						class="bg-card text-card-foreground shadow-card mt-4 overflow-hidden rounded-md border"
+					>
+						<Table.Root>
+							<Table.Header>
+								{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
+									<Table.Row>
+										{#each headerGroup.headers as header (header.id)}
+											<Table.Head>
+												{#if !header.isPlaceholder}
+													<FlexRender
+														content={header.column.columnDef.header}
+														context={header.getContext()}
+													/>
+												{/if}
+											</Table.Head>
+										{/each}
+									</Table.Row>
+								{/each}
+							</Table.Header>
+							<Table.Body>
+								{#each table.getRowModel().rows as row (row.id)}
+									<Table.Row
+										class="hover:bg-muted/50 cursor-pointer transition-colors {selectedScoreDetails?.id ===
+										row.original.id
+											? 'bg-muted'
+											: ''}"
+										onclick={() => {
+											selectedScoreDetails = row.original;
+											sheetOpen = true;
+										}}
+									>
+										{#each row.getVisibleCells() as cell (cell.id)}
+											<Table.Cell class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]">
+												<FlexRender
+													content={cell.column.columnDef.cell}
+													context={cell.getContext()}
+												/>
+											</Table.Cell>
+										{/each}
+									</Table.Row>
+								{/each}
+							</Table.Body>
+						</Table.Root>
+
+						<div class="border-border flex items-center justify-end space-x-2 border-t px-4 py-4">
+							<div class="text-muted-foreground flex-1 text-sm">
+								{m.page_of({
+									page: table.getState().pagination.pageIndex + 1,
+									total: Math.max(1, table.getPageCount())
+								})}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => table.previousPage()}
+								disabled={!table.getCanPreviousPage()}
+							>
+								{m.previous()}
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => table.nextPage()}
+								disabled={!table.getCanNextPage()}
+							>
+								{m.next()}
+							</Button>
+						</div>
+					</div>
+				{/if}
+				{#if msg.score_id}
+					<div class="mt-4">
+						<Button
+							variant="secondary"
+							size="sm"
+							href={resolve('/reader/[id]', { id: String(msg.score_id) })}
+						>
+							{m.view_pdf()} (ID: {msg.score_id})
+						</Button>
+					</div>
+				{/if}
+			{/snippet}
+		</AgentChat>
+	</div>
 	{#if !data.isDemo}
 		<section
-			class="bg-card shadow-card mb-4 flex shrink-0 flex-col gap-2 rounded-md border p-4"
+			class="bg-card shadow-card mt-4 flex shrink-0 flex-col gap-2 rounded-md border p-4"
 			aria-labelledby="imslp-home-title"
 		>
 			<h2 id="imslp-home-title" class="text-foreground font-semibold">{m.imslp_home_title()}</h2>
 			<p class="text-muted-foreground text-sm">{m.imslp_home_desc()}</p>
 			<ImslpSearch
 				preferredInstrument={data.user.instrument}
-				listClass="max-h-64 overflow-y-auto"
+				listClass="max-h-48 overflow-y-auto"
 				onSelect={(work) => {
 					imslpWork = work;
 					addedScoreId = undefined;
@@ -176,103 +275,6 @@
 			{/if}
 		</section>
 	{/if}
-	<AgentChat
-		{form}
-		action="?/ask"
-		title={m.hello_user({ name: data.user.username })}
-		emptyMessage={m.what_to_play()}
-		placeholder={m.agent_placeholder_main()}
-		{onResult}
-		user={data.user}
-		store={mainAgentHistoryStore}
-	>
-		{#snippet resultSnippet({ msg, isLast })}
-			<p class="text-muted-foreground mt-2 whitespace-pre-wrap">{msg.answer}</p>
-			{#if isLast && Array.isArray(msg.scores) && msg.scores.length > 0}
-				<div
-					class="bg-card text-card-foreground shadow-card mt-4 overflow-hidden rounded-md border"
-				>
-					<Table.Root>
-						<Table.Header>
-							{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
-								<Table.Row>
-									{#each headerGroup.headers as header (header.id)}
-										<Table.Head>
-											{#if !header.isPlaceholder}
-												<FlexRender
-													content={header.column.columnDef.header}
-													context={header.getContext()}
-												/>
-											{/if}
-										</Table.Head>
-									{/each}
-								</Table.Row>
-							{/each}
-						</Table.Header>
-						<Table.Body>
-							{#each table.getRowModel().rows as row (row.id)}
-								<Table.Row
-									class="hover:bg-muted/50 cursor-pointer transition-colors {selectedScoreDetails?.id ===
-									row.original.id
-										? 'bg-muted'
-										: ''}"
-									onclick={() => {
-										selectedScoreDetails = row.original;
-										sheetOpen = true;
-									}}
-								>
-									{#each row.getVisibleCells() as cell (cell.id)}
-										<Table.Cell class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]">
-											<FlexRender
-												content={cell.column.columnDef.cell}
-												context={cell.getContext()}
-											/>
-										</Table.Cell>
-									{/each}
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
-
-					<div class="border-border flex items-center justify-end space-x-2 border-t px-4 py-4">
-						<div class="text-muted-foreground flex-1 text-sm">
-							{m.page_of({
-								page: table.getState().pagination.pageIndex + 1,
-								total: Math.max(1, table.getPageCount())
-							})}
-						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={() => table.previousPage()}
-							disabled={!table.getCanPreviousPage()}
-						>
-							{m.previous()}
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={() => table.nextPage()}
-							disabled={!table.getCanNextPage()}
-						>
-							{m.next()}
-						</Button>
-					</div>
-				</div>
-			{/if}
-			{#if msg.score_id}
-				<div class="mt-4">
-					<Button
-						variant="secondary"
-						size="sm"
-						href={resolve('/reader/[id]', { id: String(msg.score_id) })}
-					>
-						{m.view_pdf()} (ID: {msg.score_id})
-					</Button>
-				</div>
-			{/if}
-		{/snippet}
-	</AgentChat>
 </div>
 
 <Dialog.Root bind:open={sheetOpen}>
