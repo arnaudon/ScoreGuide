@@ -60,10 +60,15 @@ export interface SectionsResponse {
 /** Matches `shared.scores.IMSLP`. */
 export interface IMSLPScore {
 	id: number;
+	/** IMSLP page id (null on rows from the old scraper). */
+	pageid: number | null;
 	title: string;
 	composer: string;
-	year: number | string;
-	period: string;
+	/** "Op.38", "BWV 988". */
+	catalogue: string;
+	/** 0 when unknown. */
+	year: number;
+	period: string | null;
 	genre: string;
 	form: string;
 	style: string;
@@ -72,6 +77,27 @@ export interface IMSLPScore {
 	permlink: string;
 	score_metadata: string;
 	pdf_urls: string;
+}
+
+/** Matches `app.imslp.ImslpResult`: a catalogue search hit. */
+export type ImslpResult = Pick<
+	IMSLPScore,
+	| 'id'
+	| 'title'
+	| 'composer'
+	| 'catalogue'
+	| 'year'
+	| 'period'
+	| 'genre'
+	| 'key'
+	| 'instrumentation'
+	| 'permlink'
+> & { in_library: boolean };
+
+/** Matches `app.imslp.ImslpSearch`. */
+export interface ImslpSearch {
+	total: number;
+	results: ImslpResult[];
 }
 
 /** Matches `shared.user.User` (subset exposed via `/user`). Password is never returned. */
@@ -117,18 +143,26 @@ export interface ImslpStats {
 	total_composers: number;
 }
 
+/** Matches `app.imslp` sync state (`POST /imslp/progress`). */
 export interface ImslpProgress {
-	status: string;
-	page: number;
-	total?: number;
-	cancel_requested?: boolean;
+	status: 'idle' | 'running' | 'cancelled' | 'completed' | 'error';
+	/** Position in IMSLP's alphabetical work list. */
+	start: number;
+	/** Works stored during the current pass. */
+	works: number;
+	error: string;
+	/** Works dropped at the end of the last complete pass. */
+	removed?: number;
+	run_started?: string;
+	updated_at?: string;
+	/** Running in the backend process right now. */
+	running?: boolean;
 }
 
 export interface ActiveModels {
 	main: string;
 	imslp: string;
 	complete: string;
-	imslp_complete: string;
 }
 
 /** A user's report that a score's table of contents is wrong (admin view). */

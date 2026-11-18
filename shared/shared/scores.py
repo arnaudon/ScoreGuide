@@ -173,9 +173,23 @@ class IMSLP(ScoreBase, table=True):
     """IMSL score model."""
 
     id: int | None = Field(default=None, primary_key=True)
+    # IMSLP's page id: the stable key used by the sync (None on rows from the
+    # old scraper, which a complete sync replaces).
+    pageid: int | None = Field(default=None, unique=True, index=True)
+    catalogue: str = Field(default="")  # "Op.38", "BWV 988"
+    # Unknown rather than ScoreBase's made-up defaults.
+    period: Period | None = Field(default=None)  # type: ignore[assignment]
+    genre: str = Field(default="")
+    form: str = Field(default="")
+    year: int = Field(default=0)  # 0 = unknown
     permlink: str = Field()
+    # Work details parsed from the IMSLP page (JSON object).
     score_metadata: str = Field(default="")
+    # Score files listed on the IMSLP page (JSON list of {file, description, copyright}).
     pdf_urls: str = Field(default="")
+    # Lower-case, accent-free title, composer, catalogue, key, instrumentation, genre.
+    search_text: str = Field(default="")
+    synced_at: datetime | None = Field(default=None)
 
 
 class IMSLPScores(BaseModel):

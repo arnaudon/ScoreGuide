@@ -7,13 +7,13 @@ const USERS = [{ id: 1, username: 'alice', role: 'admin' }];
 const STATS = { total_works: 100, total_composers: 50 };
 const PROGRESS = { status: 'idle', page: 0, total: 0 };
 const MODELS = {
-	models: { main: 'gemini', imslp: 'gemini', complete: 'gemini', imslp_complete: 'gemini' }
+	models: { main: 'gemini', imslp: 'gemini', complete: 'gemini' }
 };
 const EMPTY_DEFAULTS = {
 	users: [],
 	stats: { total_works: 0, total_composers: 0 },
-	progress: { status: 'idle', page: 0, total: 0 },
-	activeModels: { main: '', imslp: '', complete: '', imslp_complete: '' },
+	progress: { status: 'idle', start: 0, works: 0, error: '' },
+	activeModels: { main: '', imslp: '', complete: '' },
 	tocReports: []
 };
 const REPORTS = [{ id: 1, score_title: 'WTC II', comment: 'no preludes' }];
@@ -151,15 +151,14 @@ describe('set_models / update / empty / cancel actions', () => {
 				request: fakeRequest({
 					model_main: 'a',
 					model_imslp: 'b',
-					model_complete: 'c',
-					model_imslp_complete: 'd'
+					model_complete: 'c'
 				}),
 				cookies: makeCookies({ access_token: 'tok' }),
 				fetch
 			})
 		);
 		const body = JSON.parse(fetch.mock.calls[0][1]!.body as string);
-		expect(body).toEqual({ models: { main: 'a', imslp: 'b', complete: 'c', imslp_complete: 'd' } });
+		expect(body).toEqual({ models: { main: 'a', imslp: 'b', complete: 'c' } });
 	});
 
 	it('set_models returns success on the happy path', async () => {
@@ -192,16 +191,20 @@ describe('set_models / update / empty / cancel actions', () => {
 		expect(result).toMatchObject({ status: 400, data: { formId: 'models', error: 'nope' } });
 	});
 
-	it('update hits /imslp/start with the max_pages from the form (default 300)', async () => {
+	it('update resumes the sync, or restarts it when asked', async () => {
 		const fetch = makeFetch();
-		await actions.update(
-			event({
-				request: fakeRequest({}),
-				cookies: makeCookies({ access_token: 'tok' }),
-				fetch
-			})
-		);
-		expect(fetch.mock.calls[0][0]).toContain('/imslp/start/300');
+		const run = (fields: Record<string, string>) =>
+			actions.update(
+				event({
+					request: fakeRequest(fields),
+					cookies: makeCookies({ access_token: 'tok' }),
+					fetch
+				})
+			);
+		await run({});
+		await run({ restart: 'true' });
+		expect(fetch.mock.calls[0][0]).toMatch(/\/imslp\/start$/);
+		expect(fetch.mock.calls[1][0]).toContain('/imslp/start?restart=true');
 	});
 
 	it('empty action POSTs /imslp/empty', async () => {

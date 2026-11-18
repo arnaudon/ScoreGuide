@@ -20,7 +20,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import annotations, config, imslp, sections, users
+from app import annotations, config, db, imslp, sections, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
 from app.credits import consume_credit
 from app.db import get_async_session, get_session
@@ -86,6 +86,11 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:  # pragma: no cove
     migrations on a fresh volume.
     """
     configure_logging()
+    # A deploy restarts the backend: pick up an IMSLP sync where it stopped.
+    try:
+        imslp.resume_interrupted(db.engine)
+    except Exception:
+        logger.exception("could not resume the IMSLP sync")
     yield
 
 
@@ -299,15 +304,11 @@ def get_active_model(session: Session = Depends(get_session)):
     main_setting = session.get(Setting, "model_main")
     imslp_setting = session.get(Setting, "model_imslp")
     complete_setting = session.get(Setting, "model_complete")
-    imslp_complete_setting = session.get(Setting, "model_imslp_complete")
 
     models = {
         "main": (main_setting.value if main_setting else os.getenv("MODEL", "test")),
         "imslp": (imslp_setting.value if imslp_setting else os.getenv("MODEL", "test")),
         "complete": (complete_setting.value if complete_setting else os.getenv("MODEL", "test")),
-        "imslp_complete": (
-            imslp_complete_setting.value if imslp_complete_setting else os.getenv("MODEL", "test")
-        ),
     }
     return {"models": models}
 

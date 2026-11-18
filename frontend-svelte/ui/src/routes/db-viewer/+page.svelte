@@ -30,7 +30,8 @@
 		createSvelteTable,
 		renderComponent
 	} from '#lib/components/ui/data-table/index.js';
-	import type { Score, IMSLPScore } from '#lib/types.js';
+	import type { Score, IMSLPScore, ImslpResult } from '#lib/types.js';
+	import ImslpSearch from '#lib/components/ImslpSearch.svelte';
 	import AgentChat from '#lib/components/AgentChat.svelte';
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import DataTableSortButton from './data-table-sort-button.svelte';
@@ -39,7 +40,7 @@
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);
-	let agentSelectedScore = $state<IMSLPScore | null>(null);
+	let agentSelectedScore = $state<IMSLPScore | ImslpResult | null>(null);
 	let imslpSheetOpen = $state(false);
 	let uploading = $state(false);
 	let recompleting = $state(false);
@@ -321,111 +322,125 @@
 					</form>
 				</Tabs.Content>
 				<Tabs.Content value="imslp">
-					<div
-						class="flex flex-col {imslpAgentHistoryStore.history.length > 0
-							? 'h-[500px]'
-							: 'h-auto'} w-full"
-					>
-						<AgentChat
-							form={form?.formId === 'agent' ? form : null}
-							action="?/ask_agent"
-							title={m.imslp_search_help()}
-							placeholder={m.agent_placeholder_imslp()}
-							onResult={onImslpResult}
-							user={data.user}
-							store={imslpAgentHistoryStore}
+					<ImslpSearch
+						onSelect={(work) => {
+							if (uploading) return;
+							agentSelectedScore = work;
+							addImslpError = null;
+							imslpSheetOpen = true;
+						}}
+					/>
+					<details class="mt-6" open={imslpAgentHistoryStore.history.length > 0}>
+						<summary
+							class="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium"
+							>{m.imslp_ask_assistant()}</summary
 						>
-							<div class="max-w-sm text-xs">
-								{m.warning_limit_100()}
-							</div>
-							{#snippet resultSnippet({ msg, isLast })}
-								<p class="mb-4 text-sm whitespace-pre-wrap">{msg.answer}</p>
-								{#if isLast}
-									{#if Array.isArray(msg.scores) && msg.scores.length > 0}
-										<div
-											class="bg-card text-card-foreground shadow-card mb-4 overflow-hidden rounded-md border"
-										>
-											<Table.Root>
-												<Table.Header>
-													{#each imslpTable.getHeaderGroups() as headerGroup (headerGroup.id)}
-														<Table.Row>
-															{#each headerGroup.headers as header (header.id)}
-																<Table.Head>
-																	{#if !header.isPlaceholder}
+						<div
+							class="mt-3 flex flex-col {imslpAgentHistoryStore.history.length > 0
+								? 'h-[500px]'
+								: 'h-auto'} w-full"
+						>
+							<AgentChat
+								form={form?.formId === 'agent' ? form : null}
+								action="?/ask_agent"
+								title={m.imslp_search_help()}
+								placeholder={m.agent_placeholder_imslp()}
+								onResult={onImslpResult}
+								user={data.user}
+								store={imslpAgentHistoryStore}
+							>
+								<div class="max-w-sm text-xs">
+									{m.warning_limit_100()}
+								</div>
+								{#snippet resultSnippet({ msg, isLast })}
+									<p class="mb-4 text-sm whitespace-pre-wrap">{msg.answer}</p>
+									{#if isLast}
+										{#if Array.isArray(msg.scores) && msg.scores.length > 0}
+											<div
+												class="bg-card text-card-foreground shadow-card mb-4 overflow-hidden rounded-md border"
+											>
+												<Table.Root>
+													<Table.Header>
+														{#each imslpTable.getHeaderGroups() as headerGroup (headerGroup.id)}
+															<Table.Row>
+																{#each headerGroup.headers as header (header.id)}
+																	<Table.Head>
+																		{#if !header.isPlaceholder}
+																			<FlexRender
+																				content={header.column.columnDef.header}
+																				context={header.getContext()}
+																			/>
+																		{/if}
+																	</Table.Head>
+																{/each}
+															</Table.Row>
+														{/each}
+													</Table.Header>
+													<Table.Body>
+														{#each imslpTable.getRowModel().rows as row (row.id)}
+															<Table.Row
+																class="hover:bg-muted/50 cursor-pointer transition-colors {agentSelectedScore?.id ===
+																row.original.id
+																	? 'bg-muted'
+																	: ''}"
+																onclick={() => {
+																	if (!uploading) {
+																		agentSelectedScore = row.original;
+																		addImslpError = null;
+																		imslpSheetOpen = true;
+																	}
+																}}
+															>
+																{#each row.getVisibleCells() as cell (cell.id)}
+																	<Table.Cell
+																		class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]"
+																	>
 																		<FlexRender
-																			content={header.column.columnDef.header}
-																			context={header.getContext()}
+																			content={cell.column.columnDef.cell}
+																			context={cell.getContext()}
 																		/>
-																	{/if}
-																</Table.Head>
-															{/each}
-														</Table.Row>
-													{/each}
-												</Table.Header>
-												<Table.Body>
-													{#each imslpTable.getRowModel().rows as row (row.id)}
-														<Table.Row
-															class="hover:bg-muted/50 cursor-pointer transition-colors {agentSelectedScore?.id ===
-															row.original.id
-																? 'bg-muted'
-																: ''}"
-															onclick={() => {
-																if (!uploading) {
-																	agentSelectedScore = row.original;
-																	addImslpError = null;
-																	imslpSheetOpen = true;
-																}
-															}}
-														>
-															{#each row.getVisibleCells() as cell (cell.id)}
-																<Table.Cell
-																	class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]"
-																>
-																	<FlexRender
-																		content={cell.column.columnDef.cell}
-																		context={cell.getContext()}
-																	/>
-																</Table.Cell>
-															{/each}
-														</Table.Row>
-													{/each}
-												</Table.Body>
-											</Table.Root>
+																	</Table.Cell>
+																{/each}
+															</Table.Row>
+														{/each}
+													</Table.Body>
+												</Table.Root>
 
-											<div class="flex items-center justify-end space-x-2 border-t px-4 py-4">
-												<div class="text-muted-foreground flex-1 text-sm">
-													{m.page_of({
-														page: imslpTable.getState().pagination.pageIndex + 1,
-														total: Math.max(1, imslpTable.getPageCount())
-													})}
+												<div class="flex items-center justify-end space-x-2 border-t px-4 py-4">
+													<div class="text-muted-foreground flex-1 text-sm">
+														{m.page_of({
+															page: imslpTable.getState().pagination.pageIndex + 1,
+															total: Math.max(1, imslpTable.getPageCount())
+														})}
+													</div>
+													<Button
+														variant="outline"
+														size="sm"
+														onclick={() => imslpTable.previousPage()}
+														disabled={!imslpTable.getCanPreviousPage()}
+													>
+														{m.previous()}
+													</Button>
+													<Button
+														variant="outline"
+														size="sm"
+														onclick={() => imslpTable.nextPage()}
+														disabled={!imslpTable.getCanNextPage()}
+													>
+														{m.next()}
+													</Button>
 												</div>
-												<Button
-													variant="outline"
-													size="sm"
-													onclick={() => imslpTable.previousPage()}
-													disabled={!imslpTable.getCanPreviousPage()}
-												>
-													{m.previous()}
-												</Button>
-												<Button
-													variant="outline"
-													size="sm"
-													onclick={() => imslpTable.nextPage()}
-													disabled={!imslpTable.getCanNextPage()}
-												>
-													{m.next()}
-												</Button>
 											</div>
-										</div>
-									{:else if msg.answer}
-										<p class="text-muted-foreground mt-2 text-center text-sm">
-											{m.no_matching_scores()}
-										</p>
+										{:else if msg.answer}
+											<p class="text-muted-foreground mt-2 text-center text-sm">
+												{m.no_matching_scores()}
+											</p>
+										{/if}
 									{/if}
-								{/if}
-							{/snippet}
-						</AgentChat>
-					</div>
+								{/snippet}
+							</AgentChat>
+						</div>
+					</details>
 				</Tabs.Content>
 			</Tabs.Root>
 			<!-- Agent errors are shown by AgentChat itself, under its input. -->

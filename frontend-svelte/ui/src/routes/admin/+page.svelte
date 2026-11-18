@@ -175,11 +175,14 @@
 		getFilteredRowModel: getFilteredRowModel()
 	});
 
+	// The sync runs for hours: refresh its progress while it runs here.
+	let syncing = $derived(Boolean(data.progress?.running));
+	let resumable = $derived(
+		['cancelled', 'error', 'running'].includes(data.progress?.status ?? '') && !syncing
+	);
 	$effect(() => {
-		if (data.progress?.status === 'processing' || data.progress?.status === 'cancelling') {
-			const interval = setInterval(() => {
-				invalidateAll();
-			}, 2000);
+		if (syncing) {
+			const interval = setInterval(() => invalidateAll(), 5000);
 			return () => clearInterval(interval);
 		}
 	});
@@ -225,11 +228,6 @@
 			{@render modelSelect('model_main', m.main_agent_model(), data.activeModels.main)}
 			{@render modelSelect('model_imslp', m.imslp_agent_model(), data.activeModels.imslp)}
 			{@render modelSelect('model_complete', m.complete_agent_model(), data.activeModels.complete)}
-			{@render modelSelect(
-				'model_imslp_complete',
-				m.imslp_complete_agent_model(),
-				data.activeModels.imslp_complete
-			)}
 			{#if form?.formId === 'models' && form?.error}
 				<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
 			{/if}
@@ -256,62 +254,64 @@
 				composers: data.stats?.total_composers || 0
 			})}
 		</p>
-		<div class="flex items-center gap-4">
-			<form method="POST" action="?/update" use:enhance>
-				<button
-					class="ring-offset-background focus-visible:ring-ring bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-					disabled={data.progress?.status === 'processing'}
+		<p class="text-muted-foreground mb-4 text-sm">{m.imslp_sync_desc()}</p>
+
+		{#if data.progress && data.progress.status !== 'idle'}
+			<div class="bg-muted/50 mb-4 rounded-md border p-3 text-sm" role="status">
+				{#if data.progress.status === 'completed'}
+					{m.imslp_sync_completed({
+						works: data.progress.works,
+						removed: data.progress.removed ?? 0
+					})}
+				{:else if data.progress.status === 'error'}
+					<span class="text-destructive"
+						>{m.imslp_sync_error({ start: data.progress.start, error: data.progress.error })}</span
+					>
+				{:else if syncing}
+					{m.imslp_sync_running({ works: data.progress.works, start: data.progress.start })}
+				{:else}
+					{m.imslp_sync_cancelled({ works: data.progress.works, start: data.progress.start })}
+				{/if}
+				{#if data.progress.updated_at}
+					<span class="text-muted-foreground block text-xs"
+						>{m.imslp_sync_updated({
+							time: new Date(data.progress.updated_at + 'Z').toLocaleString()
+						})}</span
+					>
+				{/if}
+			</div>
+		{/if}
+
+		<div class="flex flex-wrap items-center gap-3">
+			{#if syncing}
+				<form method="POST" action="?/cancel" use:enhance>
+					<Button type="submit" variant="outline">{m.imslp_sync_cancel()}</Button>
+				</form>
+			{:else}
+				<form method="POST" action="?/update" use:enhance>
+					<Button type="submit">{resumable ? m.imslp_sync_resume() : m.imslp_sync_start()}</Button>
+				</form>
+				{#if resumable}
+					<form method="POST" action="?/update" use:enhance>
+						<input type="hidden" name="restart" value="true" />
+						<Button type="submit" variant="outline">{m.imslp_sync_restart()}</Button>
+					</form>
+				{/if}
+				<form
+					method="POST"
+					action="?/empty"
+					use:enhance
+					onsubmit={(e) => {
+						if (!confirm(m.delete_imslp_confirm())) e.preventDefault();
+					}}
 				>
-					{m.update_database()}
-				</button>
-			</form>
-			<form
-				method="POST"
-				action="?/empty"
-				use:enhance
-				onsubmit={(e) => {
-					if (!confirm(m.delete_imslp_confirm())) e.preventDefault();
-				}}
-			>
-				<button
-					class="ring-offset-background focus-visible:ring-ring bg-destructive text-destructive-foreground hover:bg-destructive/90 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-					disabled={data.progress?.status === 'processing'}
-				>
-					{m.delete_all_data()}
-				</button>
-			</form>
+					<Button type="submit" variant="destructive">{m.delete_all_data()}</Button>
+				</form>
+			{/if}
 		</div>
 
 		{#if form?.formId === 'imslp' && form?.error}
 			<p role="alert" class="text-destructive mt-4 text-sm font-medium">{form.error}</p>
-		{/if}
-
-		{#if data.progress?.status === 'processing' || data.progress?.status === 'cancelling'}
-			<div class="bg-muted/50 mt-6 rounded-md border p-4">
-				<div class="mb-2 flex justify-between">
-					<span class="text-sm font-medium">
-						{#if data.progress.status === 'cancelling'}
-							{m.status_cancelling()}
-						{:else}
-							{m.status_processing({ page: data.progress.page, total: data.progress.total })}
-						{/if}
-					</span>
-				</div>
-				<div class="bg-secondary mb-4 h-2.5 w-full overflow-hidden rounded-full">
-					<div
-						class="bg-primary h-2.5 rounded-full transition-all"
-						style="width: {(data.progress.page / Math.max(1, data.progress.total)) * 100}%"
-					></div>
-				</div>
-				<form method="POST" action="?/cancel" use:enhance>
-					<button
-						disabled={data.progress.status === 'cancelling'}
-						class="ring-offset-background focus-visible:ring-ring border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50"
-					>
-						{data.progress.status === 'cancelling' ? m.cancelling() : m.cancel_task()}
-					</button>
-				</form>
-			</div>
 		{/if}
 	</div>
 </div>
