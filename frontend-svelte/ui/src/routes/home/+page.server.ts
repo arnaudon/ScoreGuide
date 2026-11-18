@@ -23,18 +23,19 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 
 	const user = (await res.json()) as User;
 
-	let hasScores = false;
+	let scores: Score[] = [];
 	try {
 		const scoresRes = await api('/scores');
 		if (scoresRes.ok) {
-			const scores = (await scoresRes.json()) as Score[];
-			hasScores = Array.isArray(scores) && scores.length > 0;
+			const body = await scoresRes.json();
+			if (Array.isArray(body)) scores = body as Score[];
 		}
 	} catch (e) {
 		console.error('Failed to fetch scores check', e);
 	}
 
-	return { user, hasScores };
+	// The library summary on the home page is built from these.
+	return { user, scores, hasScores: scores.length > 0 };
 };
 
 export const actions: Actions = {

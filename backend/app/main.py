@@ -6,6 +6,7 @@ import re
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from logging import getLogger
 from typing import Annotated
 
@@ -219,18 +220,26 @@ def delete_score(
     session.commit()
 
 
+# Reopening a score within this window (a reload, a page turn back) is the same play.
+PLAY_WINDOW = timedelta(minutes=30)
+
+
 @app.post("/scores/{score_id}/play")
 def add_play(
     score_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
 ):
-    """Add a play to the db."""
+    """Record that the score was opened: one play per sitting, and the time."""
     score = session.exec(
         select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
     ).first()
     if score is not None:
-        score.number_of_plays += 1
+        now = datetime.now(UTC).replace(tzinfo=None)
+        last = score.last_played_at
+        if last is None or now - last.replace(tzinfo=None) > PLAY_WINDOW:
+            score.number_of_plays += 1
+        score.last_played_at = now
         session.commit()
         session.refresh(score)
     return score

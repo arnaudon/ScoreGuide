@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import { buildScoreUpdatePayload } from '#lib/server/scoreUpdate.js';
+import { tokenRole } from '#lib/server/token.js';
 import type { Score, SectionsResponse } from '#lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
@@ -25,6 +26,14 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 				sameSite: 'lax',
 				maxAge: 60 * 60 * 24 * 30 // 30 days
 			});
+
+			// The home page's "continue" and play counts. The backend counts one play
+			// per sitting; the demo account is read-only.
+			if (tokenRole(token) !== 'demo') {
+				api(`/scores/${params.id}/play`, { method: 'POST' }).catch((error) =>
+					console.error('Failed to record play:', error)
+				);
+			}
 
 			return { score, toc: await loadSections(api, params.id) };
 		}

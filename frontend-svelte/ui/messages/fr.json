@@ -339,5 +339,20 @@
 	"imslp_home_title": "Ajouter une partition depuis IMSLP",
 	"imslp_home_desc": "Cherchez dans le catalogue gratuit d'IMSLP, puis ajoutez le PDF à votre bibliothèque.",
 	"imslp_added": "Ajoutée à votre bibliothèque.",
-	"imslp_open_added": "L'ouvrir"
+	"imslp_open_added": "L'ouvrir",
+	"home_continue": "Reprendre là où vous en étiez",
+	"home_recent": "Ajoutées récemment",
+	"home_see_library": "Toutes mes partitions",
+	"home_played_times": "Jouée {count}×",
+	"home_never_played": "Pas encore ouverte",
+	"home_stat_scores": "Partitions",
+	"home_stat_composers": "Compositeurs",
+	"home_stat_plays": "Séances",
+	"home_top_composers": "Vos compositeurs",
+	"home_top_composers_plays": "Par séances",
+	"home_top_composers_scores": "Par nombre de partitions",
+	"home_periods": "Vos périodes",
+	"home_most_played": "Les plus jouées",
+	"home_repertoire": "Votre répertoire",
+	"home_stat_periods": "Périodes"
 }

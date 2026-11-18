@@ -101,6 +101,27 @@ def test_add_play(client: TestClient):
     assert response.status_code == 200
     response = client.get("/scores").json()
     assert response[score_id - 1]["number_of_plays"] == 1
+    assert response[score_id - 1]["last_played_at"]
+
+
+def test_add_play_counts_once_per_sitting(client: TestClient, session):
+    """Reopening within the window updates the time but is the same play."""
+    from datetime import datetime
+
+    from shared.scores import Score
+
+    client.post("/scores/1/play")
+    client.post("/scores/1/play")
+    assert client.get("/scores").json()[0]["number_of_plays"] == 1
+
+    score = session.get(Score, 1)
+    score.last_played_at = datetime(2020, 1, 1)
+    session.add(score)
+    session.commit()
+    client.post("/scores/1/play")
+    played = client.get("/scores").json()[0]
+    assert played["number_of_plays"] == 2
+    assert played["last_played_at"] > "2020-01-02"
 
 
 def test_add_play_wrong_id(client: TestClient):

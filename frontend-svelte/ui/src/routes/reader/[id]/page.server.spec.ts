@@ -40,6 +40,42 @@ describe('reader/[id] load', () => {
 	});
 	afterEach(() => errSpy.mockRestore());
 
+	it('records a play, except for the read-only demo account', async () => {
+		const plays = (fetch: ReturnType<typeof scoreAndToc>) =>
+			fetch.mock.calls.filter(
+				([url, init]) => String(url).endsWith('/scores/7/play') && init?.method === 'POST'
+			);
+		const fetch = scoreAndToc();
+		await load(
+			event({ cookies: makeCookies({ access_token: 'tok' }), fetch, params: { id: '7' } })
+		);
+		expect(plays(fetch)).toHaveLength(1);
+
+		const demoToken = `x.${Buffer.from(JSON.stringify({ role: 'demo' })).toString('base64url')}.y`;
+		const demoFetch = scoreAndToc();
+		await load(
+			event({
+				cookies: makeCookies({ access_token: demoToken }),
+				fetch: demoFetch,
+				params: { id: '7' }
+			})
+		);
+		expect(plays(demoFetch)).toHaveLength(0);
+	});
+
+	it('still opens the score when recording the play fails', async () => {
+		const fetch = makeFetch(async (url: string) => {
+			if (url.endsWith('/play')) throw new Error('down');
+			return url.endsWith('/sections') ? jsonResponse(TOC) : jsonResponse(SCORE);
+		});
+		const result = await load(
+			event({ cookies: makeCookies({ access_token: 'tok' }), fetch, params: { id: '7' } })
+		);
+		expect(result).toEqual({ score: SCORE, toc: TOC });
+		await new Promise((r) => setTimeout(r, 0));
+		expect(errSpy).toHaveBeenCalledWith('Failed to record play:', expect.any(Error));
+	});
+
 	it('redirects to /login when no token cookie', async () => {
 		const fetch = vi.fn();
 		const cookies = makeCookies();
