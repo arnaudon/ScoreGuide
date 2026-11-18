@@ -48,7 +48,13 @@ def _fake_extract(monkeypatch, result):
 def test_sections_empty(client: TestClient, test_scores: Scores):
     response = client.get(f"/scores/{_score(test_scores).id}/sections")
     assert response.status_code == 200
-    assert response.json() == {"status": "none", "sections": []}
+    assert response.json() == {
+        "status": "none",
+        "sections": [],
+        "confidence": None,
+        "version": None,
+        "latest_version": sections.TOC_VERSION,
+    }
 
 
 def test_generate_and_fetch(client: TestClient, test_scores: Scores, monkeypatch):
@@ -68,6 +74,8 @@ def test_generate_and_fetch(client: TestClient, test_scores: Scores, monkeypatch
 
     data = client.get(f"/scores/{score_id}/sections").json()
     assert data["status"] == "ready"
+    assert data["version"] == data["latest_version"] == sections.TOC_VERSION
+    assert data["confidence"] == "medium"  # two OCR'd headings
     assert [(s["title"], s["page"], s["position"]) for s in data["sections"]] == [
         ("Allegro", 1, 0),
         ("Adagio", 5, 1),
@@ -183,3 +191,27 @@ def test_creating_a_score_with_a_pdf_builds_its_toc(client: TestClient, monkeypa
     bare = client.post("/scores", json={"title": "t", "composer": "c"})
     assert len(calls) == 1
     assert client.get(f"/scores/{bare.json()['id']}/sections").json()["status"] == "none"
+
+
+def _secs(*sources: str, version: int = 1) -> list[ScoreSection]:
+    return [ScoreSection(score_id=1, source=src, version=version) for src in sources]
+
+
+def test_confidence_from_sources():
+    """Bookmarks and text are trusted, OCR mostly, layout-only starts little."""
+    assert sections.toc_confidence([]) is None
+    assert sections.toc_confidence(_secs("outline", "text", "text")) == "high"
+    assert sections.toc_confidence(_secs("ocr", "ocr", "text")) == "medium"
+    assert sections.toc_confidence(_secs("layout", "layout", "ocr")) == "low"
+    assert sections.toc_confidence(_secs("unknown")) == "low"
+
+
+def test_outdated_version_is_reported(client: TestClient, session: Session, test_scores: Scores):
+    """Entries built by an older detector report their version for a rebuild prompt."""
+    score_id = _score(test_scores).id
+    session.add(ScoreSection(score_id=score_id, title="Old", page=1, source="text", version=0))
+    session.commit()
+    data = client.get(f"/scores/{score_id}/sections").json()
+    assert data["version"] == 0
+    assert data["latest_version"] == sections.TOC_VERSION
+    assert data["confidence"] == "high"

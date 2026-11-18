@@ -83,6 +83,9 @@ class ScoreSection(SQLModel, table=True):
     # How the entry was found: outline | text | ocr | layout | manual
     source: str = Field(default="")
     incipit_path: str = Field(default="")
+    # Detector version that produced the entry (app.toc.TOC_VERSION), so users
+    # can be offered a rebuild when detection improves.
+    version: int = 1
 
 
 def _now() -> datetime:

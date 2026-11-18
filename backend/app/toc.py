@@ -29,6 +29,11 @@ import pypdfium2 as pdfium
 from PIL import Image
 from pypdf import PdfReader
 
+# Bump when detection improves enough that existing tables of contents are
+# worth rebuilding: entries store the version that produced them, and the
+# reader offers a rebuild when it is older than this.
+TOC_VERSION = 1
+
 RENDER_DPI = 100
 # Darkness threshold (0-255 grayscale) below which a pixel counts as ink.
 INK = 140

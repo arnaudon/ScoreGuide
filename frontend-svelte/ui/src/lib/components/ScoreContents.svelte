@@ -23,6 +23,17 @@
 	} = $props();
 
 	let rebuilding = $state(false);
+
+	const confidenceLabel = {
+		high: m.toc_confidence_high,
+		medium: m.toc_confidence_medium,
+		low: m.toc_confidence_low
+	};
+	const confidenceDot = { high: 'bg-emerald-500', medium: 'bg-amber-500', low: 'bg-red-500' };
+	// Built by an older detector: offer the improved one.
+	let outdated = $derived(
+		toc.status === 'ready' && toc.version !== null && toc.version < toc.latest_version
+	);
 	// "This table of contents is wrong": a short note sent to the admins,
 	// with a snapshot of the sections, to improve the detector.
 	let reportOpen = $state(false);
@@ -80,6 +91,30 @@
 		<p class="text-muted-foreground text-sm">{m.toc_empty()}</p>
 	{/if}
 
+	{#if toc.status === 'ready' && toc.confidence}
+		<div class="flex flex-col gap-1">
+			<p class="text-muted-foreground flex items-center gap-2 text-xs">
+				<span
+					class={['size-2 shrink-0 rounded-full', confidenceDot[toc.confidence]]}
+					aria-hidden="true"
+				></span>
+				{m.toc_confidence({ level: confidenceLabel[toc.confidence]() })}
+			</p>
+			{#if toc.confidence === 'low'}
+				<p class="text-muted-foreground text-xs">{m.toc_confidence_low_hint()}</p>
+			{/if}
+		</div>
+	{/if}
+
+	{#if outdated && !page.data.isDemo}
+		<p
+			role="status"
+			class="border-primary/40 bg-primary/5 text-foreground rounded-md border p-2 text-sm"
+		>
+			{m.toc_outdated()}
+		</p>
+	{/if}
+
 	{#if toc.status !== 'running' && !page.data.isDemo}
 		<form
 			method="POST"
@@ -92,7 +127,13 @@
 				};
 			}}
 		>
-			<Button type="submit" variant="outline" size="sm" class="w-full" disabled={rebuilding}>
+			<Button
+				type="submit"
+				variant={outdated ? 'default' : 'outline'}
+				size="sm"
+				class="w-full"
+				disabled={rebuilding}
+			>
 				{m.toc_rebuild()}
 			</Button>
 		</form>

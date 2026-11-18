@@ -285,5 +285,11 @@
 	"toc_reports_none": "No reports.",
 	"toc_report_resolve": "Mark as handled",
 	"toc_report_resolved": "Handled",
-	"toc_report_sections": "{count} sections at report time"
+	"toc_report_sections": "{count} sections at report time",
+	"toc_confidence": "Detection confidence: {level}",
+	"toc_confidence_high": "high",
+	"toc_confidence_medium": "medium",
+	"toc_confidence_low": "low",
+	"toc_confidence_low_hint": "Many entries were guessed from the layout of the music. Check them, or report the contents if they're wrong.",
+	"toc_outdated": "Improved detection is available. Rebuild to update this table of contents."
 }

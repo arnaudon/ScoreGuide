@@ -18,7 +18,13 @@ const TOC = {
 		}
 	]
 };
-const EMPTY_TOC = { status: 'none', sections: [] };
+const EMPTY_TOC = {
+	status: 'none',
+	sections: [],
+	confidence: null,
+	version: null,
+	latest_version: 1
+};
 
 /** Backend stub: score at /scores/{id}, table of contents at /scores/{id}/sections. */
 function scoreAndToc(toc: () => Promise<Response> = async () => jsonResponse(TOC)) {

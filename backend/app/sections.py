@@ -15,7 +15,7 @@ from sqlmodel import Session, col, delete, select
 from app.db import get_session
 from app.file_helper import file_helper
 from app.rate_limit import limiter
-from app.toc import extract_sections
+from app.toc import TOC_VERSION, extract_sections
 from app.users import get_admin_user, get_current_user
 from shared.scores import Score, ScoreSection, TocReport, TocReportIn
 from shared.user import User
@@ -37,6 +37,37 @@ class SectionsResponse(BaseModel):
 
     status: str  # "ready" | "running" | "error" | "none"
     sections: list[ScoreSection]
+    # "high" | "medium" | "low", None without sections.
+    confidence: str | None = None
+    # Detector version of the stored entries (None without sections) and the
+    # current one: older entries can be rebuilt with the improved detection.
+    version: int | None = None
+    latest_version: int = TOC_VERSION
+
+
+# How much an entry can be trusted, by how it was found: PDF bookmarks and
+# embedded text are reliable, OCR'd headings mostly, while a start found from
+# the music layout alone (indent, double bar) is often a false positive.
+_SOURCE_TRUST = {"outline": 1.0, "manual": 1.0, "text": 1.0, "ocr": 0.7, "layout": 0.3}
+
+
+def toc_confidence(sections: list[ScoreSection]) -> str | None:
+    """Overall confidence in a table of contents, from its entries' sources."""
+    if not sections:
+        return None
+    trust = sum(_SOURCE_TRUST.get(s.source, 0.5) for s in sections) / len(sections)
+    if trust >= 0.85:
+        return "high"
+    return "medium" if trust >= 0.55 else "low"
+
+
+def _response(status: str, sections: list[ScoreSection]) -> SectionsResponse:
+    return SectionsResponse(
+        status=status,
+        sections=sections,
+        confidence=toc_confidence(sections),
+        version=min((s.version for s in sections), default=None),
+    )
 
 
 def _owned_score(score_id: int, user: User, session: Session) -> Score:
@@ -95,6 +126,7 @@ def generate_sections(score_id: int, pdf_path: str, engine: Engine) -> None:
                             page=sec.page,
                             source=sec.source,
                             incipit_path=incipit_path,
+                            version=TOC_VERSION,
                         )
                     )
                 session.commit()
@@ -128,7 +160,7 @@ def get_sections(
     _owned_score(score_id, current_user, session)
     sections = _sections(score_id, session)
     status = _jobs.get(score_id) or ("ready" if sections else "none")
-    return SectionsResponse(status=status, sections=sections)
+    return _response(status, sections)
 
 
 @router.post("/scores/{score_id}/sections/generate", status_code=202)
@@ -145,7 +177,7 @@ def start_generation(
     if not score.pdf_path:
         raise HTTPException(status_code=400, detail="Score has no PDF")
     schedule_generation(score, background_tasks, session)
-    return SectionsResponse(status="running", sections=_sections(score_id, session))
+    return _response("running", _sections(score_id, session))
 
 
 @router.get("/scores/{score_id}/sections/{section_id}/incipit")

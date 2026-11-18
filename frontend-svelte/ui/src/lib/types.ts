@@ -44,12 +44,17 @@ export interface ScoreSection {
 	page: number;
 	source: string;
 	incipit_path: string;
+	version: number;
 }
 
 /** Matches `app.sections.SectionsResponse`. */
 export interface SectionsResponse {
 	status: 'ready' | 'running' | 'error' | 'none';
 	sections: ScoreSection[];
+	confidence: 'high' | 'medium' | 'low' | null;
+	/** Detector version of the stored entries (null without sections). */
+	version: number | null;
+	latest_version: number;
 }
 
 /** Matches `shared.scores.IMSLP`. */
