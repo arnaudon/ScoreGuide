@@ -65,7 +65,7 @@ def test_parse_work_info():
     assert info["Opus/Catalogue Number"] == "Op.38"
     assert info["Instrumentation"] == "piano"
     assert info["Tags"] == "ballades ; pf"
-    assert info["Number of Movements/Sections"] == "1 #Andantino"
+    assert info["Number of Movements/Sections"] == "1, Andantino"
     assert "COMMENTS" not in json.dumps(info)
     assert imslp.parse_work_info("no template") == {}
 
@@ -214,8 +214,11 @@ def test_default_client_identifies_itself(monkeypatch):
 class FakeImslp:
     """Serves work-list pages and wiki batches; records requests."""
 
-    def __init__(self, pages: list[dict], fail_at: int | None = None, on_list=None):
+    def __init__(
+        self, pages: list[dict], fail_at: int | None = None, on_list=None, wiki: dict | None = None
+    ):
         self.pages = pages
+        self.wiki = wiki or {}  # page title -> page id, or redirect target title
         self.fail_at = fail_at
         self.on_list = on_list
         self.calls: list[tuple[str, dict | None]] = []
@@ -230,10 +233,33 @@ class FakeImslp:
             if self.on_list:
                 self.on_list()
             return json.loads(json.dumps(self.pages[index]))
+        if "titles" in params:
+            return self._by_title(params["titles"].split("|"))
         ids = params["pageids"].split("|")
         return {
             "query": {"pages": {i: {"pageid": int(i), "revisions": [{"*": WIKITEXT}]} for i in ids}}
         }
+
+    def _by_title(self, titles: list[str]) -> dict:
+        """Mimics MediaWiki: normalizes titles, follows redirects, flags missing pages."""
+        normalized = [{"from": t, "to": t[0].upper() + t[1:]} for t in titles if t[0].islower()]
+        names = [t[0].upper() + t[1:] for t in titles]
+        redirects = [
+            {"from": n, "to": self.wiki[n]} for n in names if isinstance(self.wiki.get(n), str)
+        ]
+        targets = {self.wiki[n] if isinstance(self.wiki.get(n), str) else n for n in names}
+        pages = {}
+        for n, title in enumerate(sorted(targets)):
+            pageid = self.wiki.get(title)
+            if isinstance(pageid, int):
+                pages[str(pageid)] = {
+                    "pageid": pageid,
+                    "title": title,
+                    "revisions": [{"*": WIKITEXT}],
+                }
+            else:
+                pages[str(-n - 1)] = {"title": title, "missing": ""}
+        return {"query": {"pages": pages, "redirects": redirects, "normalized": normalized}}
 
 
 def _list_page(items: list[dict], more: bool) -> dict:
@@ -433,3 +459,60 @@ def test_get_by_ids(admin: TestClient, session: Session):
 def test_get_by_ids_rejects_invalid_input(admin: TestClient, score_ids):
     response = admin.get("/imslp/scores_by_ids", params={"score_ids": score_ids})
     assert response.status_code == 422
+
+
+def test_sync_checks_doubtful_list_entries_by_title(session: Session):
+    """Works without a page id, or sharing one, are looked up by their title."""
+    no_id = {**_item(0, "Etude"), "intvals": {"composer": "Chopin, Frédéric", "worktitle": "Etude"}}
+    old_spelling = _item(31, "Ballade", "Chopin, Fryderyk")
+    gone = {**_item(0, "Gone"), "intvals": {}}
+    lower = {**_item(0, "x"), "id": "lower case title", "intvals": {}}
+    page = [_item(31, "Ballade"), old_spelling, _item(31, "Wrong id"), no_id, gone, lower]
+    wiki = {
+        "Ballade (Chopin, Frédéric)": 31,
+        "Ballade (Chopin, Fryderyk)": "Ballade (Chopin, Frédéric)",  # a redirect: dropped
+        "Wrong id (Chopin, Frédéric)": 32,
+        "Etude (Chopin, Frédéric)": 33,
+        "Lower case title": 34,
+    }
+    fake = FakeImslp([_list_page(page, more=False)], wiki=wiki)
+    imslp.sync_catalogue(_engine(session), restart=True, client=fake)  # type: ignore[arg-type]
+
+    session.expire_all()
+    rows = {r.pageid: r for r in session.exec(select(IMSLP))}
+    assert {p: r.title for p, r in rows.items()} == {
+        31: "Ballade",
+        32: "Wrong id",
+        33: "Etude",
+        34: "Ballade No.2",  # no list title: the page's own
+    }
+    assert rows[31].composer == "Chopin, Frédéric"
+    assert imslp.load_state(session)["works"] == 4
+    # Everything came with the title lookup: no extra page-id request.
+    assert [p and ("titles" in p) for _, p in fake.calls] == [None, True]
+
+
+def test_parse_work_info_messy_fields():
+    wikitext = """*****WORK INFO*****
+|Key={{Tons}} (together with {{LinkWork|13 Preludes|Op.32|Rachmaninoff|Sergei|0}})
+ |Movements Header=10 preludes
+|Number of Movements/Sections=10 preludes:
+:1. Largo ({{Key|f#}})
+:2. Maestoso ({{K|Bb}}) in C{{Sharp}}
+{{#subitem:id=x|level=1|title=Presto ({{K|c}})}}
+{{#subitem:id=y}}
+|Instrumentation=Orchestra &mdash; :2 flutes &amp; strings;<br>, voice |Tags=preludes ; org
+|Dedication={{LinkDed|Alexander|Siloti}} {{EN}} {{Other|a}} {{WC|123|Paris}}
+| *****COMMENTS*****"""
+    info = imslp.parse_work_info(wikitext)
+    assert info["Key"] == "Various (together with 13 Preludes, Op.32)"
+    assert info["Movements Header"] == "10 preludes"
+    assert info["Number of Movements/Sections"] == (
+        "10 preludes: 1. Largo (F-sharp minor), 2. Maestoso (B-flat major) in C♯, Presto (C minor)"
+    )
+    assert info["Instrumentation"] == "Orchestra — :2 flutes & strings; voice"
+    assert info["Tags"] == "preludes ; org"
+    assert info["Dedication"] == "Alexander Siloti a Paris"
+    assert imslp.clean_wiki("{{K|H}}") == "H"
+    row = imslp.build_row(_item(1, "Preludes"), wikitext)
+    assert row["key"] == "Various" and row["genre"] == "Preludes"
