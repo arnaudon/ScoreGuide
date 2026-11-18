@@ -6,6 +6,9 @@
 	import AgentChat from '#lib/components/AgentChat.svelte';
 	import ImslpSearch from '#lib/components/ImslpSearch.svelte';
 	import ImslpAddDialog from '#lib/components/ImslpAddDialog.svelte';
+	import BookOpenIcon from '@lucide/svelte/icons/book-open';
+	import { composerName, summarizeLibrary } from '#lib/library.js';
+	import { periodLabel } from '#lib/imslp.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { mainAgentHistoryStore } from '#lib/stores/chat.svelte.js';
 	import {
@@ -33,6 +36,9 @@
 	let imslpWork = $state<ImslpResult | null>(null);
 	let imslpOpen = $state(false);
 	let addedScoreId = $state<number | null | undefined>(undefined);
+	let summary = $derived(summarizeLibrary(data.scores ?? []));
+	let composerMax = $derived(Math.max(1, ...summary.topComposers.map((c) => c.count)));
+	let periodMax = $derived(Math.max(1, ...summary.periods.map((p) => p.count)));
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 5 });
 	let sorting = $state<SortingState>([]);
@@ -133,7 +139,7 @@
 	}
 </script>
 
-<div class="mx-auto flex h-[calc(100vh-12rem)] w-full max-w-4xl flex-col">
+<div class="mx-auto flex w-full max-w-5xl flex-col gap-8 pb-8">
 	{#if data.hasScores === false}
 		<div
 			class="border-border bg-muted/50 text-muted-foreground mb-4 rounded-md border border-dashed p-4 text-center text-sm"
@@ -147,11 +153,13 @@
 			{m.empty_db_p2()}
 		</div>
 	{/if}
-	<div class="min-h-0 flex-1">
+	<!-- While a conversation is open the chat gets a fixed height and scrolls inside. -->
+	<div class="flex flex-col {mainAgentHistoryStore.history.length ? 'h-[70vh] min-h-96' : 'py-4'}">
 		<AgentChat
 			{form}
 			action="?/ask"
 			title={m.hello_user({ name: data.user.username })}
+			titleClass="text-fancy-title text-3xl leading-tight font-semibold sm:text-4xl"
 			emptyMessage={m.what_to_play()}
 			placeholder={m.agent_placeholder_main()}
 			{onResult}
@@ -246,9 +254,118 @@
 			{/snippet}
 		</AgentChat>
 	</div>
+	{#if summary.total}
+		<section aria-labelledby="home-continue" class="flex flex-col gap-3">
+			<div class="flex items-baseline justify-between gap-4">
+				<h2 id="home-continue" class="text-fancy-title text-foreground text-2xl font-semibold">
+					{summary.continueIsRecent ? m.home_recent() : m.home_continue()}
+				</h2>
+				<a href={resolve('/db-viewer')} class="text-primary text-sm font-medium hover:underline"
+					>{m.home_see_library()}</a
+				>
+			</div>
+			<ul class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+				{#each summary.continue as score (score.id)}
+					<li>
+						<a
+							href={resolve('/reader/[id]', { id: String(score.id) })}
+							class="bg-card shadow-card hover:border-primary/40 focus-visible:ring-ring group flex h-full flex-col gap-1 rounded-lg border p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:p-4"
+						>
+							<span
+								class="text-muted-foreground truncate text-xs font-medium tracking-wide uppercase"
+								>{composerName(score.composer)}</span
+							>
+							<span
+								class="text-fancy-title text-foreground group-hover:text-primary line-clamp-3 text-base leading-snug font-semibold sm:text-lg"
+								>{score.title}</span
+							>
+							<span class="text-muted-foreground mt-auto flex items-center gap-1.5 pt-2 text-xs">
+								<BookOpenIcon class="size-3.5" aria-hidden="true" />
+								{score.number_of_plays
+									? m.home_played_times({ count: score.number_of_plays })
+									: m.home_never_played()}
+							</span>
+						</a>
+					</li>
+				{/each}
+			</ul>
+		</section>
+
+		<section aria-labelledby="home-repertoire" class="flex flex-col gap-3">
+			<h2 id="home-repertoire" class="text-fancy-title text-foreground text-2xl font-semibold">
+				{m.home_repertoire()}
+			</h2>
+			<dl class="grid grid-cols-3 gap-3">
+				{#each [{ label: m.home_stat_scores(), value: summary.total }, { label: m.home_stat_composers(), value: summary.composers }, summary.plays ? { label: m.home_stat_plays(), value: summary.plays } : { label: m.home_stat_periods(), value: summary.periods.length }] as stat (stat.label)}
+					<div class="bg-card shadow-card flex flex-col-reverse rounded-lg border p-4">
+						<dt class="text-muted-foreground text-xs font-medium sm:text-sm">{stat.label}</dt>
+						<dd class="text-foreground text-2xl font-semibold tabular-nums sm:text-3xl">
+							{stat.value}
+						</dd>
+					</div>
+				{/each}
+			</dl>
+			<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+				<div class="bg-card shadow-card rounded-lg border p-4">
+					<h3 class="text-foreground font-semibold">{m.home_top_composers()}</h3>
+					<p class="text-muted-foreground mb-3 text-xs">
+						{summary.plays ? m.home_top_composers_plays() : m.home_top_composers_scores()}
+					</p>
+					<ul class="flex flex-col gap-2">
+						{#each summary.topComposers as composer (composer.name)}
+							<li class="grid grid-cols-[minmax(0,10rem)_1fr_2rem] items-center gap-3 text-sm">
+								<span class="text-foreground truncate">{composer.name}</span>
+								<span class="bg-muted h-2 overflow-hidden rounded-full" aria-hidden="true">
+									<span
+										class="bg-primary block h-full rounded-full"
+										style="width: {(composer.count / composerMax) * 100}%"
+									></span>
+								</span>
+								<span class="text-muted-foreground text-right tabular-nums">{composer.count}</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+				<div class="bg-card shadow-card rounded-lg border p-4">
+					<h3 class="text-foreground mb-3 font-semibold">{m.home_periods()}</h3>
+					<ul class="flex flex-col gap-2">
+						{#each summary.periods as period (period.name)}
+							<li class="grid grid-cols-[minmax(0,10rem)_1fr_2rem] items-center gap-3 text-sm">
+								<span class="text-foreground truncate">{periodLabel(period.name)}</span>
+								<span class="bg-muted h-2 overflow-hidden rounded-full" aria-hidden="true">
+									<span
+										class="bg-primary/70 block h-full rounded-full"
+										style="width: {(period.count / periodMax) * 100}%"
+									></span>
+								</span>
+								<span class="text-muted-foreground text-right tabular-nums">{period.count}</span>
+							</li>
+						{/each}
+					</ul>
+					{#if summary.mostPlayed.length}
+						<h3 class="text-foreground mt-4 mb-2 font-semibold">{m.home_most_played()}</h3>
+						<ol class="flex flex-col gap-1 text-sm">
+							{#each summary.mostPlayed as score (score.id)}
+								<li class="flex justify-between gap-3">
+									<a
+										href={resolve('/reader/[id]', { id: String(score.id) })}
+										class="text-foreground hover:text-primary truncate">{score.title}</a
+									>
+									<span class="text-muted-foreground shrink-0 tabular-nums"
+										>{m.home_played_times({ count: score.number_of_plays })}</span
+									>
+								</li>
+							{/each}
+						</ol>
+					{/if}
+				</div>
+			</div>
+		</section>
+	{/if}
+
 	{#if !data.isDemo}
 		<section
-			class="bg-card shadow-card mt-4 flex shrink-0 flex-col gap-2 rounded-md border p-4"
+			class="bg-card shadow-card flex shrink-0 flex-col gap-2 rounded-md border p-4"
 			aria-labelledby="imslp-home-title"
 		>
 			<h2 id="imslp-home-title" class="text-foreground font-semibold">{m.imslp_home_title()}</h2>

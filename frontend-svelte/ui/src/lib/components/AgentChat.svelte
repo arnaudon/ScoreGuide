@@ -34,6 +34,7 @@
 		form,
 		action,
 		title,
+		titleClass = 'text-lg font-bold',
 		emptyMessage,
 		placeholder,
 		onResult,
@@ -45,6 +46,8 @@
 		form: AgentChatForm | null | undefined;
 		action: string;
 		title: string;
+		/** Classes for the heading (size, font). */
+		titleClass?: string;
 		emptyMessage?: string;
 		placeholder: string;
 		onResult: (result: AgentActionData) => ParsedResult;
@@ -110,10 +113,10 @@
 		: ''}"
 >
 	<div class="mb-4">
-		<h1 class="text-foreground text-lg font-bold">
-			{title}{#if store.history.length === 0 && !loading}
-				{emptyMessage || m.how_can_i_help()}
-			{/if}
+		<h1 class="text-foreground {titleClass}">
+			{store.history.length === 0 && !loading
+				? `${title} ${emptyMessage || m.how_can_i_help()}`
+				: title}
 		</h1>
 	</div>
 

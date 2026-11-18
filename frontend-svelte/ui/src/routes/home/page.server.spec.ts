@@ -73,7 +73,7 @@ describe('home load', () => {
 			.mockResolvedValueOnce(jsonResponse(SAMPLE_SCORES));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(loadEvent(cookies, fetch));
-		expect(result).toEqual({ user: SAMPLE_USER, hasScores: true });
+		expect(result).toEqual({ user: SAMPLE_USER, scores: SAMPLE_SCORES, hasScores: true });
 	});
 
 	it('returns hasScores=false when scores list is empty', async () => {
@@ -83,7 +83,7 @@ describe('home load', () => {
 			.mockResolvedValueOnce(jsonResponse([]));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(loadEvent(cookies, fetch));
-		expect(result).toEqual({ user: SAMPLE_USER, hasScores: false });
+		expect(result).toEqual({ user: SAMPLE_USER, scores: [], hasScores: false });
 	});
 
 	it('logs and returns hasScores=false when /scores fetch throws', async () => {
@@ -93,7 +93,7 @@ describe('home load', () => {
 			.mockRejectedValueOnce(new Error('network'));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(loadEvent(cookies, fetch));
-		expect(result).toEqual({ user: SAMPLE_USER, hasScores: false });
+		expect(result).toEqual({ user: SAMPLE_USER, scores: [], hasScores: false });
 		expect(errSpy).toHaveBeenCalled();
 	});
 });

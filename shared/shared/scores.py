@@ -56,6 +56,8 @@ class Score(ScoreBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     pdf_path: str = Field(default="")
     number_of_plays: int = 0
+    # When the score was last opened in the reader (the home page's "continue").
+    last_played_at: datetime | None = Field(default=None)
     source: str = Field(default="IMSLP")
     imslp_id: int | None = Field(default=None, index=True)
     user_id: int | None = Field(foreign_key="user.id", index=True)

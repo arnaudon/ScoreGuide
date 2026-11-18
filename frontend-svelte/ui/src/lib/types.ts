@@ -23,6 +23,8 @@ export interface Score {
 	instrumentation: string;
 	pdf_path: string;
 	number_of_plays: number;
+	/** When the score was last opened in the reader (naive UTC), null if never. */
+	last_played_at?: string | null;
 	source: string;
 	imslp_id: number | null;
 	user_id: number | null;

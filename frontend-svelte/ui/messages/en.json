@@ -339,5 +339,20 @@
 	"imslp_home_title": "Add a score from IMSLP",
 	"imslp_home_desc": "Search the free IMSLP catalogue, then add the PDF to your library.",
 	"imslp_added": "Added to your library.",
-	"imslp_open_added": "Open it"
+	"imslp_open_added": "Open it",
+	"home_continue": "Pick up where you left off",
+	"home_recent": "Recently added",
+	"home_see_library": "All my scores",
+	"home_played_times": "Played {count}×",
+	"home_never_played": "Not opened yet",
+	"home_stat_scores": "Scores",
+	"home_stat_composers": "Composers",
+	"home_stat_plays": "Sittings",
+	"home_top_composers": "Your composers",
+	"home_top_composers_plays": "By sittings",
+	"home_top_composers_scores": "By number of scores",
+	"home_periods": "Your periods",
+	"home_most_played": "Most played",
+	"home_repertoire": "Your repertoire",
+	"home_stat_periods": "Periods"
 }
