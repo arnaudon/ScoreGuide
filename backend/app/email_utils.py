@@ -21,8 +21,22 @@ def send_email(to: str, subject: str, body: str) -> None:
     message["To"] = to
     message.set_content(body)
 
-    with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT) as smtp:
-        smtp.starttls()
+    # 465 is implicit TLS; anything else (587) upgrades with STARTTLS.
+    if config.SMTP_PORT == 465:
+        smtp: smtplib.SMTP = smtplib.SMTP_SSL(config.SMTP_HOST, config.SMTP_PORT, timeout=20)
+    else:
+        smtp = smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=20)
+    with smtp as conn:
+        if config.SMTP_PORT != 465:
+            conn.starttls()
         if config.SMTP_USER and config.SMTP_PASSWORD:
-            smtp.login(config.SMTP_USER, config.SMTP_PASSWORD)
-        smtp.send_message(message)
+            conn.login(config.SMTP_USER, config.SMTP_PASSWORD)
+        conn.send_message(message)
+
+
+def send_email_safely(to: str, subject: str, body: str) -> None:
+    """``send_email`` for background tasks: a mail failure is logged, not raised."""
+    try:
+        send_email(to, subject, body)
+    except Exception:
+        logger.exception("sending email to %s failed: %s", to, subject)

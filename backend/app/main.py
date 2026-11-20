@@ -18,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import annotations, config, db, imslp, llm, sections, users
@@ -27,8 +27,14 @@ from app.credits import consume_credit
 from app.db import get_async_session, get_session
 from app.file_helper import file_helper
 from app.rate_limit import limiter
-from app.users import get_admin_user, get_current_user, get_current_user_from_token
-from shared.scores import Score, ScoreCreate, Scores, ScoreUpdate
+from app.users import (
+    get_admin_user,
+    get_current_user,
+    get_current_user_from_token,
+    get_verified_user,
+)
+from shared.annotations import Annotation
+from shared.scores import Score, ScoreCreate, Scores, ScoreUpdate, TocReport
 from shared.settings import Setting
 from shared.user import User
 
@@ -182,7 +188,7 @@ async def _agent_model(session: AsyncSession, setting_key: str):
 async def complete_score(
     request: Request,
     score: Score,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_verified_user)],
     session: AsyncSession = Depends(get_async_session),
 ):
     """Complete a score."""
@@ -237,6 +243,39 @@ def delete_score(
     session.commit()
 
 
+@app.delete("/user")
+def delete_account(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Session = Depends(get_session),
+):
+    """Delete the current user and everything they own.
+
+    Scores with their sections, incipit images, annotations, reports and PDF
+    files go too — the privacy policy promises deletion, and the user row
+    can't be removed while scores still reference it.
+    """
+    scores = session.exec(select(Score).where(Score.user_id == current_user.id)).all()
+    pdfs = {s.pdf_path for s in scores if s.pdf_path}
+    for score in scores:
+        sections.delete_sections(score.id, session)  # type: ignore[arg-type]
+        annotations.delete_annotations(score.id, session)  # type: ignore[arg-type]
+        session.delete(score)
+    # Their annotations and reports on any other score.
+    session.exec(delete(Annotation).where(col(Annotation.user_id) == current_user.id))  # type: ignore[call-overload]
+    session.exec(delete(TocReport).where(col(TocReport.user_id) == current_user.id))  # type: ignore[call-overload]
+    session.flush()
+    session.delete(current_user)
+    session.commit()
+    # Files last, once the rows are gone; keep any PDF another score uses.
+    for pdf in pdfs:
+        if session.exec(select(Score).where(Score.pdf_path == pdf)).first() is None:
+            try:
+                file_helper.delete_pdf(pdf)
+            except Exception:  # pragma: no cover - storage hiccup, rows are gone
+                logger.exception("could not delete %s", pdf)
+    return {"message": "Account deleted successfully"}
+
+
 # Reopening a score within this window (a reload, a page turn back) is the same play.
 PLAY_WINDOW = timedelta(minutes=30)
 
@@ -276,7 +315,7 @@ def get_scores(
 async def run_imslp_agent_api(
     request: Request,
     body: ChatRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_verified_user)],
     session: AsyncSession = Depends(get_async_session),
 ):
     """Run the imslp agent."""
@@ -297,7 +336,7 @@ async def run_imslp_agent_api(
 async def run_main_agent(
     request: Request,
     body: MainAgentRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_verified_user)],
     session: AsyncSession = Depends(get_async_session),
 ):
     """Run the agent."""
@@ -444,7 +483,7 @@ def get_pdf(
     )
 
 
-@app.post("/pdf", dependencies=[Depends(get_current_user)])
+@app.post("/pdf", dependencies=[Depends(get_verified_user)])
 # Per account (the key is the bearer token): bounds how fast one account can
 # fill the storage, including PDFs never attached to a score.
 @limiter.limit(config.UPLOAD_RATE_LIMIT)

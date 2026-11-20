@@ -41,6 +41,12 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 SMTP_FROM = os.getenv("SMTP_FROM", SUPPORT_EMAIL)
 
+# New accounts must confirm their email before spending AI credits or
+# uploading. On by default only when emails can actually be sent, so a
+# deployment without SMTP never locks its users out.
+EMAIL_VERIFICATION = os.getenv("EMAIL_VERIFICATION", "1" if SMTP_HOST else "0") == "1"
+EMAIL_VERIFY_EXPIRE_HOURS = int(os.getenv("EMAIL_VERIFY_EXPIRE_HOURS", "48"))
+
 # Public read-only demo: POST /demo-login issues a token for this account
 # (no password). It only works once the account exists with role "demo" —
 # create it with ``python -m app.demo <score_id> ...``. Empty disables it.
