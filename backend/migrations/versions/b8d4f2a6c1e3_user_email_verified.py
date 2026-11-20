@@ -24,7 +24,7 @@ def upgrade() -> None:
         sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.false()),
     )
     # Accounts from before verification existed keep working as they did.
-    op.execute("UPDATE \"user\" SET email_verified = true WHERE coalesce(email, '') <> ''")
+    op.execute('UPDATE "user" SET email_verified = true')
     # One account per address (case-insensitive), so a password reset by
     # email always reaches a single account.
     op.execute("UPDATE \"user\" SET email = NULL WHERE email = ''")
