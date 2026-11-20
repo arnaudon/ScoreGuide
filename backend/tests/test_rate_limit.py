@@ -24,3 +24,13 @@ def test_rate_limit_key_anonymous_requests_fall_back_to_ip():
     request.headers = {}
     request.client.host = "203.0.113.7"
     assert rate_limit_key(request) == "203.0.113.7"
+
+
+def test_rate_limit_key_anonymous_uses_forwarded_visitor_ip():
+    """The SvelteKit proxy forwards the visitor IP; each visitor gets a bucket."""
+    request = MagicMock()
+    request.client.host = "172.22.0.5"  # the proxy
+    request.headers = {"X-Client-IP": " 198.51.100.4 "}
+    assert rate_limit_key(request) == "198.51.100.4"
+    request.headers = {"X-Client-IP": ""}
+    assert rate_limit_key(request) == "172.22.0.5"

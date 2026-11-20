@@ -2,6 +2,13 @@
 	import { page } from '$app/state';
 	import { locales, localizeHref } from '#lib/paraglide/runtime.js';
 	import * as m from '#lib/paraglide/messages.js';
+	// Self-hosted fonts: no request to Google for every visitor (privacy, CSP).
+	import '@fontsource/figtree/400.css';
+	import '@fontsource/figtree/500.css';
+	import '@fontsource/figtree/600.css';
+	import '@fontsource/figtree/700.css';
+	import '@fontsource/eb-garamond/600.css';
+	import '@fontsource/eb-garamond/700.css';
 	import '../app.css';
 	import AppSidebar from '#lib/components/Sidebar.svelte';
 	import Footer from '#lib/components/Footer.svelte';
@@ -39,7 +46,8 @@
 	<meta property="og:type" content="website" />
 </svelte:head>
 
-<ModeWatcher />
+<!-- Its pre-paint theme script lives in app.html, where it gets the CSP nonce. -->
+<ModeWatcher disableHeadScriptInjection />
 
 {#if data.loggedIn}
 	<Sidebar.Provider style="--sidebar-width: 4rem;">

@@ -41,7 +41,15 @@
 					<label for="new_password" class="text-sm leading-none font-medium"
 						>{m.new_password()}</label
 					>
-					<Input id="new_password" name="new_password" type="password" required />
+					<Input
+						id="new_password"
+						name="new_password"
+						type="password"
+						required
+						minlength={8}
+						maxlength={128}
+						autocomplete="new-password"
+					/>
 				</div>
 				<div class="space-y-2">
 					<label for="confirm_password" class="text-sm leading-none font-medium"

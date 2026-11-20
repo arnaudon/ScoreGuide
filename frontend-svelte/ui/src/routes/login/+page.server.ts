@@ -3,6 +3,7 @@ import type { Actions } from './$types';
 import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
+import { passwordLengthOk } from '#lib/password.js';
 
 export const actions: Actions = {
 	login: async ({ request, cookies, fetch }) => {
@@ -82,6 +83,15 @@ export const actions: Actions = {
 				email: email?.toString(),
 				instrument: instrument?.toString(),
 				error: m.err_missing_register_fields()
+			});
+		}
+
+		if (!passwordLengthOk(password.toString())) {
+			return fail(400, {
+				username: username.toString(),
+				email: email.toString(),
+				instrument: instrument?.toString(),
+				error: m.err_password_length()
 			});
 		}
 

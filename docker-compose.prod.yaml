@@ -54,7 +54,10 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DATABASE=${POSTGRES_DB:-postgres}
-    env_file: .env
+      # GPG-encrypt each dump (empty: unencrypted) and delete dumps older than
+      # this many days (empty: keep forever). Set by the deploy workflow.
+      - PASSPHRASE=${BACKUP_PASSPHRASE:-}
+      - BACKUP_KEEP_DAYS=${BACKUP_KEEP_DAYS:-}
     depends_on:
       - db
 
@@ -94,8 +97,14 @@ services:
     environment:
       - BACKEND_URL=http://backend:8000
       - PUBLIC_BACKEND_URL=http://backend:8000
-      - BODY_SIZE_LIMIT=Infinity
-    env_file: .env
+      # Largest request the web server accepts: a MAX_PDF_MB (50) upload plus
+      # form overhead. Unlimited let anyone stream gigabytes into memory/disk.
+      - BODY_SIZE_LIMIT=60M
+      # Behind Caddy, the visitor's IP is the X-Forwarded-For entry Caddy
+      # appended (it ignores client-sent values). Forwarded to the backend
+      # so rate limits apply per visitor, not to everyone at once.
+      - ADDRESS_HEADER=X-Forwarded-For
+      - XFF_DEPTH=1
 
 
 networks:

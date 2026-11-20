@@ -57,6 +57,11 @@ jobs:
             echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
             echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
             echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> .env
+            # Daily DB dumps are GPG-encrypted with this passphrase (empty: plain,
+            # as before) and pruned after BACKUP_KEEP_DAYS. Keep a copy of the
+            # passphrase outside GitHub: without it the backups can't be restored.
+            echo "BACKUP_PASSPHRASE=${{ secrets.BACKUP_PASSPHRASE }}" >> .env
+            echo "BACKUP_KEEP_DAYS=30" >> .env
             docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build -d
             # Apply Caddyfile changes; `up` leaves an unchanged caddy container alone.
             docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml \
@@ -72,15 +77,16 @@ jobs:
               docker exec postgres_db pg_isready >/dev/null 2>&1 && break
               sleep 2
             done
-            # Ensure the mcp_readonly role exists on the existing data volume
+            # run alembic migration
+            docker exec --workdir /app/backend backend alembic upgrade head
+            # After migrating, so the imslp table it grants exists. Ensure the
+            # mcp_readonly role exists on the existing data volume
             # and rotate its password to the current secret. Idempotent —
             # safe to re-run every deploy. The password rides in via env so
             # it never appears on a command line.
             docker exec -i -e MCP_READONLY_PASSWORD="${{ secrets.MCP_READONLY_PASSWORD }}" postgres_db \
               sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v mcp_password="${MCP_READONLY_PASSWORD:-readonly}"' \
               < infrastructure/mcp-readonly.sql
-            # run alembic migration
-            docker exec --workdir /app/backend backend alembic upgrade head
             # Keep the demo account's library in sync with app/demo.py CATALOG
             # (no-op when it already matches). Never fail the deploy over it.
             docker exec --workdir /app/backend backend python -m app.demo --catalog --if-changed \

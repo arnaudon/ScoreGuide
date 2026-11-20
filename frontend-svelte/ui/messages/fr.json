@@ -367,5 +367,6 @@
 	"credential_new_placeholder": "Collez la valeur",
 	"credential_clear": "Supprimer la valeur enregistrée (utiliser l'environnement du serveur)",
 	"credentials_saved": "Enregistré.",
-	"err_save_credentials": "Impossible d'enregistrer les clés."
+	"err_save_credentials": "Impossible d'enregistrer les clés.",
+	"err_password_length": "Le mot de passe doit contenir entre 8 et 128 caractères."
 }

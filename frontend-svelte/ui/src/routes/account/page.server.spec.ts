@@ -73,8 +73,8 @@ describe('update_profile action', () => {
 describe('update_password action', () => {
 	const fields = {
 		current_password: 'old',
-		new_password: 'new',
-		confirm_password: 'new'
+		new_password: 'new-password',
+		confirm_password: 'new-password'
 	};
 
 	it('fails 401 when not authenticated', async () => {
@@ -109,12 +109,35 @@ describe('update_password action', () => {
 		});
 	});
 
+	it('fails 400 when the new password is too short', async () => {
+		const fetch = vi.fn();
+		const result = await actions.update_password(
+			event({
+				request: fakeRequest({ ...fields, new_password: 'short', confirm_password: 'short' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({ status: 400, data: { form: 'password' } });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
 	it('returns success on happy path', async () => {
 		const fetch = vi.fn(async () => jsonResponse({}));
 		const result = await actions.update_password(
 			event({ request: fakeRequest(fields), cookies: makeCookies({ access_token: 'tok' }), fetch })
 		);
 		expect(result).toEqual({ form: 'password', success: true });
+	});
+
+	it('keeps this session with the fresh token the backend returns', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ access_token: 'fresh' }));
+		const cookies = makeCookies({ access_token: 'tok' });
+		const result = await actions.update_password(
+			event({ request: fakeRequest(fields), cookies, fetch })
+		);
+		expect(result).toEqual({ form: 'password', success: true });
+		expect(cookies.set).toHaveBeenCalledWith('access_token', 'fresh', expect.any(Object));
 	});
 });
 
