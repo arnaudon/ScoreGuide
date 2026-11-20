@@ -368,5 +368,13 @@
 	"credential_clear": "Remove the saved value (use the server environment)",
 	"credentials_saved": "Saved.",
 	"err_save_credentials": "Could not save the keys.",
-	"err_password_length": "Passwords must be 8 to 128 characters long."
+	"err_password_length": "Passwords must be 8 to 128 characters long.",
+	"verify_banner": "Please confirm your email address: we sent you a link. The assistant and uploads unlock once it's confirmed.",
+	"verify_resend": "Resend the email",
+	"verify_resent": "Sent! Check your inbox (and spam folder).",
+	"verify_resend_failed": "Couldn't send the email right now. Try again later.",
+	"verify_title": "Email confirmation",
+	"verify_success": "Your email address is confirmed. Welcome to ScoreGuide!",
+	"verify_failed": "This confirmation link is invalid or has expired. Log in to request a new one.",
+	"verify_continue": "Continue to ScoreGuide"
 }

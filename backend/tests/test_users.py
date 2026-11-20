@@ -169,6 +169,7 @@ def test_add_user_cannot_self_grant_admin(client: TestClient, session: Session):
     payload = {
         "username": "mallory",
         "password": "long-enough-pw",
+        "email": "mallory@example.com",
         "role": "admin",
         "credits": 9999,
     }
@@ -289,8 +290,10 @@ def test_update_user_endpoint(user_in_db: User, client: TestClient):
     assert data_none["email"] == "new@example.com"
 
 
-def test_delete_account(user_in_db: User, client: TestClient):
+def test_delete_account(user_in_db: User, client: TestClient, tmp_path, monkeypatch):
     """DELETE /user deletes the account."""
+    # Deleting the account deletes its PDFs: keep the shared fixtures safe.
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
 
     app.dependency_overrides.pop(users.get_current_user, None)
 
@@ -440,22 +443,22 @@ def test_forgot_password_existing_user_sends_email(
 ):
     """POST /forgot-password emails a reset link for a known address."""
     mock_send_email = MagicMock()
-    monkeypatch.setattr(users, "send_email", mock_send_email)
+    monkeypatch.setattr(users, "send_email_safely", mock_send_email)
 
     resp = client.post("/forgot-password", json={"email": user_in_db.email})
     assert resp.status_code == 200
     assert "reset link" in resp.json()["message"]
 
     mock_send_email.assert_called_once()
-    kwargs = mock_send_email.call_args.kwargs
-    assert kwargs["to"] == user_in_db.email
-    assert "/reset-password?token=" in kwargs["body"]
+    to, _subject, body = mock_send_email.call_args.args
+    assert to == user_in_db.email
+    assert "/reset-password?token=" in body
 
 
 def test_forgot_password_unknown_email_is_silent(client: TestClient, monkeypatch):
     """POST /forgot-password returns the same generic message for unknown emails."""
     mock_send_email = MagicMock()
-    monkeypatch.setattr(users, "send_email", mock_send_email)
+    monkeypatch.setattr(users, "send_email_safely", mock_send_email)
 
     resp = client.post("/forgot-password", json={"email": "nobody@example.com"})
     assert resp.status_code == 200
@@ -533,17 +536,19 @@ def test_password_reset_uses_frontend_url_and_expiry_config(
     monkeypatch.setattr(config, "FRONTEND_URL", "https://scoreguide.ch")
     monkeypatch.setattr(config, "PASSWORD_RESET_EXPIRE_MINUTES", 45)
     mock_send_email = MagicMock()
-    monkeypatch.setattr(users, "send_email", mock_send_email)
+    monkeypatch.setattr(users, "send_email_safely", mock_send_email)
 
     resp = client.post("/forgot-password", json={"email": user_in_db.email})
     assert resp.status_code == 200
 
-    body = mock_send_email.call_args.kwargs["body"]
+    body = mock_send_email.call_args.args[2]
     assert "https://scoreguide.ch/reset-password?token=" in body
     assert "45 minutes" in body
 
 
 @pytest.mark.parametrize("password", ["short", "x" * 129])
 def test_register_rejects_bad_password_length(client: TestClient, password: str):
-    resp = client.post("/users", json={"username": "pat", "password": password})
+    resp = client.post(
+        "/users", json={"username": "pat", "password": password, "email": "pat@example.com"}
+    )
     assert resp.status_code == 422

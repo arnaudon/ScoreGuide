@@ -25,4 +25,7 @@ class User(SQLModel, table=True):
     credits: int = Field(default=50)
     max_credits: int = Field(default=50)
     last_login: datetime | None = None
+    # Confirmed by clicking the emailed link; gates AI credits and uploads
+    # when email verification is on (see backend app.config).
+    email_verified: bool = Field(default=False)
     scores: list["Score"] = Relationship(back_populates="user")

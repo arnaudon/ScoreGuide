@@ -114,6 +114,8 @@ export interface User {
 	credits: number;
 	max_credits: number;
 	last_login: string | null;
+	/** False until the emailed confirmation link is opened (when verification is on). */
+	email_verified?: boolean;
 }
 
 /** Admin `/users` includes a denormalized score count. */

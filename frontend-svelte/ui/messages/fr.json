@@ -368,5 +368,13 @@
 	"credential_clear": "Supprimer la valeur enregistrée (utiliser l'environnement du serveur)",
 	"credentials_saved": "Enregistré.",
 	"err_save_credentials": "Impossible d'enregistrer les clés.",
-	"err_password_length": "Le mot de passe doit contenir entre 8 et 128 caractères."
+	"err_password_length": "Le mot de passe doit contenir entre 8 et 128 caractères.",
+	"verify_banner": "Merci de confirmer votre adresse e-mail : nous vous avons envoyé un lien. L'assistant et l'import de partitions seront disponibles une fois l'adresse confirmée.",
+	"verify_resend": "Renvoyer l'e-mail",
+	"verify_resent": "Envoyé ! Vérifiez votre boîte de réception (et les spams).",
+	"verify_resend_failed": "Impossible d'envoyer l'e-mail pour le moment. Réessayez plus tard.",
+	"verify_title": "Confirmation de l'e-mail",
+	"verify_success": "Votre adresse e-mail est confirmée. Bienvenue sur ScoreGuide !",
+	"verify_failed": "Ce lien de confirmation est invalide ou a expiré. Connectez-vous pour en demander un nouveau.",
+	"verify_continue": "Continuer vers ScoreGuide"
 }
