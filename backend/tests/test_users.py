@@ -547,3 +547,32 @@ def test_password_reset_uses_frontend_url_and_expiry_config(
 def test_register_rejects_bad_password_length(client: TestClient, password: str):
     resp = client.post("/users", json={"username": "pat", "password": password})
     assert resp.status_code == 422
+
+
+def test_reset_token_is_not_a_session(user_in_db: User, client: TestClient):
+    """A password-reset link can't be used to log in."""
+    app.dependency_overrides.pop(users.get_current_user, None)
+    token = users.create_password_reset_token(user_in_db)
+    resp = client.get("/user", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+def test_password_change_signs_out_other_sessions(
+    user_in_db: User, client: TestClient, session: Session
+):
+    """Sessions carry the password fingerprint; a new password voids them."""
+    app.dependency_overrides.pop(users.get_current_user, None)
+    old = users.create_session_token(user_in_db, timedelta(minutes=5))
+    headers = {"Authorization": f"Bearer {old}"}
+    assert client.get("/user", headers=headers).status_code == 200
+
+    resp = client.put(
+        "/user/password",
+        json={"current_password": "secret", "new_password": "brand-new-secret"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    fresh = resp.json()["access_token"]
+
+    assert client.get("/user", headers=headers).status_code == 401
+    assert client.get("/user", headers={"Authorization": f"Bearer {fresh}"}).status_code == 200
