@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
+import { passwordLengthOk } from '#lib/password.js';
 
 export const load: PageServerLoad = async ({ url }) => {
 	return { token: url.searchParams.get('token') ?? '' };
@@ -24,6 +25,10 @@ export const actions: Actions = {
 
 		if (newPassword.toString() !== confirmPassword.toString()) {
 			return fail(400, { token: token.toString(), error: m.err_passwords_mismatch() });
+		}
+
+		if (!passwordLengthOk(newPassword.toString())) {
+			return fail(400, { token: token.toString(), error: m.err_password_length() });
 		}
 
 		const api = apiFetch(fetch, undefined);

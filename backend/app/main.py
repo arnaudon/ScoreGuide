@@ -18,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import annotations, config, db, imslp, llm, sections, users
@@ -132,6 +132,14 @@ def add_score(
     session: Session = Depends(get_session),
 ):
     """Add a score to the db, and start building its table of contents."""
+    count = session.exec(
+        select(func.count()).select_from(Score).where(Score.user_id == current_user.id)
+    ).one()
+    if count >= config.MAX_SCORES_PER_USER:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Your library is full ({config.MAX_SCORES_PER_USER} scores).",
+        )
     db_score = Score(**score.model_dump(), user_id=current_user.id)
     session.add(db_score)
     session.commit()
@@ -418,7 +426,8 @@ def get_pdf(
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=404, detail="PDF not found") from e
 
-    headers = {"Cache-Control": "public, max-age=86400, immutable", "Accept-Ranges": "bytes"}
+    # private: a user's PDF must never be stored by a shared cache.
+    headers = {"Cache-Control": "private, max-age=86400, immutable", "Accept-Ranges": "bytes"}
     byte_range = _parse_range(request.headers.get("range"), size)
 
     if byte_range is None:
@@ -436,12 +445,20 @@ def get_pdf(
 
 
 @app.post("/pdf", dependencies=[Depends(get_current_user)])
-def upload_pdf(file: UploadFile = File(...)):
+# Per account (the key is the bearer token): bounds how fast one account can
+# fill the storage, including PDFs never attached to a score.
+@limiter.limit(config.UPLOAD_RATE_LIMIT)
+def upload_pdf(request: Request, file: UploadFile = File(...)):
     """Upload a pdf file."""
     if file.content_type != "application/pdf":  # pragma: no cover
         raise HTTPException(status_code=400, detail="Only PDFs allowed")
     if file.size is not None and file.size > config.MAX_PDF_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail="PDF too large")
+    # The content type is whatever the client claims: check the file itself.
+    head = file.file.read(1024)
+    file.file.seek(0)
+    if b"%PDF-" not in head:
+        raise HTTPException(status_code=400, detail="Only PDFs allowed")
     try:
         file_id = f"{uuid.uuid4().hex}.pdf"
         file_helper.upload_pdf(file_id, file.file)

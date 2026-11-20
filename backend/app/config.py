@@ -13,6 +13,9 @@ import os
 MCP_URL = os.getenv("MCP_URL", "http://mcp-postgres:8001/sse")
 AGENT_RATE_LIMIT = os.getenv("AGENT_RATE_LIMIT", "5/minute")
 MAX_PDF_MB = int(os.getenv("MAX_PDF_MB", "50"))
+# Storage abuse limits for one account: PDF uploads, and scores in a library.
+UPLOAD_RATE_LIMIT = os.getenv("UPLOAD_RATE_LIMIT", "30/hour")
+MAX_SCORES_PER_USER = int(os.getenv("MAX_SCORES_PER_USER", "1000"))
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "alexis.arnaudon@gmail.com")
 CORS_ORIGINS = [
     origin.strip()

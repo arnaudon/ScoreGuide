@@ -17,6 +17,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<EO
 CREATE USER mcp_readonly WITH PASSWORD '${MCP_READONLY_PASSWORD:-readonly}';
 
 GRANT USAGE ON SCHEMA public TO mcp_readonly;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO mcp_readonly;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO mcp_readonly;
 EOF
+# SELECT on the catalogue alone (never user/setting/score: a prompt-injected
+# query must not reach password hashes or API keys). On a fresh volume the
+# table doesn't exist yet — alembic creates it — so the grant is applied by
+# infrastructure/mcp-readonly.sql, which the deploy runs after migrating.

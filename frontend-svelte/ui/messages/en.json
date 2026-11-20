@@ -367,5 +367,6 @@
 	"credential_new_placeholder": "Paste the value",
 	"credential_clear": "Remove the saved value (use the server environment)",
 	"credentials_saved": "Saved.",
-	"err_save_credentials": "Could not save the keys."
+	"err_save_credentials": "Could not save the keys.",
+	"err_password_length": "Passwords must be 8 to 128 characters long."
 }

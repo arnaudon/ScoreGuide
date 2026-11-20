@@ -148,7 +148,16 @@
 				</div>
 				<div class="space-y-2">
 					<label for="new_password" class="text-sm font-medium">{m.new_password()}</label>
-					<Input id="new_password" name="new_password" type="password" required class="max-w-md" />
+					<Input
+						id="new_password"
+						name="new_password"
+						type="password"
+						required
+						minlength={8}
+						maxlength={128}
+						autocomplete="new-password"
+						class="max-w-md"
+					/>
 				</div>
 				<div class="space-y-2">
 					<label for="confirm_password" class="text-sm font-medium">{m.confirm_password()}</label>

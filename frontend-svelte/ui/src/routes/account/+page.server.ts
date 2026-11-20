@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
+import { passwordLengthOk } from '#lib/password.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -68,6 +69,10 @@ export const actions: Actions = {
 			return fail(400, { form: 'password', error: m.err_new_passwords_mismatch() });
 		}
 
+		if (!passwordLengthOk(new_password.toString())) {
+			return fail(400, { form: 'password', error: m.err_password_length() });
+		}
+
 		const api = apiFetch(fetch, token);
 		const res = await api('/user/password', {
 			method: 'PUT',
@@ -86,6 +91,18 @@ export const actions: Actions = {
 			});
 		}
 
+		// The change signed out every session, this one included: keep the
+		// user logged in here with the fresh token the backend returns.
+		const result = await res.json().catch(() => ({}));
+		if (typeof result.access_token === 'string') {
+			cookies.set('access_token', result.access_token, {
+				path: '/',
+				httpOnly: true,
+				secure: !dev,
+				sameSite: 'lax',
+				maxAge: 60 * 60 * 24 // the backend's 1-day token
+			});
+		}
 		return { form: 'password', success: true };
 	},
 
