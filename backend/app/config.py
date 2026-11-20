@@ -16,6 +16,12 @@ MAX_PDF_MB = int(os.getenv("MAX_PDF_MB", "50"))
 # Storage abuse limits for one account: PDF uploads, and scores in a library.
 UPLOAD_RATE_LIMIT = os.getenv("UPLOAD_RATE_LIMIT", "30/hour")
 MAX_SCORES_PER_USER = int(os.getenv("MAX_SCORES_PER_USER", "1000"))
+# Cost caps for one AI request (one credit): the length of each model answer,
+# the number of model calls in one run (tool round-trips, retries) and the
+# total tokens spent. A run that hits a cap stops instead of running up the bill.
+AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "8192"))
+AI_REQUEST_LIMIT = int(os.getenv("AI_REQUEST_LIMIT", "15"))
+AI_TOTAL_TOKENS_LIMIT = int(os.getenv("AI_TOTAL_TOKENS_LIMIT", "300000"))
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "alexis.arnaudon@gmail.com")
 CORS_ORIGINS = [
     origin.strip()

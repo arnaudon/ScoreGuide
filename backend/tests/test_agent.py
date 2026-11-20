@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 
 from app import agent
 from shared.responses import FullResponse, ImslpResponse, Response
@@ -243,7 +243,9 @@ async def test_run_imslp_agent_history_parsing(monkeypatch):
     # Invalid history triggers except block and defaults to None
     await agent.run_imslp_agent("prompt", message_history="invalid_history")
     mock_agent_run.assert_called_with(
-        "<user_request>\nprompt\n</user_request>", message_history=None
+        "<user_request>\nprompt\n</user_request>",
+        message_history=None,
+        usage_limits=agent._usage_limits(),
     )
 
 
@@ -263,5 +265,32 @@ async def test_run_agent_history_parsing(monkeypatch):
     # Invalid history triggers except block and defaults to None
     await agent.run_agent("prompt", deps, message_history="invalid_history")
     mock_agent_run.assert_called_with(
-        "<user_request>\nprompt\n</user_request>", message_history=None, deps=deps
+        "<user_request>\nprompt\n</user_request>",
+        message_history=None,
+        deps=deps,
+        usage_limits=agent._usage_limits(),
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runner", ["imslp", "main"])
+async def test_run_agents_usage_limit(monkeypatch, runner):
+    """A run that hits a usage cap answers with a short message, not an error."""
+    mock_agent = MagicMock()
+    mock_agent.run = AsyncMock(side_effect=UsageLimitExceeded("too many tokens"))
+    if runner == "imslp":
+        monkeypatch.setattr("app.agent.Agent", MagicMock(return_value=mock_agent))
+        result = await agent.run_imslp_agent("prompt")
+    else:
+        monkeypatch.setattr("app.agent.get_main_agent", lambda *a, **k: mock_agent)
+        deps = agent.Deps(user=User(username="test"), scores=Scores(scores=[]))
+        result = await agent.run_agent("prompt", deps)
+    assert result.response.response == agent.TOO_LARGE_MSG
+    assert mock_agent.run.call_args.kwargs["usage_limits"].request_limit == 15
+
+
+def test_agents_cap_output_tokens(monkeypatch):
+    """Every agent is built with the output-token cap."""
+    monkeypatch.setattr("app.agent.config.AI_MAX_OUTPUT_TOKENS", 123)
+    main = agent.get_main_agent("test")
+    assert main.model_settings == {"max_tokens": 123}
