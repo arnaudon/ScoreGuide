@@ -11,6 +11,7 @@ from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.messages import ModelMessage
+from pydantic_ai.models import Model
 
 from app import config
 from shared.responses import FullResponse, ImslpFullResponse, ImslpResponse, Response
@@ -124,7 +125,7 @@ def _response_for_http_error(err: ModelHTTPError, factory):
     return factory("An HTTP error occurred")
 
 
-def get_main_agent(model: str | None = None):
+def get_main_agent(model: Model | str | None = None):
     """Initializes and returns the main agent for handling user queries about scores."""
     agent = Agent(
         model or os.getenv("MODEL", "test"),
@@ -154,7 +155,7 @@ def get_main_agent(model: str | None = None):
     return agent
 
 
-async def run_imslp_agent(prompt: str, message_history=None, model: str | None = None):
+async def run_imslp_agent(prompt: str, message_history=None, model: Model | str | None = None):
     """
     Run an agent specialized for querying the IMSLP database.
 
@@ -214,7 +215,9 @@ async def run_imslp_agent(prompt: str, message_history=None, model: str | None =
     return ImslpFullResponse(response=response, message_history=[])
 
 
-async def run_agent(prompt: str, deps: Deps, message_history=None, model: str | None = None):
+async def run_agent(
+    prompt: str, deps: Deps, message_history=None, model: Model | str | None = None
+):
     """
     Run the main conversational agent to find musical scores.
 
@@ -247,7 +250,7 @@ async def run_agent(prompt: str, deps: Deps, message_history=None, model: str | 
     return FullResponse(response=response, message_history=[])
 
 
-async def run_complete_agent(score: Score, model: str | None = None):
+async def run_complete_agent(score: Score, model: Model | str | None = None):
     """
     Run an agent to find and add missing information to a score.
 

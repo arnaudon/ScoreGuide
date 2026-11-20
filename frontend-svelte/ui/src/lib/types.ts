@@ -167,6 +167,18 @@ export interface ActiveModels {
 	complete: string;
 }
 
+/** Matches `app.llm.CredentialStatus`: the secret itself is never sent. */
+export interface CredentialStatus {
+	set: boolean;
+	source: 'admin' | 'env' | '';
+	hint: string;
+}
+
+export type Credentials = Record<
+	'google_api_key' | 'infomaniak_api_key' | 'infomaniak_product_id',
+	CredentialStatus
+>;
+
 /** A user's report that a score's table of contents is wrong (admin view). */
 export interface TocReport {
 	id: number;

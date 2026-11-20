@@ -354,5 +354,18 @@
 	"home_periods": "Vos périodes",
 	"home_most_played": "Les plus jouées",
 	"home_repertoire": "Votre répertoire",
-	"home_stat_periods": "Périodes"
+	"home_stat_periods": "Périodes",
+	"ai_providers": "Fournisseurs d'IA",
+	"ai_providers_desc": "Clés des modèles utilisés par les agents. Une clé enregistrée n'est plus jamais affichée, seulement ses derniers caractères. Laissez un champ vide pour garder sa valeur. Sans clé ici, la variable d'environnement du serveur est utilisée.",
+	"credential_google_api_key": "Clé API Google AI",
+	"credential_infomaniak_api_key": "Jeton Infomaniak AI",
+	"credential_infomaniak_product_id": "ID du produit Infomaniak AI",
+	"credential_not_set": "Non configurée",
+	"credential_set_admin": "Enregistrée ici ({hint})",
+	"credential_set_env": "Depuis l'environnement du serveur ({hint})",
+	"credential_keep_placeholder": "Laisser vide pour garder la valeur actuelle",
+	"credential_new_placeholder": "Collez la valeur",
+	"credential_clear": "Supprimer la valeur enregistrée (utiliser l'environnement du serveur)",
+	"credentials_saved": "Enregistré.",
+	"err_save_credentials": "Impossible d'enregistrer les clés."
 }
