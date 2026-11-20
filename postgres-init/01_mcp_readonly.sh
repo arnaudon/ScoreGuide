@@ -17,6 +17,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<EO
 CREATE USER mcp_readonly WITH PASSWORD '${MCP_READONLY_PASSWORD:-readonly}';
 
 GRANT USAGE ON SCHEMA public TO mcp_readonly;
+ALTER ROLE mcp_readonly SET statement_timeout = '30s';
 EOF
 # SELECT on the catalogue alone (never user/setting/score: a prompt-injected
 # query must not reach password hashes or API keys). On a fresh volume the

@@ -27,3 +27,8 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM mcp_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM mcp_readonly;
 GRANT USAGE ON SCHEMA public TO mcp_readonly;
 GRANT SELECT ON public.imslp TO mcp_readonly;
+
+-- Stop runaway queries (e.g. an unindexed join over the whole catalogue) from
+-- tying up the database. Plain ILIKE searches over imslp take 10-35 s on the
+-- current VPS, so the cap is generous; it applies to new connections.
+ALTER ROLE mcp_readonly SET statement_timeout = '30s';
