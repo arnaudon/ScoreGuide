@@ -3,6 +3,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import type { PageProps } from './$types';
+	import UsageMeters from '#lib/components/UsageMeters.svelte';
 	import * as m from '#lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
@@ -95,15 +96,6 @@
 						class="max-w-md capitalize"
 					/>
 				</div>
-				<div class="space-y-2">
-					<label for="credits" class="text-sm font-medium">{m.credits()}</label>
-					<Input
-						id="credits"
-						value={`${data.user?.credits} / ${data.user?.max_credits}`}
-						disabled
-						class="max-w-md"
-					/>
-				</div>
 
 				{#if form?.form === 'profile' && form?.error}
 					<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
@@ -119,6 +111,13 @@
 				</Button>
 			</form>
 		</section>
+
+		{#if data.user?.usage}
+			<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
+				<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.usage_title()}</h2>
+				<UsageMeters usage={data.user.usage} />
+			</section>
+		{/if}
 
 		<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
 			<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.change_password()}</h2>

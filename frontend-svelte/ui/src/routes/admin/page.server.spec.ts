@@ -15,8 +15,18 @@ const EMPTY_DEFAULTS = {
 	progress: { status: 'idle', start: 0, works: 0, error: '' },
 	activeModels: { main: '', imslp: '', complete: '' },
 	credentials: null,
-	tocReports: []
+	tocReports: [],
+	planSettings: null,
+	usageNow: [],
+	usageMonth: [],
+	month: ''
 };
+const PLANS = {
+	limits: { free: { ai_tokens: 1, storage_mb: 2 }, pro: { ai_tokens: 3, storage_mb: 4 } },
+	weights: {}
+};
+const USAGE = [{ user_id: 1, username: 'alice', requests: 2, cost: 10 }];
+const URL_ = (search = '') => new URL(`http://localhost/admin${search}`);
 const CREDENTIALS = { google_api_key: { set: true, source: 'env', hint: '…abcd' } };
 const REPORTS = [{ id: 1, score_title: 'WTC II', comment: 'no preludes' }];
 
@@ -50,16 +60,53 @@ describe('admin load', () => {
 			.mockResolvedValueOnce(jsonResponse(PROGRESS)) // /imslp/progress
 			.mockResolvedValueOnce(jsonResponse(MODELS)) // /admin/model
 			.mockResolvedValueOnce(jsonResponse(CREDENTIALS)) // /admin/credentials
-			.mockResolvedValueOnce(jsonResponse(REPORTS)); // /admin/toc-reports
-		const result = await load(event({ cookies: makeCookies({ access_token: 'tok' }), fetch }));
+			.mockResolvedValueOnce(jsonResponse(REPORTS)) // /admin/toc-reports
+			.mockResolvedValueOnce(jsonResponse(PLANS)) // /admin/plans
+			.mockResolvedValueOnce(jsonResponse(USAGE)); // /admin/usage
+		const result = await load(
+			event({ cookies: makeCookies({ access_token: 'tok' }), fetch, url: URL_('?month=bad') })
+		);
 		expect(result).toEqual({
 			users: USERS,
 			stats: STATS,
 			progress: PROGRESS,
 			activeModels: MODELS.models,
 			credentials: CREDENTIALS,
-			tocReports: REPORTS
+			tocReports: REPORTS,
+			planSettings: PLANS,
+			usageNow: USAGE,
+			usageMonth: USAGE,
+			month: ''
 		});
+	});
+
+	it('loads the usage of the month picked in the URL', async () => {
+		const fetch = vi.fn(async (url: string) => {
+			if (url.includes('/is_admin')) return jsonResponse(true);
+			if (url.includes('/admin/usage?month=2026-01')) return jsonResponse([{ user_id: 9 }]);
+			if (url.includes('/admin/usage')) return jsonResponse(USAGE);
+			return new Response(null, { status: 500 });
+		});
+		const result = await load(
+			event({ cookies: makeCookies({ access_token: 'tok' }), fetch, url: URL_('?month=2026-01') })
+		);
+		expect(result).toMatchObject({
+			month: '2026-01',
+			usageNow: USAGE,
+			usageMonth: [{ user_id: 9 }]
+		});
+
+		const failingMonth = vi.fn(async (url: string) =>
+			url.includes('/is_admin') ? jsonResponse(true) : new Response(null, { status: 500 })
+		);
+		const empty = await load(
+			event({
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch: failingMonth,
+				url: URL_('?month=2026-01')
+			})
+		);
+		expect(empty).toMatchObject({ month: '2026-01', usageMonth: [] });
 	});
 
 	it('returns empty defaults when /users etc. all fail individually', async () => {
@@ -71,80 +118,109 @@ describe('admin load', () => {
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }))
+			.mockResolvedValueOnce(new Response(null, { status: 500 }))
+			.mockResolvedValueOnce(new Response(null, { status: 500 }))
 			.mockResolvedValueOnce(new Response(null, { status: 500 }));
-		const result = await load(event({ cookies: makeCookies({ access_token: 'tok' }), fetch }));
+		const result = await load(
+			event({ cookies: makeCookies({ access_token: 'tok' }), fetch, url: URL_() })
+		);
 		expect(result).toEqual(EMPTY_DEFAULTS);
 	});
 
 	it('returns empty defaults and logs when fetch throws', async () => {
 		const fetch = vi.fn().mockRejectedValueOnce(new Error('network'));
-		const result = await load(event({ cookies: makeCookies({ access_token: 'tok' }), fetch }));
+		const result = await load(
+			event({ cookies: makeCookies({ access_token: 'tok' }), fetch, url: URL_() })
+		);
 		expect(result).toEqual(EMPTY_DEFAULTS);
 		expect(errSpy).toHaveBeenCalled();
 	});
 });
 
-describe('refill_credits action', () => {
-	it('fails 400 when user_id is missing', async () => {
-		const result = await actions.refill_credits(
-			event({
-				request: fakeRequest({}),
-				cookies: makeCookies({ access_token: 'tok' }),
-				fetch: vi.fn()
-			})
-		);
-		expect(isActionFailure(result)).toBe(true);
-		expect(result).toMatchObject({ status: 400 });
+describe('set_user_plan action', () => {
+	const call = (
+		fields: Record<string, string>,
+		fetch = makeFetch(),
+		cookies = makeCookies({ access_token: 'tok' })
+	) => actions.set_user_plan(event({ request: fakeRequest(fields), cookies, fetch }));
+
+	it('fails 401 without a token and 400 on a bad user id or plan', async () => {
+		expect(await call({ user_id: '7', plan: 'pro' }, makeFetch(), makeCookies())).toMatchObject({
+			status: 401
+		});
+		expect(await call({ user_id: 'x', plan: 'pro' })).toMatchObject({ status: 400 });
+		expect(await call({ user_id: '7', plan: 'gold' })).toMatchObject({ status: 400 });
 	});
 
-	it('fails with backend status when the POST returns non-OK', async () => {
-		const fetch = vi.fn(async () => jsonResponse({ detail: 'broke' }, 500));
-		const result = await actions.refill_credits(
-			event({
-				request: fakeRequest({ user_id: '7' }),
-				cookies: makeCookies({ access_token: 'tok' }),
-				fetch
-			})
-		);
-		expect(result).toMatchObject({ status: 500, data: { error: 'broke' } });
-	});
-
-	it('returns undefined (no failure) when the POST is OK', async () => {
+	it('sends the plan, with empty limits as null', async () => {
 		const fetch = makeFetch();
-		const result = await actions.refill_credits(
-			event({
-				request: fakeRequest({ user_id: '7' }),
-				cookies: makeCookies({ access_token: 'tok' }),
-				fetch
-			})
+		const result = await call(
+			{ user_id: '7', plan: 'pro', ai_allowance: ' 500 ', storage_limit_mb: '' },
+			fetch
 		);
-		expect(result).toBeUndefined();
+		expect(fetch.mock.calls[0][0]).toContain('/users/7/plan');
+		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({
+			plan: 'pro',
+			ai_allowance: 500,
+			storage_limit_mb: null
+		});
+		expect(result).toEqual({ formId: 'plan', success: true });
+	});
+
+	it('surfaces backend errors', async () => {
+		const fetch = makeFetch(async () => jsonResponse({ detail: 'nope' }, 422));
+		expect(await call({ user_id: '7', plan: 'pro' }, fetch)).toMatchObject({
+			status: 422,
+			data: { formId: 'plan', error: 'nope' }
+		});
+		const broken = makeFetch(async () => new Response('x', { status: 500 }));
+		expect(await call({ user_id: '7', plan: 'pro' }, broken)).toMatchObject({
+			data: { error: 'Could not update the plan' }
+		});
 	});
 });
 
-describe('set_credits action', () => {
-	it('fails 400 when fields are missing', async () => {
-		const result = await actions.set_credits(
-			event({
-				request: fakeRequest({}),
-				cookies: makeCookies({ access_token: 'tok' }),
-				fetch: vi.fn()
-			})
-		);
-		expect(result).toMatchObject({ status: 400 });
+describe('set_plans action', () => {
+	const FIELDS = {
+		free_ai_tokens: '100',
+		free_storage_mb: '200',
+		pro_ai_tokens: '300',
+		pro_storage_mb: '400',
+		weights: 'infomaniak:big = 5'
+	};
+	const call = (
+		fields: Record<string, string>,
+		fetch = makeFetch(),
+		cookies = makeCookies({ access_token: 'tok' })
+	) => actions.set_plans(event({ request: fakeRequest(fields), cookies, fetch }));
+
+	it('sends limits and parsed weights', async () => {
+		const fetch = makeFetch();
+		expect(await call(FIELDS, fetch)).toEqual({ formId: 'plans', success: true });
+		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({
+			limits: {
+				free: { ai_tokens: 100, storage_mb: 200 },
+				pro: { ai_tokens: 300, storage_mb: 400 }
+			},
+			weights: { 'infomaniak:big': 5 }
+		});
 	});
 
-	it('posts max_credits as a number on happy path', async () => {
-		const fetch = makeFetch();
-		await actions.set_credits(
-			event({
-				request: fakeRequest({ user_id: '7', max_credits: '42' }),
-				cookies: makeCookies({ access_token: 'tok' }),
-				fetch
-			})
-		);
-		const body = JSON.parse(fetch.mock.calls[0][1]!.body as string);
-		expect(body).toEqual({ max_credits: 42 });
+	it('refuses malformed weights, a missing token and backend errors', async () => {
+		expect(await call({ ...FIELDS, weights: 'oops' })).toMatchObject({
+			status: 400,
+			data: { error: 'Write each line as model = number.' }
+		});
+		expect(await call(FIELDS, makeFetch(), makeCookies())).toMatchObject({ status: 401 });
+		const fetch = makeFetch(async () => jsonResponse({ detail: 'bad limits' }, 422));
+		expect(await call(FIELDS, fetch)).toMatchObject({
+			status: 422,
+			data: { formId: 'plans', error: 'bad limits' }
+		});
+		const broken = makeFetch(async () => new Response('x', { status: 500 }));
+		expect(await call(FIELDS, broken)).toMatchObject({
+			data: { error: 'Could not save the plans' }
+		});
 	});
 });
 
@@ -290,17 +366,6 @@ describe('admin action failures are surfaced', () => {
 			})
 		);
 		expect(result).toMatchObject({ data: { error: 'IMSLP request failed (500).' } });
-	});
-
-	it('tags credit failures with formId "credits"', async () => {
-		const result = await actions.set_credits(
-			event({
-				request: fakeRequest({ user_id: '1', max_credits: '5' }),
-				cookies: makeCookies({ access_token: 'tok' }),
-				fetch: failing()
-			})
-		);
-		expect(result).toMatchObject({ data: { formId: 'credits' } });
 	});
 });
 

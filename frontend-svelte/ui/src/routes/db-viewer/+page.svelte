@@ -38,6 +38,7 @@
 	import DataTableSortButton from './data-table-sort-button.svelte';
 	import { imslpAgentHistoryStore } from '#lib/stores/chat.svelte.js';
 	import * as m from '#lib/paraglide/messages.js';
+	import { aiLeftLabel } from '#lib/usage.js';
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);
@@ -259,10 +260,8 @@
 		<div class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-4">
 			<div class="mb-4 flex items-center justify-between gap-2">
 				<h2 class="text-fancy-title text-lg font-semibold">{m.add_new_score()}</h2>
-				{#if data.user?.credits !== undefined}
-					<span class="text-muted-foreground text-sm font-medium">
-						{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
-					</span>
+				{#if aiLeftLabel(data.user)}
+					<span class="text-muted-foreground text-sm font-medium">{aiLeftLabel(data.user)}</span>
 				{/if}
 			</div>
 			<Tabs.Root value="manual" class="w-full">
@@ -715,9 +714,7 @@
 							form="recomplete-form"
 							variant="outline"
 							disabled={recompleting}
-							title={data.user?.credits !== undefined
-								? m.credits_label({ credits: data.user.credits, max: data.user.max_credits })
-								: undefined}
+							title={aiLeftLabel(data.user)}
 						>
 							<SparklesIcon />{recompleting ? m.running_agent() : m.rerun_complete_agent()}
 						</Button>
@@ -735,10 +732,8 @@
 						<BookOpenIcon />{m.view_pdf()}
 					</Button>
 				</div>
-				{#if !page.data.isDemo && data.user?.credits !== undefined}
-					<p class="text-muted-foreground text-end text-xs">
-						{m.credits_label({ credits: data.user.credits, max: data.user.max_credits })}
-					</p>
+				{#if !page.data.isDemo && aiLeftLabel(data.user)}
+					<p class="text-muted-foreground text-end text-xs">{aiLeftLabel(data.user)}</p>
 				{/if}
 			</div>
 		{/if}

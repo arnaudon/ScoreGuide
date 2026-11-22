@@ -21,9 +21,8 @@ from sqlalchemy import text
 from sqlmodel import Session, col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import annotations, config, db, imslp, llm, sections, users
+from app import annotations, config, db, imslp, llm, plans, sections, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
-from app.credits import consume_credit
 from app.db import get_async_session, get_session
 from app.file_helper import file_helper
 from app.rate_limit import limiter
@@ -36,6 +35,7 @@ from app.users import (
 from shared.annotations import Annotation
 from shared.scores import Score, ScoreCreate, Scores, ScoreUpdate, TocReport
 from shared.settings import Setting
+from shared.usage import AIUsage
 from shared.user import User
 
 logger = getLogger(__name__)
@@ -117,6 +117,7 @@ app.include_router(users.router, tags=["users"])
 app.include_router(imslp.router, tags=["imslp"])
 app.include_router(sections.router, tags=["sections"])
 app.include_router(llm.router)
+app.include_router(plans.router)
 app.include_router(annotations.router, tags=["annotations"])
 
 
@@ -128,6 +129,17 @@ def health(session: Session = Depends(get_session)):
     except Exception as e:
         raise HTTPException(status_code=503, detail="database unreachable") from e
     return {"status": "ok"}
+
+
+def _pdf_size(pdf_path: str) -> int:
+    """Bytes of a stored PDF (0 when there is none), for the storage quota."""
+    if not pdf_path:
+        return 0
+    try:
+        return file_helper.get_size(pdf_path)
+    except Exception:
+        logger.warning("no stored file for %s", pdf_path)
+        return 0
 
 
 @app.post("/scores")
@@ -147,6 +159,7 @@ def add_score(
             detail=f"Your library is full ({config.MAX_SCORES_PER_USER} scores).",
         )
     db_score = Score(**score.model_dump(), user_id=current_user.id)
+    db_score.pdf_size = _pdf_size(db_score.pdf_path)
     session.add(db_score)
     session.commit()
     session.refresh(db_score)
@@ -175,9 +188,10 @@ def get_score(
 
 
 async def _agent_model(session: AsyncSession, setting_key: str):
-    """The agent's model, or 503 before any credit is spent if its provider lacks a key."""
+    """The agent's model name and model, or 503 before anything is spent if its
+    provider lacks a key."""
     try:
-        return await llm.agent_model(session, setting_key)
+        return await llm.named_agent_model(session, setting_key)
     except llm.MissingCredential as e:
         logger.error("AI provider not configured: %s", e)
         raise HTTPException(status_code=503, detail="AI provider not configured") from e
@@ -192,11 +206,11 @@ async def complete_score(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Complete a score."""
-    model = await _agent_model(session, "model_complete")
+    name, model = await _agent_model(session, "model_complete")
 
-    async with consume_credit(current_user.id, session):
+    async with plans.metered(current_user, session, "complete_score", name) as usage:
         try:
-            return await run_complete_agent(score, model)
+            return await run_complete_agent(score, model, usage=usage)
         except Exception as e:
             logger.exception("complete_score failed")
             raise HTTPException(status_code=500, detail="Agent execution failed") from e
@@ -219,6 +233,8 @@ def update_score(
 
     for key, value in score_update.model_dump(exclude_unset=True).items():
         setattr(db_score, key, value)
+    if "pdf_path" in score_update.model_fields_set:
+        db_score.pdf_size = _pdf_size(db_score.pdf_path)
 
     session.add(db_score)
     session.commit()
@@ -263,6 +279,7 @@ def delete_account(
     # Their annotations and reports on any other score.
     session.exec(delete(Annotation).where(col(Annotation.user_id) == current_user.id))  # type: ignore[call-overload]
     session.exec(delete(TocReport).where(col(TocReport.user_id) == current_user.id))  # type: ignore[call-overload]
+    session.exec(delete(AIUsage).where(col(AIUsage.user_id) == current_user.id))  # type: ignore[call-overload]
     session.flush()
     session.delete(current_user)
     session.commit()
@@ -319,12 +336,12 @@ async def run_imslp_agent_api(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Run the imslp agent."""
-    model = await _agent_model(session, "model_imslp")
+    name, model = await _agent_model(session, "model_imslp")
 
-    async with consume_credit(current_user.id, session):
+    async with plans.metered(current_user, session, "imslp_agent", name) as usage:
         try:
             return await run_imslp_agent(
-                body.prompt, message_history=body.message_history, model=model
+                body.prompt, message_history=body.message_history, model=model, usage=usage
             )
         except Exception as e:
             logger.exception("imslp agent failed")
@@ -340,21 +357,22 @@ async def run_main_agent(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Run the agent."""
-    model = await _agent_model(session, "model_main")
+    name, model = await _agent_model(session, "model_main")
 
-    # Validate before consuming a credit so malformed payloads don't debit.
+    # Validate before running so malformed payloads cost nothing.
     try:
         scores = Scores.model_validate_json(body.deps)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail="Invalid deps payload") from e
 
-    async with consume_credit(current_user.id, session):
+    async with plans.metered(current_user, session, "agent", name) as usage:
         try:
             return await run_agent(
                 body.prompt,
                 message_history=body.message_history,
                 deps=Deps(user=current_user, scores=scores),
                 model=model,
+                usage=usage,
             )
         except Exception as e:
             logger.exception("main agent failed")
@@ -483,12 +501,27 @@ def get_pdf(
     )
 
 
-@app.post("/pdf", dependencies=[Depends(get_verified_user)])
+def _upload_size(file: UploadFile) -> int:
+    """Bytes of an upload (measured when the client didn't say)."""
+    if file.size is not None:
+        return file.size
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    return size
+
+
+@app.post("/pdf")
 # Per account (the key is the bearer token): bounds how fast one account can
 # fill the storage, including PDFs never attached to a score.
 @limiter.limit(config.UPLOAD_RATE_LIMIT)
-def upload_pdf(request: Request, file: UploadFile = File(...)):
-    """Upload a pdf file."""
+def upload_pdf(
+    request: Request,
+    current_user: Annotated[User, Depends(get_verified_user)],
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+):
+    """Upload a pdf file, within the user's storage limit."""
     if file.content_type != "application/pdf":  # pragma: no cover
         raise HTTPException(status_code=400, detail="Only PDFs allowed")
     if file.size is not None and file.size > config.MAX_PDF_MB * 1024 * 1024:
@@ -498,6 +531,7 @@ def upload_pdf(request: Request, file: UploadFile = File(...)):
     file.file.seek(0)
     if b"%PDF-" not in head:
         raise HTTPException(status_code=400, detail="Only PDFs allowed")
+    plans.check_storage(current_user, session, _upload_size(file))
     try:
         file_id = f"{uuid.uuid4().hex}.pdf"
         file_helper.upload_pdf(file_id, file.file)

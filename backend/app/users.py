@@ -20,6 +20,7 @@ from app.db import get_session
 from app.email_utils import send_email_safely
 from app.rate_limit import limiter
 from shared.scores import Score
+from shared.usage import UsageSummary
 from shared.user import User
 
 PASSWORD_RESET_PURPOSE = "password_reset"
@@ -84,16 +85,19 @@ class UserResponse(BaseModel):
     last_name: str | None = None
     instrument: str | None = None
     role: str
-    credits: int
-    max_credits: int
+    plan: str = "free"
     last_login: datetime | None = None
     email_verified: bool = True
+    # Plan limits and this month's use; only filled by ``GET /user``.
+    usage: UsageSummary | None = None
 
 
 class UserAdminResponse(UserResponse):
-    """Admin ``GET /users`` row — adds the denormalized score count."""
+    """Admin ``GET /users`` row — adds the score count and limit overrides."""
 
     score_count: int = 0
+    ai_allowance: int | None = None
+    storage_limit_mb: int | None = None
 
 
 class UserUpdateRequest(BaseModel):
@@ -127,12 +131,6 @@ class ResetPasswordRequest(BaseModel):
 
     token: str
     new_password: Password
-
-
-class CreditUpdateRequest(BaseModel):
-    """Credit update request model."""
-
-    max_credits: int
 
 
 password_hash = PasswordHash.recommended()
@@ -471,9 +469,14 @@ def get_users(_: Annotated[User, Depends(get_admin_user)], session: Session = De
 @router.get("/user", response_model=UserResponse)
 def get_current_user_route(
     current_user: Annotated[User, Depends(get_current_user)],
+    session: Session = Depends(get_session),
 ):
-    """Get current user."""
-    return current_user
+    """Get current user, with their plan's limits and this month's use."""
+    from app.plans import usage_summary  # app.plans imports this module
+
+    response = UserResponse.model_validate(current_user, from_attributes=True)
+    response.usage = usage_summary(current_user, session)
+    return response
 
 
 @router.put("/user", response_model=UserResponse)
@@ -610,40 +613,3 @@ def reset_password(
     session.add(user)
     session.commit()
     return {"message": "Password reset successfully"}
-
-
-@router.put("/users/{user_id}/credits", response_model=UserResponse)
-def set_user_credits(
-    user_id: int,
-    request: CreditUpdateRequest,
-    _: Annotated[User, Depends(get_admin_user)],
-    session: Session = Depends(get_session),
-):
-    """Set max credits for a user (admin only)."""
-    user_to_update = session.get(User, user_id)
-    if not user_to_update:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user_to_update.max_credits = request.max_credits
-    session.add(user_to_update)
-    session.commit()
-    session.refresh(user_to_update)
-    return user_to_update
-
-
-@router.post("/users/{user_id}/refill_credits", response_model=UserResponse)
-def refill_user_credits(
-    user_id: int,
-    _: Annotated[User, Depends(get_admin_user)],
-    session: Session = Depends(get_session),
-):
-    """Refill credits for a user to their max value (admin only)."""
-    user_to_update = session.get(User, user_id)
-    if not user_to_update:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user_to_update.credits = user_to_update.max_credits
-    session.add(user_to_update)
-    session.commit()
-    session.refresh(user_to_update)
-    return user_to_update

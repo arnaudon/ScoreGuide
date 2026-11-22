@@ -6,6 +6,7 @@
 	import type { Snippet } from 'svelte';
 	import type { User } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
+	import { aiLeftLabel } from '#lib/usage.js';
 
 	type HistoryMessage = {
 		question: string;
@@ -159,10 +160,8 @@
 				<span class="text-xs">{m.agent_can_make_mistakes()}</span>
 			</div>
 			<div class="flex items-center gap-4">
-				{#if user?.credits !== undefined}
-					<span class="font-medium"
-						>{m.credits_label({ credits: user.credits, max: user.max_credits })}</span
-					>
+				{#if aiLeftLabel(user)}
+					<span class="font-medium">{aiLeftLabel(user)}</span>
 				{/if}
 				<Button variant="outline" size="sm" onclick={clearHistory}>{m.clean_history()}</Button>
 			</div>

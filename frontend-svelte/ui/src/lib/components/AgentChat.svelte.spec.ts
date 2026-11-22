@@ -11,8 +11,15 @@ const USER = {
 	last_name: null,
 	instrument: null,
 	role: 'user',
-	credits: 7,
-	max_credits: 20,
+	plan: 'free',
+	usage: {
+		plan: 'free',
+		ai_used: 50,
+		ai_allowance: 200,
+		ai_resets_at: '2026-12-01T00:00:00',
+		storage_used: 0,
+		storage_limit: 0
+	},
 	last_login: null
 };
 
@@ -33,9 +40,9 @@ describe('AgentChat.svelte', () => {
 		await expect.element(page.getByRole('button', { name: /^ask$/i })).toBeInTheDocument();
 	});
 
-	it('shows the credits badge when user is supplied', async () => {
+	it('shows how much AI allowance is left when user is supplied', async () => {
 		render(AgentChatHarness, { user: USER, withHistory: false });
-		await expect.element(page.getByText(/7\s*\/\s*20/)).toBeInTheDocument();
+		await expect.element(page.getByText('AI: 75% left this month')).toBeInTheDocument();
 	});
 
 	it('renders each Q: prefix and the result snippet for history entries', async () => {

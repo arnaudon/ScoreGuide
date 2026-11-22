@@ -42,6 +42,7 @@ import shared.user
 import shared.scores
 import shared.settings
 import shared.annotations
+import shared.usage
 
 target_metadata = SQLModel.metadata
 

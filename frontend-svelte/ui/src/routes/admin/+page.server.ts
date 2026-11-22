@@ -2,11 +2,15 @@ import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
-import type { Credentials, ImslpProgress, TocReport } from '#lib/types.js';
+import { detailMessage } from '#lib/apiError.js';
+import { parseWeights } from '#lib/modelWeights.js';
+import type { Credentials, ImslpProgress, PlanSettings, TocReport, UsageRow } from '#lib/types.js';
 
 const CREDENTIAL_NAMES = ['google_api_key', 'infomaniak_api_key', 'infomaniak_product_id'];
 
-export const load: PageServerLoad = async ({ cookies, fetch }) => {
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+export const load: PageServerLoad = async ({ cookies, fetch, url }) => {
 	const token = cookies.get('access_token');
 
 	if (!token) {
@@ -58,7 +62,39 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 			tocReports = await reportsResponse.json();
 		}
 
-		return { users, stats, progress, activeModels, credentials, tocReports };
+		let planSettings: PlanSettings | null = null;
+		const plansResponse = await api('/admin/plans');
+		if (plansResponse.ok) {
+			planSettings = await plansResponse.json();
+		}
+
+		// This month's usage (users table) and the month picked for the usage table.
+		const month = MONTH.test(url.searchParams.get('month') ?? '')
+			? (url.searchParams.get('month') as string)
+			: '';
+		let usageNow: UsageRow[] = [];
+		const usageResponse = await api('/admin/usage');
+		if (usageResponse.ok) {
+			usageNow = await usageResponse.json();
+		}
+		let usageMonth = usageNow;
+		if (month) {
+			const monthResponse = await api(`/admin/usage?month=${month}`);
+			usageMonth = monthResponse.ok ? await monthResponse.json() : [];
+		}
+
+		return {
+			users,
+			stats,
+			progress,
+			activeModels,
+			credentials,
+			tocReports,
+			planSettings,
+			usageNow,
+			usageMonth,
+			month
+		};
 	} catch (error) {
 		// redirect() throws a Redirect, which we must let propagate.
 		if (isRedirect(error)) throw error;
@@ -71,7 +107,11 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 		progress: { status: 'idle', start: 0, works: 0, error: '' } as ImslpProgress,
 		activeModels: { main: '', imslp: '', complete: '' },
 		credentials: null as Credentials | null,
-		tocReports: [] as TocReport[]
+		tocReports: [] as TocReport[],
+		planSettings: null as PlanSettings | null,
+		usageNow: [] as UsageRow[],
+		usageMonth: [] as UsageRow[],
+		month: ''
 	};
 };
 
@@ -89,57 +129,67 @@ export const actions: Actions = {
 			return fail(res.status, { error: 'Failed to resolve report' });
 		}
 	},
-	refill_credits: async ({ request, cookies, fetch }) => {
+	set_user_plan: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
+		if (!token) return fail(401, { formId: 'plan', error: m.err_unauthorized() });
 		const data = await request.formData();
-		const userId = data.get('user_id');
-
-		if (!userId) {
-			return fail(400, { formId: 'credits', error: m.err_user_id_required() });
+		const userId = String(data.get('user_id') ?? '');
+		const plan = String(data.get('plan') ?? '');
+		if (!/^\d+$/.test(userId) || !['free', 'pro'].includes(plan)) {
+			return fail(400, { formId: 'plan', error: m.err_update_plan() });
 		}
-
-		const api = apiFetch(fetch, token);
-		const res = await api(`/users/${userId}/refill_credits`, { method: 'POST' });
-
-		if (!res.ok) {
-			const result = await res.json().catch((e) => {
-				console.error('Failed to parse refill_credits error', e);
-				return {};
-			});
-			return fail(res.status, {
-				formId: 'credits',
-				error: result.detail || m.err_refill_credits()
-			});
-		}
-	},
-	set_credits: async ({ request, cookies, fetch }) => {
-		const token = cookies.get('access_token');
-		const data = await request.formData();
-		const userId = data.get('user_id');
-		const max_credits = data.get('max_credits');
-
-		if (!userId || max_credits === null) {
-			return fail(400, { formId: 'credits', error: m.err_user_id_credits_required() });
-		}
-
-		const api = apiFetch(fetch, token);
-		const res = await api(`/users/${userId}/credits`, {
+		const limit = (name: string) => {
+			const value = String(data.get(name) ?? '').trim();
+			return value === '' ? null : Number(value);
+		};
+		const res = await apiFetch(fetch, token)(`/users/${userId}/plan`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ max_credits: Number(max_credits) })
+			body: JSON.stringify({
+				plan,
+				ai_allowance: limit('ai_allowance'),
+				storage_limit_mb: limit('storage_limit_mb')
+			})
 		});
-
 		if (!res.ok) {
-			const result = await res.json().catch((e) => {
-				console.error('Failed to parse set_credits error', e);
-				return {};
-			});
+			const result = await res.json().catch(() => ({}));
 			return fail(res.status, {
-				formId: 'credits',
-				error: result.detail || m.err_update_credits()
+				formId: 'plan',
+				error: detailMessage(result.detail, m.err_update_plan())
 			});
 		}
+		return { formId: 'plan', success: true };
 	},
+	set_plans: async ({ request, cookies, fetch }) => {
+		const token = cookies.get('access_token');
+		if (!token) return fail(401, { formId: 'plans', error: m.err_unauthorized() });
+		const data = await request.formData();
+		const limits = Object.fromEntries(
+			(['free', 'pro'] as const).map((plan) => [
+				plan,
+				{
+					ai_tokens: Number(data.get(`${plan}_ai_tokens`)),
+					storage_mb: Number(data.get(`${plan}_storage_mb`))
+				}
+			])
+		);
+		const weights = parseWeights(String(data.get('weights') ?? ''));
+		if (weights === null) return fail(400, { formId: 'plans', error: m.err_model_weights() });
+		const res = await apiFetch(fetch, token)('/admin/plans', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ limits, weights })
+		});
+		if (!res.ok) {
+			const result = await res.json().catch(() => ({}));
+			return fail(res.status, {
+				formId: 'plans',
+				error: detailMessage(result.detail, m.err_save_plans())
+			});
+		}
+		return { formId: 'plans', success: true };
+	},
+
 	set_credentials: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		const data = await request.formData();

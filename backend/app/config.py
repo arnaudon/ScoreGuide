@@ -16,6 +16,12 @@ MAX_PDF_MB = int(os.getenv("MAX_PDF_MB", "50"))
 # Storage abuse limits for one account: PDF uploads, and scores in a library.
 UPLOAD_RATE_LIMIT = os.getenv("UPLOAD_RATE_LIMIT", "30/hour")
 MAX_SCORES_PER_USER = int(os.getenv("MAX_SCORES_PER_USER", "1000"))
+# Default plan limits (the admin page overrides them): monthly AI allowance in
+# weighted tokens, and storage in MB. See app.plans.
+FREE_AI_TOKENS = int(os.getenv("FREE_AI_TOKENS", "200000"))
+FREE_STORAGE_MB = int(os.getenv("FREE_STORAGE_MB", "500"))
+PRO_AI_TOKENS = int(os.getenv("PRO_AI_TOKENS", "5000000"))
+PRO_STORAGE_MB = int(os.getenv("PRO_STORAGE_MB", "10000"))
 # Cost caps for one AI request (one credit): the length of each model answer,
 # the number of model calls in one run (tool round-trips, retries) and the
 # total tokens spent. A run that hits a cap stops instead of running up the bill.

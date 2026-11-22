@@ -13,7 +13,7 @@ from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 
 from app import config
 from shared.responses import FullResponse, ImslpFullResponse, ImslpResponse, Response
@@ -120,7 +120,7 @@ def _model_settings() -> ModelSettings:
 
 
 def _usage_limits() -> UsageLimits:
-    """Per-run caps on model calls and tokens, so one credit has a bounded cost."""
+    """Per-run caps on model calls and tokens, so one request has a bounded cost."""
     return UsageLimits(
         request_limit=config.AI_REQUEST_LIMIT,
         total_tokens_limit=config.AI_TOTAL_TOKENS_LIMIT,
@@ -174,7 +174,12 @@ def get_main_agent(model: Model | str | None = None):
     return agent
 
 
-async def run_imslp_agent(prompt: str, message_history=None, model: Model | str | None = None):
+async def run_imslp_agent(
+    prompt: str,
+    message_history=None,
+    model: Model | str | None = None,
+    usage: RunUsage | None = None,
+):
     """
     Run an agent specialized for querying the IMSLP database.
 
@@ -225,6 +230,7 @@ async def run_imslp_agent(prompt: str, message_history=None, model: Model | str 
             _wrap_user_prompt(prompt),
             message_history=_parse_history(message_history),
             usage_limits=_usage_limits(),
+            usage=usage,
         )
         return ImslpFullResponse(response=res.output, message_history=res.all_messages())
     except ModelHTTPError as e:
@@ -240,7 +246,11 @@ async def run_imslp_agent(prompt: str, message_history=None, model: Model | str 
 
 
 async def run_agent(
-    prompt: str, deps: Deps, message_history=None, model: Model | str | None = None
+    prompt: str,
+    deps: Deps,
+    message_history=None,
+    model: Model | str | None = None,
+    usage: RunUsage | None = None,
 ):
     """
     Run the main conversational agent to find musical scores.
@@ -264,6 +274,7 @@ async def run_agent(
             message_history=_parse_history(message_history),
             deps=deps,
             usage_limits=_usage_limits(),
+            usage=usage,
         )
         return FullResponse(response=res.output, message_history=res.all_messages())
     except ModelHTTPError as e:
@@ -278,7 +289,9 @@ async def run_agent(
     return FullResponse(response=response, message_history=[])
 
 
-async def run_complete_agent(score: Score, model: Model | str | None = None):
+async def run_complete_agent(
+    score: Score, model: Model | str | None = None, usage: RunUsage | None = None
+):
     """
     Run an agent to find and add missing information to a score.
 
@@ -308,5 +321,5 @@ async def run_complete_agent(score: Score, model: Model | str | None = None):
         tools=[duckduckgo_search_tool()],
     )
     prompt = f"Find the information about music piece {score.title} composed by {score.composer}."
-    res = await agent.run(_wrap_user_prompt(prompt), usage_limits=_usage_limits())
+    res = await agent.run(_wrap_user_prompt(prompt), usage_limits=_usage_limits(), usage=usage)
     return res.output
