@@ -124,16 +124,15 @@ export interface User {
 	last_login: string | null;
 	/** False until the emailed confirmation link is opened (when verification is on). */
 	email_verified?: boolean;
-	/** Plan limits and this month's use (only from `GET /user`). */
+	/** Plan limits and use so far (only from `GET /user`). */
 	usage?: UsageSummary | null;
 }
 
-/** Matches `shared.usage.UsageSummary`. Storage in bytes, AI in weighted tokens. */
+/** Matches `shared.usage.UsageSummary`. Storage in bytes; AI in weighted tokens used of all received. */
 export interface UsageSummary {
 	plan: string;
 	ai_used: number;
 	ai_allowance: number;
-	ai_resets_at: string;
 	storage_used: number;
 	storage_limit: number;
 }
@@ -167,6 +166,10 @@ export interface UsageRow {
 	input_tokens: number;
 	output_tokens: number;
 	cost: number;
+	/** Tokens an admin added to the account that month. */
+	granted: number;
+	/** Totals so far (not just that month): tokens used and received. */
+	ai_used: number;
 	ai_allowance: number;
 	storage_used: number;
 	storage_limit: number;

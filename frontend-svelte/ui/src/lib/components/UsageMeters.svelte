@@ -2,7 +2,6 @@
 	import { resolve } from '$app/paths';
 	import type { UsageSummary } from '#lib/types.js';
 	import { aiUsedPercent, formatBytes, planLabel, storageUsedPercent } from '#lib/usage.js';
-	import { getLocale } from '#lib/paraglide/runtime.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	/** The account's plan with AI and storage meters, and how to get more. */
@@ -10,12 +9,6 @@
 
 	const aiPercent = $derived(aiUsedPercent(usage));
 	const storagePercent = $derived(storageUsedPercent(usage));
-	const resets = $derived(
-		new Date(usage.ai_resets_at + (usage.ai_resets_at.endsWith('Z') ? '' : 'Z')).toLocaleDateString(
-			getLocale(),
-			{ day: 'numeric', month: 'long', timeZone: 'UTC' }
-		)
-	);
 </script>
 
 {#snippet meter(id: string, label: string, percent: number, detail: string)}
@@ -44,12 +37,7 @@
 	<p class="text-sm">
 		{m.plan_label()}: <span class="font-semibold">{planLabel(usage.plan)}</span>
 	</p>
-	{@render meter(
-		'usage-ai',
-		m.usage_ai(),
-		aiPercent,
-		m.usage_ai_detail({ percent: aiPercent, date: resets })
-	)}
+	{@render meter('usage-ai', m.usage_ai(), aiPercent, m.usage_ai_detail({ percent: aiPercent }))}
 	{@render meter(
 		'usage-storage',
 		m.usage_storage(),

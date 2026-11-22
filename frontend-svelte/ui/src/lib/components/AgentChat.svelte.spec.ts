@@ -16,7 +16,6 @@ const USER = {
 		plan: 'free',
 		ai_used: 50,
 		ai_allowance: 200,
-		ai_resets_at: '2026-12-01T00:00:00',
 		storage_used: 0,
 		storage_limit: 0
 	},
@@ -42,7 +41,7 @@ describe('AgentChat.svelte', () => {
 
 	it('shows how much AI allowance is left when user is supplied', async () => {
 		render(AgentChatHarness, { user: USER, withHistory: false });
-		await expect.element(page.getByText('AI: 75% left this month')).toBeInTheDocument();
+		await expect.element(page.getByText('AI: 75% left')).toBeInTheDocument();
 	});
 
 	it('renders each Q: prefix and the result snippet for history entries', async () => {

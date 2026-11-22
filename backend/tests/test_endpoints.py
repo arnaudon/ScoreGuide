@@ -1,8 +1,8 @@
 """End-to-end coverage for the three metered agent endpoints.
 
 Each run is logged in ``ai_usage`` with the tokens the agent reported through
-the ``RunUsage`` it was given, including runs that fail; a user whose monthly
-allowance is used up is refused before the agent runs.
+the ``RunUsage`` it was given, including runs that fail; a user whose AI
+tokens are used up is refused before the agent runs.
 """
 
 import pytest
@@ -151,7 +151,7 @@ def test_agent_endpoint_blocks_when_allowance_used(
     resp = client.post("/agent", json={"prompt": "p", "deps": '{"scores": []}'})
 
     assert resp.status_code == 403
-    assert "allowance" in resp.json()["detail"]
+    assert "AI tokens" in resp.json()["detail"]
     assert called is False
 
     # Admins are never blocked.

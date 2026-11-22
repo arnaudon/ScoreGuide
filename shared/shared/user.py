@@ -27,7 +27,7 @@ class User(SQLModel, table=True):
     credits: int = Field(default=50)
     max_credits: int = Field(default=50)
     # Billing plan ("free" or "pro") and optional per-user overrides of its
-    # monthly AI allowance (weighted tokens) and storage limit (MB).
+    # included AI tokens (weighted, once) and storage limit (MB).
     plan: str = Field(default="free")
     ai_allowance: int | None = Field(default=None)
     storage_limit_mb: int | None = Field(default=None)

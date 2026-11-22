@@ -400,3 +400,40 @@ describe('resolve_toc_report action', () => {
 		expect(isActionFailure(failed) && failed.status).toBe(404);
 	});
 });
+
+describe('grant_tokens action', () => {
+	const call = (
+		fields: Record<string, string>,
+		fetch = makeFetch(),
+		cookies = makeCookies({ access_token: 'tok' })
+	) => actions.grant_tokens(event({ request: fakeRequest(fields), cookies, fetch }));
+
+	it('posts a whole number of tokens', async () => {
+		const fetch = makeFetch();
+		expect(await call({ user_id: '7', tokens: ' 5000 ' }, fetch)).toEqual({
+			formId: 'grant',
+			success: true
+		});
+		expect(fetch.mock.calls[0][0]).toContain('/users/7/grant');
+		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({ tokens: 5000 });
+	});
+
+	it('refuses bad input, a missing token and backend errors', async () => {
+		for (const tokens of ['', '0', '-5', '1.5', 'abc']) {
+			expect(await call({ user_id: '7', tokens })).toMatchObject({ status: 400 });
+		}
+		expect(await call({ user_id: 'x', tokens: '5' })).toMatchObject({ status: 400 });
+		expect(await call({ user_id: '7', tokens: '5' }, makeFetch(), makeCookies())).toMatchObject({
+			status: 401
+		});
+		const fetch = makeFetch(async () => jsonResponse({ detail: 'User not found' }, 404));
+		expect(await call({ user_id: '7', tokens: '5' }, fetch)).toMatchObject({
+			status: 404,
+			data: { formId: 'grant', error: 'User not found' }
+		});
+		const broken = makeFetch(async () => new Response('x', { status: 500 }));
+		expect(await call({ user_id: '7', tokens: '5' }, broken)).toMatchObject({
+			data: { error: 'Enter a whole number of tokens above 0.' }
+		});
+	});
+});

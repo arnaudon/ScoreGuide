@@ -32,7 +32,17 @@ describe('EditPlanDialog.svelte', () => {
 		render(EditPlanDialog, { open: true, user: makeUser() });
 		await expect.element(page.getByText('Plan for alice')).toBeInTheDocument();
 		await expect.element(page.getByLabelText('Plan', { exact: true })).toHaveValue('pro');
-		await expect.element(page.getByLabelText('AI tokens per month')).toHaveValue(1234);
+		await expect.element(page.getByLabelText('AI tokens included')).toHaveValue(1234);
 		await expect.element(page.getByLabelText('Storage (MB)')).toHaveValue(null);
+	});
+});
+
+describe('EditPlanDialog.svelte top-up', () => {
+	it('offers a token top-up', async () => {
+		render(EditPlanDialog, { open: true, user: makeUser() });
+		await expect.element(page.getByLabelText('Add AI tokens')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Add', exact: true }))
+			.toBeInTheDocument();
 	});
 });

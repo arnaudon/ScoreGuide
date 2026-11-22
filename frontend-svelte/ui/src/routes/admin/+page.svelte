@@ -34,7 +34,7 @@
 	let savingModels = $state(false);
 	let savingPlans = $state(false);
 
-	/** This month's AI use and storage per user, for the users table. */
+	/** AI tokens used / received and storage per user, for the users table. */
 	const usageByUser = $derived(
 		new Map<number, UsageRow>(data.usageNow.map((row: UsageRow) => [row.user_id, row]))
 	);
@@ -165,12 +165,12 @@
 			cell: ({ row }) => planLabel(row.original.plan)
 		},
 		{
-			id: 'ai_month',
+			id: 'ai_used',
 			header: () => m.admin_ai_month(),
 			cell: ({ row }) => {
 				const usage = usageByUser.get(row.original.id);
 				if (!usage) return '-';
-				return `${aiUsedPercent({ ai_used: usage.cost, ai_allowance: usage.ai_allowance })}% (${nf.format(usage.cost)})`;
+				return `${aiUsedPercent(usage)}% (${nf.format(usage.ai_used)} / ${nf.format(usage.ai_allowance)})`;
 			}
 		},
 		{
@@ -541,10 +541,11 @@
 					<Table.Head class="text-right">{m.usage_tokens_in()}</Table.Head>
 					<Table.Head class="text-right">{m.usage_tokens_out()}</Table.Head>
 					<Table.Head class="text-right">{m.usage_counted()}</Table.Head>
+					<Table.Head class="text-right">{m.usage_granted()}</Table.Head>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
-				{#each data.usageMonth.filter((r: UsageRow) => r.requests > 0) as row (row.user_id)}
+				{#each data.usageMonth.filter((r: UsageRow) => r.requests > 0 || r.granted > 0) as row (row.user_id)}
 					<Table.Row>
 						<Table.Cell>{row.username}</Table.Cell>
 						<Table.Cell>{planLabel(row.plan)}</Table.Cell>
@@ -552,10 +553,11 @@
 						<Table.Cell class="text-right">{nf.format(row.input_tokens)}</Table.Cell>
 						<Table.Cell class="text-right">{nf.format(row.output_tokens)}</Table.Cell>
 						<Table.Cell class="text-right">{nf.format(row.cost)}</Table.Cell>
+						<Table.Cell class="text-right">{row.granted ? nf.format(row.granted) : '-'}</Table.Cell>
 					</Table.Row>
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={6} class="text-muted-foreground py-4 text-center">-</Table.Cell>
+						<Table.Cell colspan={7} class="text-muted-foreground py-4 text-center">-</Table.Cell>
 					</Table.Row>
 				{/each}
 			</Table.Body>

@@ -13,6 +13,8 @@ const COLUMNS: (keyof UsageRow)[] = [
 	'input_tokens',
 	'output_tokens',
 	'cost',
+	'granted',
+	'ai_used',
 	'ai_allowance',
 	'storage_used',
 	'storage_limit'

@@ -33,11 +33,10 @@ class AIUsage(SQLModel, table=True):
 
 
 class UsageSummary(BaseModel):
-    """A user's plan, AI use this month and storage use (bytes), for the UI."""
+    """A user's plan, AI tokens used of all received, and storage use (bytes)."""
 
     plan: str
     ai_used: int
     ai_allowance: int
-    ai_resets_at: datetime
     storage_used: int
     storage_limit: int

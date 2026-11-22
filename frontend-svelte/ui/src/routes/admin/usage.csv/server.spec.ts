@@ -12,6 +12,8 @@ const ROW = {
 	input_tokens: 100,
 	output_tokens: 20,
 	cost: 120,
+	granted: 0,
+	ai_used: 500,
 	ai_allowance: 5000,
 	storage_used: 10,
 	storage_limit: 20
@@ -37,8 +39,8 @@ describe('GET /admin/usage.csv', () => {
 		expect(String(fetch.mock.calls[0][0])).toContain('/admin/usage?month=2026-11');
 		expect(res.headers.get('Content-Disposition')).toContain('scoreguide-usage-2026-11.csv');
 		const [header, line] = (await res.text()).trim().split('\n');
-		expect(header.split(',')).toHaveLength(11);
-		expect(line).toBe('1,"ann, ""the"" pianist",,pro,3,100,20,120,5000,10,20');
+		expect(header.split(',')).toHaveLength(13);
+		expect(line).toBe('1,"ann, ""the"" pianist",,pro,3,100,20,120,0,500,5000,10,20');
 	});
 
 	it('ignores a bad month and refuses without a login or admin rights', async () => {

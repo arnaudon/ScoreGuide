@@ -1,9 +1,11 @@
-"""Plans: monthly AI allowance (metered in tokens) and storage quotas.
+"""Plans: AI tokens (metered) and storage quotas.
 
-Every agent run is logged in ``ai_usage`` with its real token counts, even
-when it fails. Its ``cost`` is the tokens times the model's weight (admin
-setting, default 1), so bigger models use the allowance faster. The allowance
-is per calendar month (UTC): usage is summed from the log, nothing to reset.
+Each account gets its plan's AI tokens once (no monthly renewal); an admin
+adds more by hand (``grant`` rows). Every agent run is logged in ``ai_usage``
+with its real token counts, even when it fails. Its ``cost`` is the tokens
+times the model's weight (admin setting, default 1), so bigger models use the
+tokens faster. Tokens left = included + granted - spent, all summed from the
+log. Monthly totals of the log are the usage export.
 
 Storage counts the PDFs of the user's scores (``Score.pdf_size``), each file
 once. The log and the sizes are what billing beyond the free plan will use.
@@ -35,13 +37,16 @@ logger = logging.getLogger(__name__)
 
 Plan = Literal["free", "pro"]
 PLANS: tuple[Plan, ...] = ("free", "pro")
+# ``ai_usage.feature`` of rows that add tokens to a month's allowance (an
+# admin's manual top-up) instead of recording use.
+GRANT = "grant"
 LIMITS_KEY = "plan_limits"
 WEIGHTS_KEY = "model_weights"
 MB = 1024 * 1024
 
 
 class PlanLimits(BaseModel):
-    """What one plan allows per month (AI) and in total (storage)."""
+    """What one plan includes: AI tokens (once) and storage."""
 
     ai_tokens: int = Field(ge=0)
     storage_mb: int = Field(ge=0)
@@ -109,14 +114,30 @@ def next_month_start(now: datetime | None = None) -> datetime:
     )
 
 
-def ai_used(user_id: int, session: Session, since: datetime | None = None) -> int:
-    """Weighted tokens the user spent since ``since`` (default: this month)."""
+def ai_used(user_id: int, session: Session) -> int:
+    """Weighted tokens the user has spent, ever."""
     total = session.exec(
         select(func.coalesce(func.sum(AIUsage.cost), 0)).where(
-            AIUsage.user_id == user_id, AIUsage.created_at >= (since or month_start())
+            AIUsage.user_id == user_id, AIUsage.feature != GRANT
         )
     ).one()
     return int(total)
+
+
+def ai_granted(user_id: int, session: Session) -> int:
+    """Tokens an admin has added to the user's account, ever."""
+    total = session.exec(
+        select(func.coalesce(func.sum(AIUsage.cost), 0)).where(
+            AIUsage.user_id == user_id, AIUsage.feature == GRANT
+        )
+    ).one()
+    return int(total)
+
+
+def total_allowance(user: User, session: Session) -> int:
+    """All the tokens the account got: its plan's (or its own) plus top-ups."""
+    assert user.id is not None
+    return limits_for(user, session).ai_tokens + ai_granted(user.id, session)
 
 
 def storage_used(user_id: int, session: Session) -> int:
@@ -131,32 +152,28 @@ def storage_used(user_id: int, session: Session) -> int:
 
 
 def usage_summary(user: User, session: Session) -> UsageSummary:
-    """The user's plan, AI use this month and storage use (bytes)."""
+    """The user's plan, AI tokens used of those received, and storage use (bytes)."""
     assert user.id is not None
     limits = limits_for(user, session)
     return UsageSummary(
         plan=user.plan,
         ai_used=ai_used(user.id, session),
-        ai_allowance=limits.ai_tokens,
-        ai_resets_at=next_month_start(),
+        ai_allowance=total_allowance(user, session),
         storage_used=storage_used(user.id, session),
         storage_limit=limits.storage_mb * MB,
     )
 
 
 def check_ai_allowance(user: User, session: Session) -> None:
-    """403 once this month's allowance is used up (admins are never blocked)."""
+    """403 once the account's AI tokens are used up (admins are never blocked)."""
     assert user.id is not None
     if user.role == "admin":
         return
-    allowance = limits_for(user, session).ai_tokens
-    if ai_used(user.id, session) >= allowance:
-        resets = next_month_start().strftime("%Y-%m-%d")
+    if ai_used(user.id, session) >= total_allowance(user, session):
         raise HTTPException(
             status_code=403,
             detail=(
-                "You have used this month's AI allowance. It renews on "
-                f"{resets}; contact {config.SUPPORT_EMAIL} for more."
+                f"You have used all your AI tokens. Contact {config.SUPPORT_EMAIL} to get more."
             ),
         )
 
@@ -271,9 +288,31 @@ class UsageRow(BaseModel):
     input_tokens: int
     output_tokens: int
     cost: int
+    granted: int
+    # Totals so far (not just this month): tokens used and received.
+    ai_used: int
     ai_allowance: int
     storage_used: int
     storage_limit: int
+
+
+class TokenGrant(BaseModel):
+    """Tokens to add to a user's account (they don't expire)."""
+
+    tokens: int = Field(gt=0, le=1_000_000_000)
+
+
+@router.post("/users/{user_id}/grant", dependencies=[Depends(get_admin_user)])
+def grant_tokens(
+    user_id: int, body: TokenGrant, session: Session = Depends(get_session)
+) -> UsageSummary:
+    """Add AI tokens to a user's account (admin only), e.g. after a manual payment."""
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    session.add(AIUsage(user_id=user_id, feature=GRANT, model="admin", cost=body.tokens))
+    session.commit()
+    return usage_summary(user, session)
 
 
 @router.put("/users/{user_id}/plan", dependencies=[Depends(get_admin_user)])
@@ -298,7 +337,8 @@ def get_usage(
     month: Annotated[str | None, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")] = None,
     session: Session = Depends(get_session),
 ) -> list[UsageRow]:
-    """Every user's AI use in a month (default: this one) and current storage."""
+    """Every user's AI use and top-ups in a month (default: this one), their total
+    tokens received so far, and current storage."""
     start = datetime.strptime(month, "%Y-%m") if month else month_start()
     end = next_month_start(start)
     totals = {
@@ -311,7 +351,15 @@ def get_usage(
                 func.sum(AIUsage.output_tokens),
                 func.sum(AIUsage.cost),
             )
-            .where(AIUsage.created_at >= start, AIUsage.created_at < end)
+            .where(AIUsage.created_at >= start, AIUsage.created_at < end, AIUsage.feature != GRANT)
+            .group_by(AIUsage.user_id)
+        )
+    }
+    granted = {
+        row[0]: int(row[1] or 0)
+        for row in session.exec(
+            select(AIUsage.user_id, func.sum(AIUsage.cost))
+            .where(AIUsage.created_at >= start, AIUsage.created_at < end, AIUsage.feature == GRANT)
             .group_by(AIUsage.user_id)
         )
     }
@@ -330,7 +378,9 @@ def get_usage(
                 input_tokens=int(input_tokens or 0),
                 output_tokens=int(output_tokens or 0),
                 cost=int(cost or 0),
-                ai_allowance=limits.ai_tokens,
+                granted=granted.get(user.id, 0),
+                ai_used=ai_used(user.id, session),
+                ai_allowance=total_allowance(user, session),
                 storage_used=storage_used(user.id, session),
                 storage_limit=limits.storage_mb * MB,
             )

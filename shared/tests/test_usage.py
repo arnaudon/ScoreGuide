@@ -1,6 +1,5 @@
 """Tests for the AI usage models."""
 
-from datetime import datetime
 
 from shared.usage import AIUsage, UsageSummary, utcnow
 
@@ -17,8 +16,7 @@ def test_usage_summary():
         plan="free",
         ai_used=1,
         ai_allowance=2,
-        ai_resets_at=datetime(2026, 12, 1),
         storage_used=3,
         storage_limit=4,
     )
-    assert summary.model_dump()["ai_resets_at"] == datetime(2026, 12, 1)
+    assert summary.model_dump()["ai_allowance"] == 2

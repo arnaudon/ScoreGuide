@@ -160,6 +160,29 @@ export const actions: Actions = {
 		}
 		return { formId: 'plan', success: true };
 	},
+	grant_tokens: async ({ request, cookies, fetch }) => {
+		const token = cookies.get('access_token');
+		if (!token) return fail(401, { formId: 'grant', error: m.err_unauthorized() });
+		const data = await request.formData();
+		const userId = String(data.get('user_id') ?? '');
+		const tokens = Number(String(data.get('tokens') ?? '').trim());
+		if (!/^\d+$/.test(userId) || !Number.isInteger(tokens) || tokens <= 0) {
+			return fail(400, { formId: 'grant', error: m.err_grant_tokens() });
+		}
+		const res = await apiFetch(fetch, token)(`/users/${userId}/grant`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ tokens })
+		});
+		if (!res.ok) {
+			const result = await res.json().catch(() => ({}));
+			return fail(res.status, {
+				formId: 'grant',
+				error: detailMessage(result.detail, m.err_grant_tokens())
+			});
+		}
+		return { formId: 'grant', success: true };
+	},
 	set_plans: async ({ request, cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) return fail(401, { formId: 'plans', error: m.err_unauthorized() });

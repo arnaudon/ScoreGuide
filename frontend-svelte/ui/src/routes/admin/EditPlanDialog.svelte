@@ -16,10 +16,16 @@
 	} = $props();
 
 	let error = $state<string | null>(null);
+	let grantError = $state<string | null>(null);
+	let granted = $state(false);
 
 	// Reset the error whenever the dialog is (re)opened for a user.
 	$effect(() => {
-		if (open) error = null;
+		if (open) {
+			error = null;
+			grantError = null;
+			granted = false;
+		}
 	});
 
 	// Only close once the backend accepted the change; otherwise keep the dialog
@@ -32,6 +38,20 @@
 				return;
 			}
 			open = false;
+			await update();
+		};
+	};
+
+	// A top-up keeps the dialog open and confirms, so several can be checked.
+	const confirmGrant: SubmitFunction = () => {
+		grantError = null;
+		granted = false;
+		return async ({ result, update }) => {
+			if (result.type === 'failure') {
+				grantError = (result.data?.error as string | undefined) ?? m.err_grant_tokens();
+				return;
+			}
+			granted = true;
 			await update();
 		};
 	};
@@ -87,6 +107,35 @@
 				<Dialog.Footer>
 					<Button type="submit">{m.save_changes()}</Button>
 				</Dialog.Footer>
+			</form>
+
+			<form
+				method="POST"
+				action="?/grant_tokens"
+				use:enhance={confirmGrant}
+				class="border-border space-y-2 border-t pt-4"
+			>
+				<input type="hidden" name="user_id" value={user.id} />
+				<label for="grant_tokens" class="text-sm font-medium">{m.grant_tokens_label()}</label>
+				<p class="text-muted-foreground text-xs">{m.grant_tokens_desc()}</p>
+				<div class="flex gap-2">
+					<Input
+						id="grant_tokens"
+						name="tokens"
+						type="number"
+						min="1"
+						step="1"
+						required
+						placeholder="100000"
+					/>
+					<Button type="submit" variant="outline">{m.grant_tokens_button()}</Button>
+				</div>
+				{#if grantError}
+					<p role="alert" class="text-destructive text-sm font-medium">{grantError}</p>
+				{/if}
+				{#if granted}
+					<p role="status" class="text-success text-sm font-medium">{m.grant_tokens_done()}</p>
+				{/if}
 			</form>
 		{/if}
 	</Dialog.Content>

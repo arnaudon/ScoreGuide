@@ -5,7 +5,6 @@ const usage = {
 	plan: 'free',
 	ai_used: 50,
 	ai_allowance: 200,
-	ai_resets_at: '2026-12-01T00:00:00',
 	storage_used: 0,
 	storage_limit: 0
 };
@@ -28,7 +27,7 @@ describe('usage helpers', () => {
 	});
 
 	it('labels what is left and the plan', () => {
-		expect(aiLeftLabel({ usage })).toBe('AI: 75% left this month');
+		expect(aiLeftLabel({ usage })).toBe('AI: 75% left');
 		expect(aiLeftLabel({ usage: null })).toBeUndefined();
 		expect(aiLeftLabel(null)).toBeUndefined();
 		expect(planLabel('pro')).toBe('Pro');

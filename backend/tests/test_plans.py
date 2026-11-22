@@ -4,6 +4,7 @@ import io
 from datetime import datetime
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
@@ -80,7 +81,7 @@ def test_month_boundaries():
     assert plans.next_month_start(datetime(2026, 12, 31, 23)) == datetime(2027, 1, 1)
 
 
-def test_ai_used_counts_this_month_only(client: TestClient, session: Session, test_user: User):
+def test_ai_used_counts_every_month(client: TestClient, session: Session, test_user: User):
     session.add(AIUsage(user_id=test_user.id, feature="agent", model="m", cost=10))
     session.add(
         AIUsage(
@@ -89,8 +90,7 @@ def test_ai_used_counts_this_month_only(client: TestClient, session: Session, te
         )
     )  # fmt: skip
     session.commit()
-    assert plans.ai_used(test_user.id, session) == 10
-    assert plans.ai_used(test_user.id, session, since=datetime(2019, 1, 1)) == 109
+    assert plans.ai_used(test_user.id, session) == 109
 
 
 def test_storage_counts_each_file_once(client: TestClient, session: Session, test_user: User):
@@ -113,7 +113,6 @@ def test_get_user_includes_usage(client: TestClient, session: Session, test_user
     assert usage["ai_used"] == 42
     assert usage["ai_allowance"] == config.FREE_AI_TOKENS
     assert usage["storage_limit"] == config.FREE_STORAGE_MB * plans.MB
-    assert usage["ai_resets_at"].startswith(plans.next_month_start().strftime("%Y-%m-%d"))
     assert "credits" not in body
 
 
@@ -214,3 +213,36 @@ def test_backfill_sizes(client: TestClient, session: Session, test_user: User, s
     sizes = {s.title: s.pdf_size for s in session.exec(select(Score).where(Score.composer == "x"))}
     assert sizes == {"a": 1000, "b": 1000, "c": 0}
     assert plans.backfill_sizes(session) == 0
+
+
+def test_grant_tokens_adds_to_the_account(admin: TestClient, session: Session, test_user: User):
+    user = _db_user(session, test_user)
+    user.ai_allowance = 100
+    session.add(user)
+    # Tokens spent and granted in earlier months still count: nothing renews.
+    session.add(
+        AIUsage(user_id=test_user.id, feature="agent", model="m", cost=130,
+                created_at=datetime(2020, 1, 1))
+    )  # fmt: skip
+    session.add(
+        AIUsage(user_id=test_user.id, feature=plans.GRANT, model="admin", cost=30,
+                created_at=datetime(2020, 1, 1))
+    )  # fmt: skip
+    session.commit()
+    user = _db_user(session, test_user)
+    with pytest.raises(HTTPException):
+        plans.check_ai_allowance(user, session)
+
+    resp = admin.post(f"/users/{test_user.id}/grant", json={"tokens": 50})
+    assert resp.status_code == 200
+    assert (resp.json()["ai_used"], resp.json()["ai_allowance"]) == (130, 180)
+    plans.check_ai_allowance(_db_user(session, test_user), session)  # unblocked
+
+    rows = {r["username"]: r for r in admin.get("/admin/usage").json()}
+    mine = rows[test_user.username]
+    # This month: nothing spent, 50 added. Totals: 130 used of 180 received.
+    assert (mine["cost"], mine["granted"]) == (0, 50)
+    assert (mine["ai_used"], mine["ai_allowance"]) == (130, 180)
+
+    assert admin.post("/users/9999/grant", json={"tokens": 5}).status_code == 404
+    assert admin.post(f"/users/{test_user.id}/grant", json={"tokens": 0}).status_code == 422
