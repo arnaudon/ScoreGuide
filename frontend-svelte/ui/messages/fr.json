@@ -45,8 +45,6 @@
 	"imslp_score_details_desc": "Métadonnées pour la partition IMSLP.",
 	"view_on_imslp": "Voir sur IMSLP",
 	"add_this_score": "Ajouter cette partition",
-	"download_pdf_imslp": "1. Téléchargez le PDF depuis IMSLP :",
-	"upload_pdf_below": "2. Chargez le PDF téléchargé ci-dessous :",
 	"view_details": "Détails",
 	"no_pdf_available": "Aucun PDF disponible pour cette partition.",
 	"score_not_found": "Partition introuvable.",
@@ -390,5 +388,14 @@
 	"verify_title": "Confirmation de l'e-mail",
 	"verify_success": "Votre adresse e-mail est confirmée. Bienvenue sur ScoreGuide !",
 	"verify_failed": "Ce lien de confirmation est invalide ou a expiré. Connectez-vous pour en demander un nouveau.",
-	"verify_continue": "Continuer vers ScoreGuide"
+	"verify_continue": "Continuer vers ScoreGuide",
+	"imslp_files_title": "1. Choisissez un fichier sur IMSLP",
+	"imslp_files_hint": "Chaque lien ouvre le fichier sur IMSLP, où vous pouvez le télécharger.",
+	"imslp_files_open": "Ouvrir sur IMSLP",
+	"imslp_files_more": "Afficher les {count} fichiers",
+	"imslp_files_loading": "Chargement des fichiers…",
+	"imslp_files_none": "Pas de liste de fichiers pour cette œuvre. Ouvrez sa page IMSLP :",
+	"imslp_drop_title": "2. Ajoutez le PDF téléchargé",
+	"imslp_drop_hint": "Déposez le PDF ici, ou choisissez-le. Titre, compositeur et détails viennent d'IMSLP.",
+	"imslp_drop_only_pdf": "Veuillez déposer un fichier PDF."
 }

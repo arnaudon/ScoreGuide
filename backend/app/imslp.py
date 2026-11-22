@@ -27,6 +27,7 @@ import unicodedata
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated, Any
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -697,6 +698,50 @@ def search(
             for r in rows
         ],
     )
+
+
+class ImslpFile(BaseModel):
+    """One score file of a work, with the IMSLP page where the user downloads it."""
+
+    file: str
+    description: str
+    copyright: str
+    url: str
+
+
+def file_page_url(name: str) -> str:
+    """IMSLP's page for one file (``File:<name>``), which offers the download."""
+    return "https://imslp.org/wiki/File:" + quote(name.strip().replace(" ", "_"), safe="()_,-.'!")
+
+
+@router.get("/{imslp_id}/files", dependencies=[Depends(get_current_user)])
+@limiter.limit("120/minute")
+def get_files(
+    request: Request, imslp_id: int, session: Session = Depends(get_session)
+) -> list[ImslpFile]:
+    """The score files of a catalogue entry, as listed on its IMSLP page.
+
+    Only links: ScoreGuide never downloads from IMSLP, the user does.
+    """
+    entry = session.get(IMSLP, imslp_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="IMSLP entry not found")
+    try:
+        listed = json.loads(entry.pdf_urls or "[]")
+    except json.JSONDecodeError:
+        listed = []
+    if not isinstance(listed, list):
+        listed = []
+    return [
+        ImslpFile(
+            file=str(f["file"]).strip(),
+            description=str(f.get("description") or ""),
+            copyright=str(f.get("copyright") or ""),
+            url=file_page_url(str(f["file"])),
+        )
+        for f in listed
+        if isinstance(f, dict) and str(f.get("file") or "").strip()
+    ]
 
 
 @router.get("/scores_by_ids", dependencies=[Depends(get_current_user)])

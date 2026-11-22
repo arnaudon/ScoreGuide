@@ -45,8 +45,6 @@
 	"imslp_score_details_desc": "Full metadata for the selected IMSLP score.",
 	"view_on_imslp": "View on IMSLP",
 	"add_this_score": "Add this Score",
-	"download_pdf_imslp": "1. Download PDF from IMSLP:",
-	"upload_pdf_below": "2. Upload the downloaded PDF below:",
 	"view_details": "View Details",
 	"no_pdf_available": "No PDF available for this score.",
 	"score_not_found": "Score not found.",
@@ -390,5 +388,14 @@
 	"verify_title": "Email confirmation",
 	"verify_success": "Your email address is confirmed. Welcome to ScoreGuide!",
 	"verify_failed": "This confirmation link is invalid or has expired. Log in to request a new one.",
-	"verify_continue": "Continue to ScoreGuide"
+	"verify_continue": "Continue to ScoreGuide",
+	"imslp_files_title": "1. Pick a file on IMSLP",
+	"imslp_files_hint": "Each link opens the file on IMSLP, where you can download it.",
+	"imslp_files_open": "Open on IMSLP",
+	"imslp_files_more": "Show all {count} files",
+	"imslp_files_loading": "Loading the files…",
+	"imslp_files_none": "No file list for this work. Open its IMSLP page:",
+	"imslp_drop_title": "2. Add the downloaded PDF",
+	"imslp_drop_hint": "Drop the PDF here, or choose it. Title, composer and details come from IMSLP.",
+	"imslp_drop_only_pdf": "Please drop a PDF file."
 }
