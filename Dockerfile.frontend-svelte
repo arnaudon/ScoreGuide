@@ -3,7 +3,9 @@
 FROM node:26-alpine AS deps
 WORKDIR /app
 COPY frontend-svelte/ui/package*.json ./
-RUN npm ci
+# --ignore-scripts: the only install script is `prepare` (svelte-kit sync),
+# which needs the sources; the build below runs it via vite anyway.
+RUN npm ci --no-audit --no-fund --ignore-scripts && npm cache clean --force
 
 FROM deps AS dev
 ENV NODE_ENV=development
@@ -18,9 +20,25 @@ RUN npm run build
 FROM node:26-alpine AS prod
 WORKDIR /app
 ENV NODE_ENV=production
+# Runtime dependencies before the build output, so this layer is reused on
+# every deploy that doesn't touch package*.json (the build output changes
+# every time). No install scripts needed at runtime.
+COPY frontend-svelte/ui/package*.json ./
+#
+# adapter-node bundles devDependencies into build/, so the only runtime
+# dependency is @sentry/sveltekit. npm still installs its peers and its
+# source-map upload tooling (Vite + Rolldown + Lightning CSS, TypeScript, the
+# `sentry` bundler core, oxc-parser): ~120 MB the server never imports. A trace
+# of `node build` with Sentry on only loads @sentry/*, @opentelemetry/api,
+# @sveltejs/kit and esm-env, so drop those build tools here. If a Sentry
+# upgrade starts importing one of them, the server fails at startup with
+# ERR_MODULE_NOT_FOUND: remove it from this list.
+RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts \
+    && npm cache clean --force \
+    && cd node_modules \
+    && rm -rf typescript vite rolldown @rolldown lightningcss lightningcss-* \
+        sentry oxc-parser @oxc-parser @types
 COPY --from=builder /app/build ./build
-COPY --from=builder /app/package.json /app/package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
 EXPOSE 3000
 # Non-root: the node base image ships a `node` user (uid 1000).
 USER node

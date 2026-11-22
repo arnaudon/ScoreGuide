@@ -1,10 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Dockerfile reference guide at
-# https://docs.docker.com/go/dockerfile-reference/
-
-# Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
+# Note: the deploy builds through docker-compose v1 + `docker build` on Docker
+# 20.10 without BuildKit (the legacy builder), so no `RUN --mount=type=cache`
+# here; dependency layers are cached by ordering the COPYs instead.
 
 FROM astral/uv:python3.15-trixie-slim AS builder
 
@@ -21,22 +19,33 @@ ENV UV_COMPILE_BYTECODE=1
 # Copy from the cache instead of linking since it's a mounted volume
 ENV UV_LINK_MODE=copy
 
+# No package cache left behind in the layer (nothing reuses it between builds).
+ENV UV_NO_CACHE=1
+
 # Ensure installed tools can be executed out of the box
 ENV UV_TOOL_BIN_DIR=/usr/local/bin
 
+# Prod images skip the dev group (pytest & co). docker-compose.override.yaml
+# sets INSTALL_DEV=true so the dev/CI image can run the test suite in place.
+ARG INSTALL_DEV=false
 
 WORKDIR /app
 
+# Third-party dependencies first, from the lock and the manifests only: this
+# (slowest) layer is reused until a pyproject.toml or uv.lock changes, not on
+# every source change in backend/ or shared/.
 COPY pyproject.toml uv.lock ./
 COPY backend/pyproject.toml ./backend/
-COPY shared/pyproject.toml shared/README.md ./shared/
+COPY shared/pyproject.toml ./shared/
+RUN uv sync --locked --no-install-workspace --package app \
+        $([ "$INSTALL_DEV" = "true" ] || echo --no-dev)
+
+COPY shared/README.md ./shared/
 COPY shared/shared ./shared/shared
-
-RUN uv sync --locked --no-install-project --package app 
-
-COPY backend/app ./backend/app
 COPY backend/README.md ./backend/
-RUN uv sync --locked --package app 
+COPY backend/app ./backend/app
+RUN uv sync --locked --package app \
+        $([ "$INSTALL_DEV" = "true" ] || echo --no-dev)
 
 
 FROM python:3.15-slim-trixie

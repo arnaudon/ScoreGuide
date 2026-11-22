@@ -3,7 +3,7 @@
 	"version": "0.0.1",
 	"scripts": {
 		"dev": "vite dev --host 0.0.0.0 --port 3000",
-		"build": "vite build && npm run prepack",
+		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"prepack": "svelte-kit sync && svelte-package && publint",
@@ -36,13 +36,13 @@
 		"svelte": "^5.0.0"
 	},
 	"dependencies": {
-		"@fontsource/eb-garamond": "^5.3.0",
-		"@fontsource/figtree": "^5.3.0",
 		"@sentry/sveltekit": "^11.12.0"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.1.1",
 		"@eslint/js": "^10.0.1",
+		"@fontsource/eb-garamond": "^5.3.0",
+		"@fontsource/figtree": "^5.3.0",
 		"@inlang/paraglide-js": "^3.2.2",
 		"@inlang/plugin-m-function-matcher": "^2.4.3",
 		"@inlang/plugin-message-format": "^4.6.0",
