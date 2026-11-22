@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
+import { detailMessage } from '#lib/apiError.js';
 
 export const actions: Actions = {
 	default: async ({ request, fetch }) => {
@@ -20,10 +21,10 @@ export const actions: Actions = {
 		});
 
 		if (!response.ok) {
-			let errorMsg = m.err_something_went_wrong();
+			let errorMsg: string = m.err_something_went_wrong();
 			try {
 				const result = await response.json();
-				errorMsg = result.detail || errorMsg;
+				errorMsg = detailMessage(result.detail, errorMsg);
 			} catch (e) {
 				console.error('Failed to parse forgot-password error response', e);
 			}

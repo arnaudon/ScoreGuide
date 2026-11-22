@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
+import { detailMessage } from '#lib/apiError.js';
 import { passwordLengthOk } from '#lib/password.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
@@ -46,7 +47,7 @@ export const actions: Actions = {
 			const result = await res.json();
 			return fail(res.status, {
 				form: 'profile',
-				error: result.detail || m.err_update_profile()
+				error: detailMessage(result.detail, m.err_update_profile())
 			});
 		}
 
@@ -87,7 +88,7 @@ export const actions: Actions = {
 			const result = await res.json();
 			return fail(res.status, {
 				form: 'password',
-				error: result.detail || m.err_update_password()
+				error: detailMessage(result.detail, m.err_update_password())
 			});
 		}
 

@@ -3,6 +3,7 @@ import type { Actions } from './$types';
 import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
+import { detailMessage } from '#lib/apiError.js';
 import { passwordLengthOk } from '#lib/password.js';
 
 export const actions: Actions = {
@@ -108,10 +109,10 @@ export const actions: Actions = {
 		});
 
 		if (!response.ok) {
-			let errorMsg = m.err_registration_failed();
+			let errorMsg: string = m.err_registration_failed();
 			try {
 				const result = await response.json();
-				errorMsg = result.detail || errorMsg;
+				errorMsg = detailMessage(result.detail, errorMsg);
 			} catch (e) {
 				console.error('Failed to parse register error response', e);
 			}

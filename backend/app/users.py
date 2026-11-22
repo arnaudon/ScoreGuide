@@ -8,21 +8,22 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
-from pydantic import BaseModel, Field
-from sqlmodel import Session, col, delete, func, select
+from pydantic import BaseModel, EmailStr, Field
+from sqlmodel import Session, func, select
 
 from app import config
 from app.db import get_session
-from app.email_utils import send_email
+from app.email_utils import send_email_safely
 from app.rate_limit import limiter
-from shared.scores import Score, TocReport
+from shared.scores import Score
 from shared.user import User
 
 PASSWORD_RESET_PURPOSE = "password_reset"
+EMAIL_VERIFY_PURPOSE = "verify_email"
 DEMO_ROLE = "demo"
 # The demo account may browse, never change anything.
 READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -67,7 +68,7 @@ class UserCreate(BaseModel):
 
     username: str = Field(min_length=1, max_length=50)
     password: Password
-    email: str | None = Field(default=None, max_length=254)
+    email: EmailStr
     first_name: str | None = Field(default=None, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
     instrument: str | None = Field(default=None, max_length=50)
@@ -86,6 +87,7 @@ class UserResponse(BaseModel):
     credits: int
     max_credits: int
     last_login: datetime | None = None
+    email_verified: bool = True
 
 
 class UserAdminResponse(UserResponse):
@@ -98,7 +100,7 @@ class UserUpdateRequest(BaseModel):
     """User update request model."""
 
     instrument: str | None = None
-    email: str | None = None
+    email: EmailStr | None = None
 
 
 class PasswordChangeRequest(BaseModel):
@@ -111,7 +113,13 @@ class PasswordChangeRequest(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     """Forgot password request model."""
 
-    email: str
+    email: str = Field(max_length=254)
+
+
+class VerifyEmailRequest(BaseModel):
+    """Token from the link in the verification email."""
+
+    token: str
 
 
 class ResetPasswordRequest(BaseModel):
@@ -191,6 +199,47 @@ def create_session_token(user: User, expires_delta: timedelta) -> str:
         data={"sub": user.username, "role": user.role, "pwd_fp": _password_fingerprint(user)},
         expires_delta=expires_delta,
     )
+
+
+def create_email_verification_token(user: User) -> str:
+    """Token for the "confirm your email" link, bound to the current address."""
+    return create_access_token(
+        data={"sub": user.username, "purpose": EMAIL_VERIFY_PURPOSE, "email": user.email},
+        expires_delta=timedelta(hours=config.EMAIL_VERIFY_EXPIRE_HOURS),
+    )
+
+
+def send_verification_email(user: User, background_tasks: BackgroundTasks) -> None:
+    """Email the confirmation link (in the background: SMTP can be slow)."""
+    if not user.email:  # pragma: no cover - callers check
+        return
+    link = f"{config.FRONTEND_URL}/verify-email?token={create_email_verification_token(user)}"
+    background_tasks.add_task(
+        send_email_safely,
+        user.email,
+        "Confirm your ScoreGuide email / Confirmez votre e-mail ScoreGuide",
+        (
+            f"Hi {user.username},\n\n"
+            "Please confirm your email address to finish setting up your ScoreGuide "
+            "account:\n\n"
+            f"{link}\n\n"
+            "---\n\n"
+            f"Bonjour {user.username},\n\n"
+            "Merci de confirmer votre adresse e-mail pour terminer la création de votre "
+            "compte ScoreGuide :\n\n"
+            f"{link}\n\n"
+            "If you didn't create this account, ignore this email. / "
+            "Si vous n'avez pas créé ce compte, ignorez cet e-mail."
+        ),
+    )
+
+
+def email_taken(email: str, session: Session, exclude_user_id: int | None = None) -> bool:
+    """Whether another account already uses this address (case-insensitive)."""
+    query = select(User).where(func.lower(User.email) == email.lower())
+    if exclude_user_id is not None:
+        query = query.where(User.id != exclude_user_id)
+    return session.exec(query).first() is not None
 
 
 def create_password_reset_token(user: User) -> str:
@@ -317,27 +366,92 @@ def get_admin_user(user: User = Depends(get_current_user)):
     return user
 
 
+def get_verified_user(user: User = Depends(get_current_user)):
+    """The current user, once their email is confirmed (when verification is on).
+
+    Guards what costs money or storage — AI credits, uploads — so throwaway
+    accounts can't farm free credits.
+    """
+    if config.EMAIL_VERIFICATION and not user.email_verified and user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please confirm your email address first (check your inbox).",
+        )
+    return user
+
+
+@router.post("/verify-email")
+@limiter.limit("10/minute")
+def verify_email(
+    request: Request, req: VerifyEmailRequest, session: Session = Depends(get_session)
+):
+    """Confirm an email address from the emailed link (no login needed)."""
+    invalid = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired confirmation link"
+    )
+    try:
+        payload = jwt.decode(req.token, SECRET_KEY, algorithms=[ALGORITHM])
+    except InvalidTokenError as exc:
+        raise invalid from exc
+    username = payload.get("sub")
+    user = get_user(username, session) if username else None
+    # Bound to the address it was sent to: changing email voids old links.
+    if (
+        payload.get("purpose") != EMAIL_VERIFY_PURPOSE
+        or user is None
+        or not user.email
+        or payload.get("email") != user.email
+    ):
+        raise invalid
+    user.email_verified = True
+    session.add(user)
+    session.commit()
+    return {"message": "Email confirmed"}
+
+
+@router.post("/resend-verification")
+@limiter.limit("3/hour")
+def resend_verification(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
+):
+    """Send the confirmation link again."""
+    if current_user.email_verified or not current_user.email:
+        return {"message": "Nothing to confirm"}
+    send_verification_email(current_user, background_tasks)
+    return {"message": "Confirmation email sent"}
+
+
 @router.post("/users", response_model=UserResponse)
 @limiter.limit("5/minute")
 def add_user(
     request: Request,
     user: UserCreate,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """Add a user to the db."""
+    """Add a user to the db and email them a confirmation link."""
     if get_user(user.username, session) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
+    if email_taken(user.email, session):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="An account already uses this email"
+        )
     db_user = User(
         username=user.username,
         password=get_password_hash(user.password),
-        email=user.email,
+        email=user.email.lower(),
         first_name=user.first_name,
         last_name=user.last_name,
         instrument=user.instrument,
+        email_verified=not config.EMAIL_VERIFICATION,
     )
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
+    if config.EMAIL_VERIFICATION:
+        send_verification_email(db_user, background_tasks)
     return db_user
 
 
@@ -366,16 +480,25 @@ def get_current_user_route(
 def update_user(
     req: UserUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """Update current user."""
+    """Update current user. A new email address must be confirmed again."""
     updated = False
     if req.instrument is not None:
         current_user.instrument = req.instrument
         updated = True
 
-    if req.email is not None:
-        current_user.email = req.email
+    new_email = req.email.lower() if req.email is not None else None
+    if new_email is not None and new_email != (current_user.email or "").lower():
+        if email_taken(new_email, session, exclude_user_id=current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="An account already uses this email"
+            )
+        current_user.email = new_email
+        if config.EMAIL_VERIFICATION:
+            current_user.email_verified = False
+            send_verification_email(current_user, background_tasks)
         updated = True
 
     if updated:
@@ -421,6 +544,7 @@ def update_password(
 def forgot_password(
     request: Request,
     req: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
     """Email a password reset link if the address belongs to an account.
@@ -428,21 +552,29 @@ def forgot_password(
     Always returns the same generic message so the endpoint can't be used to
     enumerate registered emails.
     """
-    user = session.exec(select(User).where(User.email == req.email)).first()
-    if user is not None:
+    user = session.exec(select(User).where(func.lower(User.email) == req.email.lower())).first()
+    if user is not None and user.email:
         reset_link = (
             f"{config.FRONTEND_URL}/reset-password?token={create_password_reset_token(user)}"
         )
-        send_email(
-            to=req.email,
-            subject="Reset your ScoreGuide password",
-            body=(
+        background_tasks.add_task(
+            send_email_safely,
+            user.email,
+            "Reset your ScoreGuide password / Réinitialiser votre mot de passe",
+            (
                 f"Hi {user.username},\n\n"
                 "We received a request to reset your ScoreGuide password. "
                 "Click the link below to choose a new one "
                 f"(valid for {config.PASSWORD_RESET_EXPIRE_MINUTES} minutes):\n\n"
                 f"{reset_link}\n\n"
-                "If you didn't request this, you can safely ignore this email."
+                "If you didn't request this, you can safely ignore this email.\n\n"
+                "---\n\n"
+                f"Bonjour {user.username},\n\n"
+                "Nous avons reçu une demande de réinitialisation de votre mot de passe "
+                "ScoreGuide. Choisissez-en un nouveau avec ce lien "
+                f"(valable {config.PASSWORD_RESET_EXPIRE_MINUTES} minutes) :\n\n"
+                f"{reset_link}\n\n"
+                "Si vous n'avez rien demandé, ignorez simplement cet e-mail."
             ),
         )
     return {"message": "If that email is registered, a reset link has been sent."}
@@ -515,16 +647,3 @@ def refill_user_credits(
     session.commit()
     session.refresh(user_to_update)
     return user_to_update
-
-
-@router.delete("/user")
-def delete_account(
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: Session = Depends(get_session),
-):
-    """Delete current user."""
-    # Reports they filed on scores (theirs or not) go with them.
-    session.exec(delete(TocReport).where(col(TocReport.user_id) == current_user.id))  # type: ignore[call-overload]
-    session.delete(current_user)
-    session.commit()
-    return {"message": "Account deleted successfully"}

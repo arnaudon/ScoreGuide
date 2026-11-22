@@ -34,29 +34,49 @@ describe('+layout.server load', () => {
 		const fetch = vi.fn();
 		const cookies = makeCookies();
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: false, isAdmin: false, isDemo: false });
+		expect(result).toEqual({
+			loggedIn: false,
+			isAdmin: false,
+			isDemo: false,
+			emailUnverified: false
+		});
 		expect(fetch).not.toHaveBeenCalled();
 	});
 
-	it('returns isAdmin true when /is_admin returns truthy', async () => {
-		const fetch = vi.fn(async () => jsonResponse(true));
+	it('returns isAdmin true for an admin', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ role: 'admin', email_verified: true }));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: true, isAdmin: true, isDemo: false });
+		expect(result).toEqual({
+			loggedIn: true,
+			isAdmin: true,
+			isDemo: false,
+			emailUnverified: false
+		});
 	});
 
-	it('returns isAdmin false when /is_admin returns falsy', async () => {
-		const fetch = vi.fn(async () => jsonResponse(false));
+	it('returns isAdmin false for a regular user', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ role: 'user', email_verified: true }));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: true, isAdmin: false, isDemo: false });
+		expect(result).toEqual({
+			loggedIn: true,
+			isAdmin: false,
+			isDemo: false,
+			emailUnverified: false
+		});
 	});
 
 	it('returns logged-out on non-OK response (e.g., expired token)', async () => {
 		const fetch = vi.fn(async () => new Response(null, { status: 401 }));
 		const cookies = makeCookies({ access_token: 'expired' });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: false, isAdmin: false, isDemo: false });
+		expect(result).toEqual({
+			loggedIn: false,
+			isAdmin: false,
+			isDemo: false,
+			emailUnverified: false
+		});
 	});
 
 	it('logs and degrades gracefully when fetch throws', async () => {
@@ -65,17 +85,39 @@ describe('+layout.server load', () => {
 		});
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: true, isAdmin: false, isDemo: false });
+		expect(result).toEqual({
+			loggedIn: true,
+			isAdmin: false,
+			isDemo: false,
+			emailUnverified: false
+		});
 		expect(errSpy).toHaveBeenCalled();
 	});
 
+	it('flags an unconfirmed email', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ role: 'user', email_verified: false }));
+		const cookies = makeCookies({ access_token: 'tok' });
+		const result = await load(event(cookies, fetch));
+		expect(result).toEqual({
+			loggedIn: true,
+			isAdmin: false,
+			isDemo: false,
+			emailUnverified: true
+		});
+	});
+
 	it('flags the read-only demo account from the token role claim', async () => {
-		const fetch = vi.fn(async () => jsonResponse(false));
+		const fetch = vi.fn(async () => jsonResponse({ role: 'demo', email_verified: true }));
 		const payload = Buffer.from(JSON.stringify({ sub: 'demo', role: 'demo' })).toString(
 			'base64url'
 		);
 		const cookies = makeCookies({ access_token: `h.${payload}.s` });
 		const result = await load(event(cookies, fetch));
-		expect(result).toEqual({ loggedIn: true, isAdmin: false, isDemo: true });
+		expect(result).toEqual({
+			loggedIn: true,
+			isAdmin: false,
+			isDemo: true,
+			emailUnverified: false
+		});
 	});
 });

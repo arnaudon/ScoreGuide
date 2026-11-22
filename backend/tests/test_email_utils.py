@@ -25,7 +25,7 @@ def test_send_email_sends_via_smtp(monkeypatch):
 
     email_utils.send_email("to@example.com", "subject", "body")
 
-    smtp_cls.assert_called_once_with("smtp.example.com", 587)
+    smtp_cls.assert_called_once_with("smtp.example.com", 587, timeout=20)
     smtp_instance.starttls.assert_called_once()
     smtp_instance.login.assert_called_once_with("user", "pass")
     smtp_instance.send_message.assert_called_once()
@@ -48,3 +48,29 @@ def test_send_email_without_smtp_user_skips_login(monkeypatch):
 
     smtp_instance.login.assert_not_called()
     smtp_instance.send_message.assert_called_once()
+
+
+def test_send_email_port_465_uses_implicit_tls(monkeypatch):
+    """Port 465 connects with SMTP_SSL and doesn't STARTTLS."""
+    monkeypatch.setattr(config, "SMTP_HOST", "mail.example.com")
+    monkeypatch.setattr(config, "SMTP_PORT", 465)
+    ssl_cls = MagicMock()
+    smtp_instance = ssl_cls.return_value.__enter__.return_value
+    monkeypatch.setattr(email_utils.smtplib, "SMTP_SSL", ssl_cls)
+
+    email_utils.send_email("to@example.com", "subject", "body")
+
+    ssl_cls.assert_called_once_with("mail.example.com", 465, timeout=20)
+    smtp_instance.starttls.assert_not_called()
+    smtp_instance.send_message.assert_called_once()
+
+
+def test_send_email_safely_logs_failures(monkeypatch, caplog):
+    """A background email failure is logged, never raised."""
+
+    def boom(*_args):
+        raise OSError("smtp down")
+
+    monkeypatch.setattr(email_utils, "send_email", boom)
+    email_utils.send_email_safely("to@example.com", "subject", "body")
+    assert "sending email to to@example.com failed" in caplog.text

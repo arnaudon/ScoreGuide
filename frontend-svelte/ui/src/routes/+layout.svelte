@@ -18,6 +18,7 @@
 	import { enhance } from '$app/forms';
 
 	let { children, data } = $props();
+	let resendState = $state<'idle' | 'sent' | 'failed'>('idle');
 	let showCookieBanner = $state(false);
 
 	onMount(() => {
@@ -77,6 +78,34 @@
 								>{m.demo_login()}</button
 							>
 						</form>
+					</div>
+				{/if}
+				{#if data.emailUnverified && !data.isDemo}
+					<div
+						role="status"
+						class="bg-muted text-muted-foreground mb-4 flex flex-col gap-2 rounded-md p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+					>
+						<span>{resendState === 'sent' ? m.verify_resent() : m.verify_banner()}</span>
+						{#if resendState === 'failed'}
+							<span class="text-destructive">{m.verify_resend_failed()}</span>
+						{/if}
+						{#if resendState !== 'sent'}
+							<form
+								method="POST"
+								action="/verify-email?/resend"
+								use:enhance={() =>
+									async ({ result }) => {
+										resendState = result.type === 'success' ? 'sent' : 'failed';
+									}}
+								class="shrink-0"
+							>
+								<button
+									type="submit"
+									class="text-primary font-medium whitespace-nowrap hover:underline"
+									>{m.verify_resend()}</button
+								>
+							</form>
+						{/if}
 					</div>
 				{/if}
 				{@render children()}
