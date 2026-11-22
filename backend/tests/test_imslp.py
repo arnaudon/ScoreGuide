@@ -516,3 +516,33 @@ def test_parse_work_info_messy_fields():
     assert imslp.clean_wiki("{{K|H}}") == "H"
     row = imslp.build_row(_item(1, "Preludes"), wikitext)
     assert row["key"] == "Various" and row["genre"] == "Preludes"
+
+
+def test_get_files(admin: TestClient, session: Session):
+    files = [
+        {"file": "PMLP1-Satie_-_Gymnopédie (piano).pdf", "description": "Complete Score",
+         "copyright": "Public Domain"},
+        {"file": "  ", "description": "no name"},
+        "not a dict",
+        {"file": "PMLP1-parts.pdf"},
+    ]  # fmt: skip
+    work = _add_work(session, "Gymnopédies", "Satie, Erik", pdf_urls=json.dumps(files))
+    got = admin.get(f"/imslp/{work.id}/files").json()
+    assert got == [
+        {
+            "file": "PMLP1-Satie_-_Gymnopédie (piano).pdf",
+            "description": "Complete Score",
+            "copyright": "Public Domain",
+            "url": "https://imslp.org/wiki/File:PMLP1-Satie_-_Gymnop%C3%A9die_(piano).pdf",
+        },
+        {
+            "file": "PMLP1-parts.pdf",
+            "description": "",
+            "copyright": "",
+            "url": "https://imslp.org/wiki/File:PMLP1-parts.pdf",
+        },
+    ]
+    for bad in ("", "not json", '{"file": "x"}'):
+        empty = _add_work(session, f"Empty {bad}", "X", pdf_urls=bad)
+        assert admin.get(f"/imslp/{empty.id}/files").json() == []
+    assert admin.get("/imslp/999999/files").status_code == 404

@@ -96,6 +96,14 @@ export type ImslpResult = Pick<
 	| 'permlink'
 > & { in_library: boolean };
 
+/** Matches `app.imslp.ImslpFile`: one score file and its IMSLP page. */
+export interface ImslpFile {
+	file: string;
+	description: string;
+	copyright: string;
+	url: string;
+}
+
 /** Matches `app.imslp.ImslpSearch`. */
 export interface ImslpSearch {
 	total: number;
