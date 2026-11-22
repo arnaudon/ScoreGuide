@@ -213,10 +213,29 @@ def test_get_pdf_range_start_after_end_falls_back_to_full(client: TestClient):
 
 def test_upload_pdf(client: TestClient):
     """test upload pdf"""
-    file = io.BytesIO(b"fake_score")
+    file = io.BytesIO(b"%PDF-1.4 fake_score")
     files = {"file": ("fake_score.pdf", file.getvalue(), "application/pdf")}
     response = client.post("/pdf", files=files)
     assert response.status_code == 200
+
+
+def test_upload_rejects_non_pdf_content(client: TestClient):
+    """The claimed content type isn't enough: the file must start like a PDF."""
+    files = {"file": ("evil.pdf", b"<html><script>alert(1)</script>", "application/pdf")}
+    response = client.post("/pdf", files=files)
+    assert response.status_code == 400
+
+
+def test_add_score_library_cap(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """An account can't grow its library past MAX_SCORES_PER_USER."""
+    from app import config
+
+    existing = len(client.get("/scores").json())
+    monkeypatch.setattr(config, "MAX_SCORES_PER_USER", existing + 1)
+    assert client.post("/scores", json={"title": "a", "composer": "c"}).status_code == 200
+    resp = client.post("/scores", json={"title": "b", "composer": "c"})
+    assert resp.status_code == 403
+    assert "full" in resp.json()["detail"]
 
 
 def test_upload_pdf_too_large(client: TestClient, monkeypatch: pytest.MonkeyPatch):
@@ -231,7 +250,7 @@ def test_upload_pdf_too_large(client: TestClient, monkeypatch: pytest.MonkeyPatc
 
 def test_delete_pdf(client: TestClient):
     """test delete pdf"""
-    file = io.BytesIO(b"fake_score")
+    file = io.BytesIO(b"%PDF-1.4 fake_score")
     files = {"file": ("fake_score.pdf", file.getvalue(), "application/pdf")}
     upload = client.post("/pdf", files=files)
     file_id = upload.json()["file_id"]

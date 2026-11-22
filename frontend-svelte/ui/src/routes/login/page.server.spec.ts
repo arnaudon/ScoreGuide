@@ -128,7 +128,7 @@ describe('register action', () => {
 		const cookies = makeCookies();
 		await expect(
 			actions.register(
-				event(fakeRequest({ username: 'u', password: 'p', email: 'e@x' }), cookies, fetch)
+				event(fakeRequest({ username: 'u', password: 'long-enough', email: 'e@x' }), cookies, fetch)
 			)
 		).rejects.toSatisfy((thrown: unknown) => isRedirect(thrown) && thrown.location === '/home');
 		expect(cookies.set).toHaveBeenCalledWith('access_token', 'newtok', expect.any(Object));
@@ -141,10 +141,19 @@ describe('register action', () => {
 			.mockResolvedValueOnce(jsonResponse({ detail: 'unverified' }, 400)); // POST /token
 		const cookies = makeCookies();
 		const result = await actions.register(
-			event(fakeRequest({ username: 'u', password: 'p', email: 'e@x' }), cookies, fetch)
+			event(fakeRequest({ username: 'u', password: 'long-enough', email: 'e@x' }), cookies, fetch)
 		);
 		expect(result).toMatchObject({ success: true, username: 'u' });
 		expect(cookies.set).not.toHaveBeenCalled();
+	});
+
+	it('rejects a short password before calling the backend', async () => {
+		const fetch = vi.fn();
+		const result = await actions.register(
+			event(fakeRequest({ username: 'u', password: 'short', email: 'e@x' }), makeCookies(), fetch)
+		);
+		expect(result).toMatchObject({ status: 400, data: { username: 'u' } });
+		expect(fetch).not.toHaveBeenCalled();
 	});
 
 	it('logs when the backend error response is not parseable JSON', async () => {
@@ -157,7 +166,7 @@ describe('register action', () => {
 		);
 		const cookies = makeCookies();
 		const result = await actions.register(
-			event(fakeRequest({ username: 'u', password: 'p', email: 'e@x' }), cookies, fetch)
+			event(fakeRequest({ username: 'u', password: 'long-enough', email: 'e@x' }), cookies, fetch)
 		);
 		expect(isActionFailure(result)).toBe(true);
 		expect(result).toMatchObject({ status: 409, data: { error: 'Registration failed' } });

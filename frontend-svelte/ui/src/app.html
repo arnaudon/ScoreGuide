@@ -7,6 +7,10 @@
 
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 
+		<!-- Sets light/dark before first paint; filled in by hooks.server.ts. -->
+		<script nonce="%sveltekit.nonce%">
+			%modewatcher.init%
+		</script>
 		%sveltekit.head%
 	</head>
 

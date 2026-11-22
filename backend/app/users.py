@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, col, delete, func, select
 
 from app import config
@@ -51,6 +51,13 @@ class Token(BaseModel):
     token_type: str
 
 
+# Minimum length is the one rule that measurably helps (NIST 800-63B); the
+# cap keeps a megabyte "password" from being hashed on every login attempt.
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 128
+Password = Annotated[str, Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)]
+
+
 class UserCreate(BaseModel):
     """Public registration body.
 
@@ -58,12 +65,12 @@ class UserCreate(BaseModel):
     deliberately absent so clients cannot self-grant privileges.
     """
 
-    username: str
-    password: str
-    email: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
-    instrument: str | None = None
+    username: str = Field(min_length=1, max_length=50)
+    password: Password
+    email: str | None = Field(default=None, max_length=254)
+    first_name: str | None = Field(default=None, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
+    instrument: str | None = Field(default=None, max_length=50)
 
 
 class UserResponse(BaseModel):
@@ -98,7 +105,7 @@ class PasswordChangeRequest(BaseModel):
     """Password change request model."""
 
     current_password: str
-    new_password: str
+    new_password: Password
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -111,7 +118,7 @@ class ResetPasswordRequest(BaseModel):
     """Reset password request model."""
 
     token: str
-    new_password: str
+    new_password: Password
 
 
 class CreditUpdateRequest(BaseModel):
@@ -177,6 +184,15 @@ def _password_fingerprint(user: User) -> str:
     return hashlib.sha256((user.password or "").encode()).hexdigest()[:16]
 
 
+def create_session_token(user: User, expires_delta: timedelta) -> str:
+    """A login token. It carries the password fingerprint, so changing or
+    resetting the password signs out every other session."""
+    return create_access_token(
+        data={"sub": user.username, "role": user.role, "pwd_fp": _password_fingerprint(user)},
+        expires_delta=expires_delta,
+    )
+
+
 def create_password_reset_token(user: User) -> str:
     """Create a short-lived, single-use password reset token."""
     return create_access_token(
@@ -217,10 +233,7 @@ def login_for_access_token(
     access_token_expires = timedelta(
         minutes=REMEMBER_ME_EXPIRE_MINUTES if remember else ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    access_token = create_access_token(
-        data={"sub": user.username, "role": user.role},
-        expires_delta=access_token_expires,
-    )
+    access_token = create_session_token(user, access_token_expires)
     return Token(access_token=access_token, token_type="bearer")
 
 
@@ -246,8 +259,7 @@ def get_current_user(
 
 
 @router.post("/demo-login")
-# Generous: anonymous requests all arrive from the SvelteKit proxy's IP, so
-# this bucket is shared by every visitor. Minting a token is cheap.
+# Per visitor IP (forwarded by the SvelteKit proxy). Minting a token is cheap.
 @limiter.limit("60/minute")
 def demo_login(request: Request, session: Session = Depends(get_session)) -> Token:
     """Issue a token for the read-only demo account, no password needed.
@@ -258,10 +270,7 @@ def demo_login(request: Request, session: Session = Depends(get_session)) -> Tok
     user = get_user(config.DEMO_USERNAME, session) if config.DEMO_USERNAME else None
     if user is None or user.role != DEMO_ROLE:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo not available")
-    access_token = create_access_token(
-        data={"sub": user.username, "role": user.role},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-    )
+    access_token = create_session_token(user, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     return Token(access_token=access_token, token_type="bearer")
 
 
@@ -279,8 +288,16 @@ def get_current_user_from_token(token: str, session: Session):
             raise credentials_exception
     except InvalidTokenError as exc:
         raise credentials_exception from exc
+    # Single-purpose tokens (password reset links) are never sessions.
+    if payload.get("purpose") is not None:
+        raise credentials_exception
     user = get_user(username=username, session=session)
     if user is None:
+        raise credentials_exception
+    # Signed out by a password change. Tokens issued before fingerprints were
+    # added have none; they expire on their own within REMEMBER_ME days.
+    fingerprint = payload.get("pwd_fp")
+    if fingerprint is not None and fingerprint != _password_fingerprint(user):
         raise credentials_exception
     return user
 
@@ -390,7 +407,13 @@ def update_password(
     current_user.password = get_password_hash(req.new_password)
     session.add(current_user)
     session.commit()
-    return {"message": "Password updated successfully"}
+    # Other sessions are now invalid; hand this one a fresh token.
+    return {
+        "message": "Password updated successfully",
+        "access_token": create_session_token(
+            current_user, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        ),
+    }
 
 
 @router.post("/forgot-password")

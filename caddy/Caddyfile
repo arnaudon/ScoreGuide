@@ -5,6 +5,9 @@ scoreguide.ch {
 		# SAMEORIGIN (not DENY): the PDF.js viewer embeds same-origin frames.
 		X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "strict-origin-when-cross-origin"
+		# No feature the app doesn't use (the CSP itself comes from SvelteKit).
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+		-Server
 	}
 	reverse_proxy frontend:3000
 }

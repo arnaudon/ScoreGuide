@@ -35,7 +35,7 @@ describe('reset-password action', () => {
 	it('fails 400 when token is missing', async () => {
 		const fetch = vi.fn();
 		const result = await actions.default(
-			event(fakeRequest({ new_password: 'a', confirm_password: 'a' }), fetch)
+			event(fakeRequest({ new_password: 'long-enough', confirm_password: 'long-enough' }), fetch)
 		);
 		expect(isActionFailure(result)).toBe(true);
 		expect(result).toMatchObject({ status: 400, data: { error: 'Missing or invalid reset link' } });
@@ -62,11 +62,23 @@ describe('reset-password action', () => {
 		expect(fetch).not.toHaveBeenCalled();
 	});
 
+	it('rejects a short password before calling the backend', async () => {
+		const fetch = vi.fn();
+		const result = await actions.default(
+			event(fakeRequest({ token: 't', new_password: 'short', confirm_password: 'short' }), fetch)
+		);
+		expect(result).toMatchObject({ status: 400 });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
 	it('fails with backend status when the token is invalid', async () => {
 		const fetch = vi.fn(async () => jsonResponse({ detail: 'Invalid or expired reset link' }, 400));
 		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const result = await actions.default(
-			event(fakeRequest({ token: 't', new_password: 'a', confirm_password: 'a' }), fetch)
+			event(
+				fakeRequest({ token: 't', new_password: 'long-enough', confirm_password: 'long-enough' }),
+				fetch
+			)
 		);
 		expect(isActionFailure(result)).toBe(true);
 		expect(result).toMatchObject({
@@ -79,7 +91,10 @@ describe('reset-password action', () => {
 	it('returns success on a valid reset', async () => {
 		const fetch = vi.fn(async () => jsonResponse({ message: 'Password reset successfully' }));
 		const result = await actions.default(
-			event(fakeRequest({ token: 't', new_password: 'a', confirm_password: 'a' }), fetch)
+			event(
+				fakeRequest({ token: 't', new_password: 'long-enough', confirm_password: 'long-enough' }),
+				fetch
+			)
 		);
 		expect(result).toMatchObject({ success: true, message: 'Password reset successfully' });
 	});

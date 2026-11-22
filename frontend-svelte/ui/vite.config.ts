@@ -26,6 +26,30 @@ const trustedOrigins = process.env.CSRF_TRUSTED_ORIGINS
 	: DEFAULT_TRUSTED_ORIGINS;
 
 /**
+ * Content-Security-Policy, set by SvelteKit so its own inline scripts get a
+ * nonce. Everything is same-origin except Sentry's ingest endpoint. Inline
+ * styles stay allowed (Svelte transitions and shadcn components set them);
+ * pdf.js needs WebAssembly for its image decoders and runs in a module worker.
+ */
+const csp = {
+	mode: 'auto' as const,
+	directives: {
+		'default-src': ['self' as const],
+		'script-src': ['self' as const, 'wasm-unsafe-eval' as const],
+		'style-src': ['self' as const, 'unsafe-inline' as const],
+		'img-src': ['self' as const, 'data:' as const, 'blob:' as const],
+		'font-src': ['self' as const, 'data:' as const],
+		'connect-src': ['self' as const, 'https://*.sentry.io' as const],
+		'worker-src': ['self' as const, 'blob:' as const],
+		'frame-src': ['self' as const, 'blob:' as const],
+		'object-src': ['none' as const],
+		'base-uri': ['self' as const],
+		'form-action': ['self' as const],
+		'frame-ancestors': ['self' as const]
+	}
+};
+
+/**
  * pdf.js loads fonts, character maps, colour profiles and image decoders
  * (JBIG2/JPEG 2000 — common in scanned IMSLP scores) at runtime by URL.
  * Copy them from the installed pdfjs-dist into static/pdfjs/ (gitignored)
@@ -53,7 +77,8 @@ export default defineConfig({
 		sveltekit({
 			preprocess: [vitePreprocess()],
 			adapter: adapter(),
-			csrf: { trustedOrigins }
+			csrf: { trustedOrigins },
+			csp
 		}),
 		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide' })
 	],

@@ -65,7 +65,14 @@
 						>
 					{/if}
 				</div>
-				<Input id="password" name="password" type="password" />
+				<Input
+					id="password"
+					name="password"
+					type="password"
+					minlength={isRegister ? 8 : undefined}
+					maxlength={isRegister ? 128 : undefined}
+					autocomplete={isRegister ? 'new-password' : 'current-password'}
+				/>
 			</div>
 
 			{#if isRegister}

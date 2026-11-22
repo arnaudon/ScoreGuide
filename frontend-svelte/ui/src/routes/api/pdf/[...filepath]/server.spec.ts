@@ -8,7 +8,7 @@ function pdfResponse(status = 200, body = '%PDF-1.4', extraHeaders: Record<strin
 		headers: {
 			'Content-Type': 'application/pdf',
 			'Content-Length': String(body.length),
-			'Cache-Control': 'public, max-age=86400, immutable',
+			'Cache-Control': 'private, max-age=86400, immutable',
 			...extraHeaders
 		}
 	});
@@ -120,7 +120,7 @@ describe('GET /api/pdf/:filepath', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get('Content-Type')).toBe('application/pdf');
 		expect(res.headers.get('Content-Length')).toBe(String('%PDF-1.4'.length));
-		expect(res.headers.get('Cache-Control')).toBe('public, max-age=86400, immutable');
+		expect(res.headers.get('Cache-Control')).toBe('private, max-age=86400, immutable');
 	});
 
 	it('propagates backend non-OK status through', async () => {

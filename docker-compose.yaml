@@ -15,7 +15,7 @@ services:
       # Initializes the `mcp_readonly` role on first start (empty data volume).
       # For already-initialized prod volumes, run infrastructure/mcp-readonly.sql manually.
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
-    env_file: .env
+    # No env_file: only the backend needs the app's secrets (least privilege).
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -63,15 +63,20 @@ services:
       context: .
       dockerfile: Dockerfile.frontend-svelte
       target: prod
-    ports:
-      - "3000:3000"
+    # No published port: Caddy reaches it on the compose network, and the dev
+    # override publishes 3000 for local work. No env_file either: the web
+    # server never needs the database, S3 or JWT secrets — keep them out of
+    # the internet-facing container.
     environment:
       - HOST=0.0.0.0
       - BACKEND_URL=http://backend:8000
       - PUBLIC_BACKEND_URL=http://localhost:8000
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
+      - PUBLIC_SENTRY_DSN=${PUBLIC_SENTRY_DSN:-}
+      - PUBLIC_SENTRY_ENVIRONMENT=${PUBLIC_SENTRY_ENVIRONMENT:-}
     depends_on:
       - backend
-    env_file: .env
 
 
 volumes:
