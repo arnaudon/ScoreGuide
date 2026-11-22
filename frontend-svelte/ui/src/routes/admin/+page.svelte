@@ -4,6 +4,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 	import {
 		type ColumnDef,
 		type PaginationState,
@@ -20,8 +21,10 @@
 		renderComponent
 	} from '#lib/components/ui/data-table/index.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
-	import EditCreditsDialog from './EditCreditsDialog.svelte';
-	import type { AdminUser } from '#lib/types.js';
+	import EditPlanDialog from './EditPlanDialog.svelte';
+	import type { AdminUser, UsageRow } from '#lib/types.js';
+	import { aiUsedPercent, formatBytes, planLabel } from '#lib/usage.js';
+	import { formatWeights } from '#lib/modelWeights.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	let { data, form }: PageProps = $props();
@@ -29,6 +32,13 @@
 	let selectedUser = $state<AdminUser | null>(null);
 	let editDialogOpen = $state(false);
 	let savingModels = $state(false);
+	let savingPlans = $state(false);
+
+	/** AI tokens used / received and storage per user, for the users table. */
+	const usageByUser = $derived(
+		new Map<number, UsageRow>(data.usageNow.map((row: UsageRow) => [row.user_id, row]))
+	);
+	const nf = new Intl.NumberFormat();
 
 	// The model dropdowns intentionally accept any pydantic-ai model string
 	// (the backend doesn't restrict it — see backend/app/main.py's
@@ -52,7 +62,12 @@
 			label: 'Infomaniak · Mistral Small 4'
 		},
 		{ value: 'infomaniak:google/gemma-4-31B-it', label: 'Infomaniak · Gemma 4 31B' },
-		{ value: 'infomaniak:swiss-ai/Apertus-v1.5-70B', label: 'Infomaniak · Apertus 70B' }
+		{ value: 'infomaniak:swiss-ai/Apertus-v1.5-70B', label: 'Infomaniak · Apertus 70B' },
+		{ value: 'infomaniak:Qwen/Qwen3.8-27B-FP8', label: 'Infomaniak · Qwen 3.8 27B' },
+		{
+			value: 'infomaniak:mistralai/Ministral-3-14B-Instruct-2512',
+			label: 'Infomaniak · Ministral 14B (smallest)'
+		}
 	];
 
 	const CREDENTIAL_FIELDS = [
@@ -141,13 +156,32 @@
 				row.original.role === 'admin' ? m.admin_role_admin() : m.admin_role_user()
 		},
 		{
-			accessorKey: 'credits',
+			accessorKey: 'plan',
 			header: ({ column }) =>
 				renderComponent(DataTableSortButton, {
-					title: m.credits(),
+					title: m.admin_plan(),
 					onclick: column.getToggleSortingHandler()
 				}),
-			cell: ({ row }) => `${row.original.credits ?? '-'}/${row.original.max_credits ?? '-'}`
+			cell: ({ row }) => planLabel(row.original.plan)
+		},
+		{
+			id: 'ai_used',
+			header: () => m.admin_ai_month(),
+			cell: ({ row }) => {
+				const usage = usageByUser.get(row.original.id);
+				if (!usage) return '-';
+				return `${aiUsedPercent(usage)}% (${nf.format(usage.ai_used)} / ${nf.format(usage.ai_allowance)})`;
+			}
+		},
+		{
+			id: 'storage',
+			header: () => m.admin_storage(),
+			cell: ({ row }) => {
+				const usage = usageByUser.get(row.original.id);
+				return usage
+					? `${formatBytes(usage.storage_used)} / ${formatBytes(usage.storage_limit)}`
+					: '-';
+			}
 		},
 		{
 			accessorKey: 'score_count',
@@ -406,6 +440,131 @@
 	</div>
 </div>
 
+{#if data.planSettings}
+	<section class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-6">
+		<h2 class="text-fancy-title mb-2 text-xl font-semibold">{m.plans_title()}</h2>
+		<p class="text-muted-foreground mb-4 text-sm">{m.plans_desc()}</p>
+		<form
+			method="POST"
+			action="?/set_plans"
+			class="flex flex-col gap-4"
+			use:enhance={() => {
+				savingPlans = true;
+				return async ({ update }) => {
+					savingPlans = false;
+					await update({ reset: false });
+				};
+			}}
+		>
+			<div class="grid gap-4 sm:grid-cols-2">
+				{#each ['free', 'pro'] as const as plan (plan)}
+					<fieldset class="space-y-3 rounded-md border p-4">
+						<legend class="px-1 text-sm font-semibold">{planLabel(plan)}</legend>
+						<div class="space-y-1">
+							<label for="{plan}_ai_tokens" class="text-sm font-medium">{m.plan_ai_tokens()}</label>
+							<Input
+								id="{plan}_ai_tokens"
+								name="{plan}_ai_tokens"
+								type="number"
+								min="0"
+								required
+								value={data.planSettings.limits[plan].ai_tokens}
+							/>
+						</div>
+						<div class="space-y-1">
+							<label for="{plan}_storage_mb" class="text-sm font-medium"
+								>{m.plan_storage_mb()}</label
+							>
+							<Input
+								id="{plan}_storage_mb"
+								name="{plan}_storage_mb"
+								type="number"
+								min="0"
+								required
+								value={data.planSettings.limits[plan].storage_mb}
+							/>
+						</div>
+					</fieldset>
+				{/each}
+			</div>
+			<div class="space-y-1">
+				<label for="weights" class="text-sm font-medium">{m.model_weights()}</label>
+				<p class="text-muted-foreground text-xs">{m.model_weights_desc()}</p>
+				<textarea
+					id="weights"
+					name="weights"
+					rows="3"
+					placeholder="infomaniak:moonshotai/Kimi-K2.6 = 5"
+					class="border-input bg-background focus:ring-ring w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
+					>{formatWeights(data.planSettings.weights)}</textarea
+				>
+			</div>
+			{#if form?.formId === 'plans' && form?.error}
+				<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
+			{/if}
+			{#if form?.formId === 'plans' && form?.success}
+				<p role="status" class="text-success text-sm font-medium">{m.plans_saved()}</p>
+			{/if}
+			<Button type="submit" class="self-start" disabled={savingPlans}>
+				{savingPlans ? m.saving() : m.save()}
+			</Button>
+		</form>
+	</section>
+{/if}
+
+<section class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-6">
+	<div class="mb-4 flex flex-wrap items-end justify-between gap-4">
+		<div>
+			<h2 class="text-fancy-title mb-1 text-xl font-semibold">{m.usage_by_month()}</h2>
+			<p class="text-muted-foreground text-sm">{m.usage_by_month_desc()}</p>
+		</div>
+		<form method="GET" class="flex items-end gap-2">
+			<div class="space-y-1">
+				<label for="month" class="text-sm font-medium">{m.usage_month()}</label>
+				<Input id="month" name="month" type="month" value={data.month} class="w-44" />
+			</div>
+			<Button type="submit" variant="outline">{m.show_month()}</Button>
+			<Button
+				variant="outline"
+				href={`/admin/usage.csv${data.month ? `?month=${data.month}` : ''}`}
+				data-sveltekit-reload>{m.download_csv()}</Button
+			>
+		</form>
+	</div>
+	<div class="overflow-x-auto">
+		<Table.Root>
+			<Table.Header>
+				<Table.Row>
+					<Table.Head>{m.username()}</Table.Head>
+					<Table.Head>{m.admin_plan()}</Table.Head>
+					<Table.Head class="text-right">{m.usage_requests()}</Table.Head>
+					<Table.Head class="text-right">{m.usage_tokens_in()}</Table.Head>
+					<Table.Head class="text-right">{m.usage_tokens_out()}</Table.Head>
+					<Table.Head class="text-right">{m.usage_counted()}</Table.Head>
+					<Table.Head class="text-right">{m.usage_granted()}</Table.Head>
+				</Table.Row>
+			</Table.Header>
+			<Table.Body>
+				{#each data.usageMonth.filter((r: UsageRow) => r.requests > 0 || r.granted > 0) as row (row.user_id)}
+					<Table.Row>
+						<Table.Cell>{row.username}</Table.Cell>
+						<Table.Cell>{planLabel(row.plan)}</Table.Cell>
+						<Table.Cell class="text-right">{nf.format(row.requests)}</Table.Cell>
+						<Table.Cell class="text-right">{nf.format(row.input_tokens)}</Table.Cell>
+						<Table.Cell class="text-right">{nf.format(row.output_tokens)}</Table.Cell>
+						<Table.Cell class="text-right">{nf.format(row.cost)}</Table.Cell>
+						<Table.Cell class="text-right">{row.granted ? nf.format(row.granted) : '-'}</Table.Cell>
+					</Table.Row>
+				{:else}
+					<Table.Row>
+						<Table.Cell colspan={7} class="text-muted-foreground py-4 text-center">-</Table.Cell>
+					</Table.Row>
+				{/each}
+			</Table.Body>
+		</Table.Root>
+	</div>
+</section>
+
 <section class="bg-card text-card-foreground shadow-card mb-8 rounded-md border p-6">
 	<h2 class="text-fancy-title mb-2 text-xl font-semibold">{m.toc_reports()}</h2>
 	<p class="text-muted-foreground mb-4 text-sm">{m.toc_reports_desc()}</p>
@@ -529,4 +688,4 @@
 	</Button>
 </div>
 
-<EditCreditsDialog bind:open={editDialogOpen} user={selectedUser} />
+<EditPlanDialog bind:open={editDialogOpen} user={selectedUser} />

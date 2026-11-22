@@ -1,0 +1,142 @@
+<script lang="ts">
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { enhance, type SubmitFunction } from '$app/forms';
+	import * as m from '#lib/paraglide/messages.js';
+	import type { AdminUser } from '#lib/types.js';
+
+	/** Change a user's plan and their own AI / storage limits (empty: the plan's). */
+	let {
+		open = $bindable(false),
+		user
+	}: {
+		open: boolean;
+		user: AdminUser | null;
+	} = $props();
+
+	let error = $state<string | null>(null);
+	let grantError = $state<string | null>(null);
+	let granted = $state(false);
+
+	// Reset the error whenever the dialog is (re)opened for a user.
+	$effect(() => {
+		if (open) {
+			error = null;
+			grantError = null;
+			granted = false;
+		}
+	});
+
+	// Only close once the backend accepted the change; otherwise keep the dialog
+	// open and show why, so a failed edit isn't silently lost.
+	const closeOnSuccess: SubmitFunction = () => {
+		error = null;
+		return async ({ result, update }) => {
+			if (result.type === 'failure') {
+				error = (result.data?.error as string | undefined) ?? m.failed_to_save_changes();
+				return;
+			}
+			open = false;
+			await update();
+		};
+	};
+
+	// A top-up keeps the dialog open and confirms, so several can be checked.
+	const confirmGrant: SubmitFunction = () => {
+		grantError = null;
+		granted = false;
+		return async ({ result, update }) => {
+			if (result.type === 'failure') {
+				grantError = (result.data?.error as string | undefined) ?? m.err_grant_tokens();
+				return;
+			}
+			granted = true;
+			await update();
+		};
+	};
+
+	const selectClass =
+		'border-input bg-background focus:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none';
+</script>
+
+<Dialog.Root bind:open>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title>{m.edit_plan_title({ username: user?.username || '' })}</Dialog.Title>
+			<Dialog.Description>{m.edit_plan_desc()}</Dialog.Description>
+		</Dialog.Header>
+		{#if user}
+			<form
+				method="POST"
+				action="?/set_user_plan"
+				use:enhance={closeOnSuccess}
+				class="mt-4 space-y-4"
+			>
+				<input type="hidden" name="user_id" value={user.id} />
+				<div class="space-y-2">
+					<label for="plan" class="text-sm font-medium">{m.admin_plan()}</label>
+					<select id="plan" name="plan" class={selectClass} value={user.plan || 'free'}>
+						<option value="free">{m.plan_free()}</option>
+						<option value="pro">{m.plan_pro()}</option>
+					</select>
+				</div>
+				<div class="space-y-2">
+					<label for="ai_allowance" class="text-sm font-medium">{m.plan_ai_tokens()}</label>
+					<Input
+						id="ai_allowance"
+						name="ai_allowance"
+						type="number"
+						min="0"
+						value={user.ai_allowance ?? ''}
+					/>
+				</div>
+				<div class="space-y-2">
+					<label for="storage_limit_mb" class="text-sm font-medium">{m.plan_storage_mb()}</label>
+					<Input
+						id="storage_limit_mb"
+						name="storage_limit_mb"
+						type="number"
+						min="0"
+						value={user.storage_limit_mb ?? ''}
+					/>
+				</div>
+				{#if error}
+					<p role="alert" class="text-destructive text-sm font-medium">{error}</p>
+				{/if}
+				<Dialog.Footer>
+					<Button type="submit">{m.save_changes()}</Button>
+				</Dialog.Footer>
+			</form>
+
+			<form
+				method="POST"
+				action="?/grant_tokens"
+				use:enhance={confirmGrant}
+				class="border-border space-y-2 border-t pt-4"
+			>
+				<input type="hidden" name="user_id" value={user.id} />
+				<label for="grant_tokens" class="text-sm font-medium">{m.grant_tokens_label()}</label>
+				<p class="text-muted-foreground text-xs">{m.grant_tokens_desc()}</p>
+				<div class="flex gap-2">
+					<Input
+						id="grant_tokens"
+						name="tokens"
+						type="number"
+						min="1"
+						step="1"
+						required
+						placeholder="100000"
+					/>
+					<Button type="submit" variant="outline">{m.grant_tokens_button()}</Button>
+				</div>
+				{#if grantError}
+					<p role="alert" class="text-destructive text-sm font-medium">{grantError}</p>
+				{/if}
+				{#if granted}
+					<p role="status" class="text-success text-sm font-medium">{m.grant_tokens_done()}</p>
+				{/if}
+			</form>
+		{/if}
+	</Dialog.Content>
+</Dialog.Root>

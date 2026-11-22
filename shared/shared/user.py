@@ -22,8 +22,15 @@ class User(SQLModel, table=True):
     instrument: str | None = None
     password: str | None = None
     role: str = Field(default="user")
+    # Legacy per-request counters, replaced by the token allowance of `plan`
+    # (backend app.plans); kept until a later migration drops them.
     credits: int = Field(default=50)
     max_credits: int = Field(default=50)
+    # Billing plan ("free" or "pro") and optional per-user overrides of its
+    # included AI tokens (weighted, once) and storage limit (MB).
+    plan: str = Field(default="free")
+    ai_allowance: int | None = Field(default=None)
+    storage_limit_mb: int | None = Field(default=None)
     last_login: datetime | None = None
     # Confirmed by clicking the emailed link; gates AI credits and uploads
     # when email verification is on (see backend app.config).

@@ -246,6 +246,7 @@ async def test_run_imslp_agent_history_parsing(monkeypatch):
         "<user_request>\nprompt\n</user_request>",
         message_history=None,
         usage_limits=agent._usage_limits(),
+        usage=None,
     )
 
 
@@ -269,6 +270,7 @@ async def test_run_agent_history_parsing(monkeypatch):
         message_history=None,
         deps=deps,
         usage_limits=agent._usage_limits(),
+        usage=None,
     )
 
 

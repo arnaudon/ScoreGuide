@@ -91,3 +91,7 @@ jobs:
             # (no-op when it already matches). Never fail the deploy over it.
             docker exec --workdir /app/backend backend python -m app.demo --catalog --if-changed \
               || echo "demo seeding skipped (see error above)"
+            # Record the size of PDFs stored before storage quotas existed (and of
+            # newly seeded demo scores). Only touches scores without one.
+            docker exec --workdir /app/backend backend python -m app.plans backfill-sizes \
+              || echo "PDF size backfill skipped (see error above)"

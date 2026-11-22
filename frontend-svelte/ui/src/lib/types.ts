@@ -119,16 +119,60 @@ export interface User {
 	last_name: string | null;
 	instrument: string | null;
 	role: string;
-	credits: number;
-	max_credits: number;
+	/** Billing plan: "free" or "pro". */
+	plan: string;
 	last_login: string | null;
 	/** False until the emailed confirmation link is opened (when verification is on). */
 	email_verified?: boolean;
+	/** Plan limits and use so far (only from `GET /user`). */
+	usage?: UsageSummary | null;
 }
 
-/** Admin `/users` includes a denormalized score count. */
+/** Matches `shared.usage.UsageSummary`. Storage in bytes; AI in weighted tokens used of all received. */
+export interface UsageSummary {
+	plan: string;
+	ai_used: number;
+	ai_allowance: number;
+	storage_used: number;
+	storage_limit: number;
+}
+
+/** Admin `/users` includes the score count and the user's limit overrides. */
 export interface AdminUser extends User {
 	score_count: number;
+	ai_allowance: number | null;
+	storage_limit_mb: number | null;
+}
+
+/** Matches `app.plans.PlanLimits`. */
+export interface PlanLimits {
+	ai_tokens: number;
+	storage_mb: number;
+}
+
+/** Matches `app.plans.PlanSettings`. */
+export interface PlanSettings {
+	limits: Record<'free' | 'pro', PlanLimits>;
+	weights: Record<string, number>;
+}
+
+/** Matches `app.plans.UsageRow`: one user's month, the billing export. */
+export interface UsageRow {
+	user_id: number;
+	username: string;
+	email: string | null;
+	plan: string;
+	requests: number;
+	input_tokens: number;
+	output_tokens: number;
+	cost: number;
+	/** Tokens an admin added to the account that month. */
+	granted: number;
+	/** Totals so far (not just that month): tokens used and received. */
+	ai_used: number;
+	ai_allowance: number;
+	storage_used: number;
+	storage_limit: number;
 }
 
 /** Matches `shared.responses.Response`. */

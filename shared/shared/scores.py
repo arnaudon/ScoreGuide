@@ -55,6 +55,8 @@ class Score(ScoreBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     pdf_path: str = Field(default="")
+    # Bytes of the stored PDF, set by the server; counts against the storage limit.
+    pdf_size: int = Field(default=0)
     number_of_plays: int = 0
     # When the score was last opened in the reader (the home page's "continue").
     last_played_at: datetime | None = Field(default=None)

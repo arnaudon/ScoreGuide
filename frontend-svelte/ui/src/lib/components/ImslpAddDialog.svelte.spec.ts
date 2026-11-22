@@ -38,7 +38,7 @@ describe('ImslpAddDialog.svelte', () => {
 		const fetch = stubFiles([1, 2, 3, 4, 5, 6, 7, 8].map(file));
 		render(ImslpAddDialog, { work: WORK, open: true });
 		await expect.element(page.getByText('Complete Score')).toBeInTheDocument();
-		expect(String(fetch.mock.calls[0][0])).toBe('/api/imslp/42/files');
+		expect(fetch).toHaveBeenCalledWith('/api/imslp/42/files', expect.anything());
 		const links = page.getByRole('link', { name: 'Open on IMSLP' });
 		await expect.element(links.first()).toHaveAttribute('href', file(1).url);
 		await expect.element(links.first()).toHaveAttribute('target', '_blank');
