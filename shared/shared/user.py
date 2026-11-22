@@ -20,6 +20,9 @@ class User(SQLModel, table=True):
     first_name: str | None = None
     last_name: str | None = None
     instrument: str | None = None
+    # The user's own words about their playing (level, tastes, goals); given
+    # to the assistants so they suggest suitable scores.
+    music_profile: str | None = Field(default=None)
     password: str | None = None
     role: str = Field(default="user")
     # Legacy per-request counters, replaced by the token allowance of `plan`

@@ -341,7 +341,11 @@ async def run_imslp_agent_api(
     async with plans.metered(current_user, session, "imslp_agent", name) as usage:
         try:
             return await run_imslp_agent(
-                body.prompt, message_history=body.message_history, model=model, usage=usage
+                body.prompt,
+                message_history=body.message_history,
+                model=model,
+                usage=usage,
+                user=current_user,
             )
         except Exception as e:
             logger.exception("imslp agent failed")
