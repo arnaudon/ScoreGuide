@@ -1,34 +1,40 @@
-# Include any files or directories that you don't want to be copied to your
-# container here (e.g., local build artifacts, temporary files, etc.).
-#
-# For more help, visit the .dockerignore file reference guide at
+# Allowlist: both images build from the repo root, and the prod checkout also
+# holds data/, database dumps, .env and local caches (.mypy_cache, htmlcov,
+# node_modules, .svelte-kit, build/...). The legacy builder used by the deploy
+# sends the whole context to the daemon for each image, and anything copied
+# by a broad COPY busts the layer cache. Only what the Dockerfiles read gets in.
 # https://docs.docker.com/go/build-context-dockerignore/
 
-**/.DS_Store
+*
+
+# Dockerfile.backend
+!pyproject.toml
+!uv.lock
+!backend/pyproject.toml
+!backend/README.md
+!backend/alembic.ini
+!backend/app
+!backend/migrations
+!shared/pyproject.toml
+!shared/README.md
+!shared/shared
+
+# Dockerfile.frontend-svelte
+!frontend-svelte/ui
+
+# Re-excluded inside the allowed folders (rules below win over the ones above).
 **/__pycache__
-**/.venv
-**/.classpath
-**/.dockerignore
+**/*.pyc
 **/.env
-**/.git
-**/.gitignore
-**/.project
-**/.settings
-**/.toolstarget
-**/.vs
-**/.vscode
-**/*.*proj.user
-**/*.dbmdl
-**/*.jfm
-**/bin
-**/charts
-**/docker-compose*
-**/compose.y*ml
-**/Dockerfile*
-**/node_modules
-**/npm-debug.log
-**/obj
-**/secrets.dev.yaml
-**/values.dev.yaml
-LICENSE
-README.md
+**/.env.*
+frontend-svelte/ui/node_modules
+frontend-svelte/ui/.svelte-kit
+frontend-svelte/ui/build
+frontend-svelte/ui/dist
+frontend-svelte/ui/test-results
+frontend-svelte/ui/playwright-report
+frontend-svelte/ui/e2e
+frontend-svelte/ui/static/pdfjs
+frontend-svelte/ui/src/lib/paraglide
+frontend-svelte/ui/project.inlang/cache
+frontend-svelte/ui/vite.config.ts.timestamp-*

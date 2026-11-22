@@ -80,7 +80,15 @@ export default defineConfig({
 			csrf: { trustedOrigins },
 			csp
 		}),
-		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide' })
+		paraglideVitePlugin({
+			project: './project.inlang',
+			outdir: './src/lib/paraglide',
+			// One module per locale instead of one per message (the plugin's
+			// default): far fewer modules for Vite/Rollup to hold during the
+			// production build, which runs on the same small VPS as prod.
+			// Same choice as GardenAI (#619 there).
+			outputStructure: 'locale-modules'
+		})
 	],
 	optimizeDeps: {
 		// Loaded lazily by ScoreViewer: pre-bundle it so Vite doesn't

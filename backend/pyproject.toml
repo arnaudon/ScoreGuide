@@ -8,11 +8,12 @@ requires-python = ">=3.12"
 dependencies = [
     "aiosqlite>=0.21.0",
     "fastapi[standard]>=0.119.0",
-    "pandas>=2.3.3",
-    "pandas-stubs>=2.3.2.250926",
     "pydantic>=2.12.3",
-    "pydantic-ai>=2.28.0",
-    "pydantic-ai-slim[duckduckgo,google,mcp]>=2.28.0",
+    # Slim + only the extras the app uses (Google and Infomaniak's
+    # OpenAI-compatible API, DuckDuckGo search, the MCP client, and logfire for
+    # USE_LOGFIRE). The full `pydantic-ai` also pulls Anthropic, the CLI, evals
+    # and the web UI: ~60 MB of image nobody imports.
+    "pydantic-ai-slim[duckduckgo,google,logfire,mcp,openai]>=2.28.0",
     # imported directly by app/file_helper.py; was only ever present
     # transitively via pydantic-ai's bedrock extra until 2.x dropped it
     "boto3>=1.40.0",
@@ -25,7 +26,6 @@ dependencies = [
     "asyncpg>=0.31.0",
     "psycopg2-binary>=2.9.11",
     "alembic>=1.17.2",
-    "beautifulsoup4>=4.14.3",
     "httpx>=0.28.1",
     "slowapi>=0.1.9",
     "sentry-sdk[fastapi]>=2.0.0",
@@ -37,8 +37,9 @@ dependencies = [
 
 [dependency-groups]
 # Also listed at the workspace root for `uv sync --frozen` + `uv run` invocations.
-# Repeated here so `uv sync --package app` (used in Dockerfile.backend) installs
-# pytest into the prod image for the docker-compose integration tests.
+# Repeated here so the dev image (Dockerfile.backend with INSTALL_DEV=true, set
+# by docker-compose.override.yaml) has pytest for the docker-compose integration
+# tests. The prod image is built without it.
 dev = [
     "pytest>=7.4.4",
     "pytest-cov>=7.0.0",

@@ -3,6 +3,10 @@ services:
     ports:
       - "5432:5432"
   backend:
+    build:
+      args:
+        # pytest & co, for `docker compose exec backend pytest` (test_docker.yaml).
+        INSTALL_DEV: "true"
     command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - '8000:8000'
