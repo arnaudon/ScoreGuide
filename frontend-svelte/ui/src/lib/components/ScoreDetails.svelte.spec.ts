@@ -1,0 +1,37 @@
+import { page } from 'vitest/browser';
+import { describe, expect, it } from 'vitest';
+import { render } from 'vitest-browser-svelte';
+import ScoreDetails from './ScoreDetails.svelte';
+import type { Score } from '#lib/types.js';
+
+const score = (youtube_url = '') =>
+	({ id: 1, title: 'Gymnopédie No.1', composer: 'Satie, Erik', youtube_url }) as unknown as Score;
+
+describe('ScoreDetails.svelte YouTube', () => {
+	it('always offers a YouTube search for the piece', async () => {
+		render(ScoreDetails, { score: score() });
+		await expect
+			.element(page.getByRole('link', { name: 'Search on YouTube' }))
+			.toHaveAttribute(
+				'href',
+				'https://www.youtube.com/results?search_query=Erik%20Satie%20Gymnop%C3%A9die%20No.1'
+			);
+		await expect.element(page.getByRole('button', { name: /Play here/ })).not.toBeInTheDocument();
+	});
+
+	it('plays the saved video in the privacy-enhanced player only after a click', async () => {
+		render(ScoreDetails, { score: score('https://youtu.be/dQw4w9WgXcQ') });
+		expect(document.querySelector('iframe')).toBeNull();
+		await page.getByRole('button', { name: /Play here/ }).click();
+		await expect
+			.poll(() => document.querySelector('iframe')?.getAttribute('src'))
+			.toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0');
+		await expect.element(page.getByRole('link', { name: 'Watch on YouTube' })).toBeInTheDocument();
+	});
+
+	it('keeps a non-video link as a plain link, without a player', async () => {
+		render(ScoreDetails, { score: score('https://www.youtube.com/results?search_query=satie') });
+		await expect.element(page.getByRole('link', { name: 'Watch on YouTube' })).toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: /Play here/ })).not.toBeInTheDocument();
+	});
+});

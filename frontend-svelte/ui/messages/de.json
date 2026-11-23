@@ -168,7 +168,7 @@
 	"privacy_h_email": "E-Mails",
 	"privacy_email": "Wir schreiben dir nur, um deine Adresse zu bestätigen und dein Passwort zurückzusetzen. Keine Newsletter, keine Werbung.",
 	"privacy_h_cookies": "Cookies",
-	"privacy_cookies": "ScoreGuide verwendet ein Anmelde-Cookie und ein Sprach-Cookie und speichert dein helles/dunkles Design in deinem Browser. Keine Werbung, keine Statistik, kein Tracking; die Schriften kommen von unserem eigenen Server.",
+	"privacy_cookies": "ScoreGuide verwendet ein Anmelde-Cookie und ein Sprach-Cookie und speichert dein helles/dunkles Design in deinem Browser. Keine Werbung, keine Statistik, kein Tracking; die Schriften kommen von unserem eigenen Server. Videos, die du in ScoreGuide abspielst, kommen vom YouTube-Player im erweiterten Datenschutzmodus, der erst beim Klick auf Abspielen geladen wird.",
 	"privacy_h_share": "Weitergabe",
 	"privacy_share": "Deine Daten werden nie verkauft. Sie werden nur mit den oben genannten Anbietern geteilt, um den Dienst zu betreiben, oder wenn das Gesetz es verlangt.",
 	"privacy_h_rights": "Deine Rechte",
@@ -435,5 +435,8 @@
 	"chat_suggest_bach": "Ein Stück von Bach",
 	"chat_suggest_surprise": "Überrasch mich",
 	"label_size": "Grösse",
-	"imslp_filter_solo": "Nur solo"
+	"imslp_filter_solo": "Nur solo",
+	"youtube_search": "Auf YouTube suchen",
+	"youtube_play_here": "Hier abspielen",
+	"youtube_privacy_note": "Lädt das Video beim Klick von YouTube (erweiterter Datenschutzmodus)."
 }

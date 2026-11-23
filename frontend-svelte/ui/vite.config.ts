@@ -41,7 +41,8 @@ const csp = {
 		'font-src': ['self' as const, 'data:' as const],
 		'connect-src': ['self' as const, 'https://*.sentry.io' as const],
 		'worker-src': ['self' as const, 'blob:' as const],
-		'frame-src': ['self' as const, 'blob:' as const],
+		// YouTube's privacy-enhanced player, loaded only when the user clicks Play.
+		'frame-src': ['self' as const, 'blob:' as const, 'https://www.youtube-nocookie.com' as const],
 		'object-src': ['none' as const],
 		'base-uri': ['self' as const],
 		'form-action': ['self' as const],
