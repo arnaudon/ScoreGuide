@@ -60,6 +60,11 @@ PASSWORD_MAX_LENGTH = 128
 Password = Annotated[str, Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)]
 
 
+# The free-text "about your music" field: long enough for a few sentences,
+# short enough to add to every assistant prompt.
+MUSIC_PROFILE_MAX_LENGTH = 1000
+
+
 class UserCreate(BaseModel):
     """Public registration body.
 
@@ -73,6 +78,7 @@ class UserCreate(BaseModel):
     first_name: str | None = Field(default=None, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
     instrument: str | None = Field(default=None, max_length=50)
+    music_profile: str | None = Field(default=None, max_length=MUSIC_PROFILE_MAX_LENGTH)
 
 
 class UserResponse(BaseModel):
@@ -84,6 +90,7 @@ class UserResponse(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     instrument: str | None = None
+    music_profile: str | None = None
     role: str
     plan: str = "free"
     last_login: datetime | None = None
@@ -105,6 +112,7 @@ class UserUpdateRequest(BaseModel):
 
     instrument: str | None = None
     email: EmailStr | None = None
+    music_profile: str | None = Field(default=None, max_length=MUSIC_PROFILE_MAX_LENGTH)
 
 
 class PasswordChangeRequest(BaseModel):
@@ -443,6 +451,7 @@ def add_user(
         first_name=user.first_name,
         last_name=user.last_name,
         instrument=user.instrument,
+        music_profile=(user.music_profile or "").strip() or None,
         email_verified=not config.EMAIL_VERIFICATION,
     )
     session.add(db_user)
@@ -490,6 +499,9 @@ def update_user(
     updated = False
     if req.instrument is not None:
         current_user.instrument = req.instrument
+        updated = True
+    if req.music_profile is not None:
+        current_user.music_profile = req.music_profile.strip() or None
         updated = True
 
     new_email = req.email.lower() if req.email is not None else None

@@ -1,41 +1,15 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { setLocale } from '#lib/paraglide/runtime.js';
+	import LanguagePicker from './LanguagePicker.svelte';
 	import * as m from '#lib/paraglide/messages.js';
 
 	let { showLanguageToggle = false }: { showLanguageToggle?: boolean } = $props();
-
-	function setLanguage(lang: 'en' | 'fr') {
-		setLocale(lang);
-	}
 </script>
 
 <footer class="text-muted-foreground p-4 text-sm">
 	{#if showLanguageToggle}
 		<div class="mb-4 flex justify-center">
-			<div
-				class="flex rounded-md border text-xs font-semibold"
-				role="group"
-				aria-label={m.language_switch()}
-			>
-				<button
-					type="button"
-					onclick={() => setLanguage('en')}
-					aria-label={m.language_switch_to_en()}
-					class="hover:bg-muted px-2 py-1"
-				>
-					EN
-				</button>
-				<div class="bg-border w-[1px]"></div>
-				<button
-					type="button"
-					onclick={() => setLanguage('fr')}
-					aria-label={m.language_switch_to_fr()}
-					class="hover:bg-muted px-2 py-1"
-				>
-					FR
-				</button>
-			</div>
+			<LanguagePicker />
 		</div>
 	{/if}
 	<div class="flex flex-col items-center justify-between gap-4 md:flex-row">

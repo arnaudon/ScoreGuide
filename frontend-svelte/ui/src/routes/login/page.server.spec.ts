@@ -134,6 +134,31 @@ describe('register action', () => {
 		expect(cookies.set).toHaveBeenCalledWith('access_token', 'newtok', expect.any(Object));
 	});
 
+	it('sends the music profile (trimmed), and keeps it when sign-up fails', async () => {
+		const fetch = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse({ id: 1 }))
+			.mockResolvedValueOnce(jsonResponse({ access_token: 'tok' }));
+		const fields = { username: 'u', password: 'long-enough', email: 'e@x' };
+		await expect(
+			actions.register(
+				event(
+					fakeRequest({ ...fields, music_profile: '  Amateur pianist  ' }),
+					makeCookies(),
+					fetch
+				)
+			)
+		).rejects.toSatisfy((thrown: unknown) => isRedirect(thrown));
+		expect(JSON.parse(fetch.mock.calls[0][1].body).music_profile).toBe('Amateur pianist');
+
+		const blank = vi.fn().mockResolvedValueOnce(jsonResponse({ detail: 'taken' }, 409));
+		const result = await actions.register(
+			event(fakeRequest({ ...fields, music_profile: ' ' }), makeCookies(), blank)
+		);
+		expect(JSON.parse(blank.mock.calls[0][1].body)).not.toHaveProperty('music_profile');
+		expect(result).toMatchObject({ status: 409, data: { musicProfile: ' ' } });
+	});
+
 	it('returns success message when registration succeeds but auto-login fails', async () => {
 		const fetch = vi
 			.fn()
