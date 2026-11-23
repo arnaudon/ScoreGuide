@@ -7,13 +7,15 @@
 		emptyMessage = 'How can I help?',
 		placeholder = 'ask me anything',
 		user = null,
-		withHistory = false
+		withHistory = false,
+		suggestions = []
 	}: {
 		title?: string;
 		emptyMessage?: string;
 		placeholder?: string;
 		user?: User | null;
 		withHistory?: boolean;
+		suggestions?: string[];
 	} = $props();
 
 	type HistoryMessage = { question: string; [key: string]: unknown };
@@ -43,6 +45,7 @@
 	{onResult}
 	{user}
 	{store}
+	{suggestions}
 >
 	{#snippet resultSnippet({ msg }: { msg: HistoryMessage; isLast: boolean })}
 		<p>{String(msg.answer ?? '')}</p>

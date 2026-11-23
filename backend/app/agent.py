@@ -219,6 +219,7 @@ async def run_imslp_agent(
         Never ask the user for a table name; always use the one provided here.
         When asked about a score, consider it as an entry.
         The column instrumentation works for instrument, with case unsensitive search.
+        For solo works (e.g. piano solo), match the whole instrumentation, not a part of it: lower(trim(instrumentation)) IN ('piano', 'piano solo', '1 piano'). A plain ILIKE '%piano%' also finds songs, duets and chamber music.
         When asked about time for scores, use the column year.
         You are also a SQL expert for PostgreSQL. 
         CRITICAL: Always use single quotes (') for string literals in SQL queries.

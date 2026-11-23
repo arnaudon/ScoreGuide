@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 
-const PARAMS = ['q', 'instrument', 'period', 'limit', 'offset'] as const;
+const PARAMS = ['q', 'instrument', 'solo', 'period', 'limit', 'offset'] as const;
 
 /**
  * Same-origin proxy for the IMSLP catalogue search, so the browser can search

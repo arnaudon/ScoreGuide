@@ -428,5 +428,12 @@
 	"err_grant_tokens": "Inserisci un numero intero di token maggiore di 0.",
 	"profile_music_label": "La tua musica",
 	"profile_music_hint": "Raccontaci come suoni: livello, anni di pratica, compositori o stili preferiti, cosa stai studiando o vorresti imparare. L'assistente lo usa per proporti spartiti adatti.",
-	"profile_music_placeholder": "es. Pianista amatoriale, 10 anni di lezioni. Amo Chopin e Debussy; la lettura a prima vista è il mio punto debole. Cerco brani di livello intermedio sotto i 5 minuti."
+	"profile_music_placeholder": "es. Pianista amatoriale, 10 anni di lezioni. Amo Chopin e Debussy; la lettura a prima vista è il mio punto debole. Cerco brani di livello intermedio sotto i 5 minuti.",
+	"chat_open_score": "Apri",
+	"chat_more_scores": "Altri {count}",
+	"chat_suggest_easy": "Qualcosa di facile per 20 minuti",
+	"chat_suggest_bach": "Un brano di Bach",
+	"chat_suggest_surprise": "Sorprendimi",
+	"label_size": "Dimensione",
+	"imslp_filter_solo": "Solo"
 }

@@ -22,11 +22,17 @@ describe('GET /api/imslp/search', () => {
 
 	it('forwards only the known parameters with the bearer token', async () => {
 		const fetch = makeFetch(async () => jsonResponse({ total: 1, results: [] }));
-		const res = await get('?q=chopin+nocturne&period=Romantic&evil=1&offset=20', undefined, fetch);
+		const res = await get(
+			'?q=chopin+nocturne&instrument=piano&solo=true&period=Romantic&evil=1&offset=20',
+			undefined,
+			fetch
+		);
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ total: 1, results: [] });
 		const called = String(fetch.mock.calls[0][0]);
-		expect(called).toContain('/imslp/search?q=chopin+nocturne&period=Romantic&offset=20');
+		expect(called).toContain(
+			'/imslp/search?q=chopin+nocturne&instrument=piano&solo=true&period=Romantic&offset=20'
+		);
 		expect(called).not.toContain('evil');
 		expect(new Headers(fetch.mock.calls[0][1]!.headers).get('Authorization')).toBe('Bearer tok');
 	});

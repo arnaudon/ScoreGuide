@@ -22,6 +22,8 @@ export interface Score {
 	key: string;
 	instrumentation: string;
 	pdf_path: string;
+	/** Bytes of the stored PDF (0 when unknown); counts against the storage limit. */
+	pdf_size?: number;
 	number_of_plays: number;
 	/** When the score was last opened in the reader (naive UTC), null if never. */
 	last_played_at?: string | null;

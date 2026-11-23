@@ -44,14 +44,30 @@ describe('AgentChat.svelte', () => {
 		await expect.element(page.getByText('AI: 75% left')).toBeInTheDocument();
 	});
 
-	it('renders each Q: prefix and the result snippet for history entries', async () => {
+	it('shows the question and the answer of each exchange', async () => {
 		render(AgentChatHarness, { withHistory: true });
 		await expect.element(page.getByText(/find scores/i)).toBeInTheDocument();
 		await expect.element(page.getByText(/found 2 scores/i)).toBeInTheDocument();
 	});
 
-	it('exposes a clean-history button', async () => {
+	it('offers to clean the history only once there is a conversation', async () => {
 		render(AgentChatHarness, { withHistory: false });
+		await expect
+			.element(page.getByRole('button', { name: /clean history/i }))
+			.not.toBeInTheDocument();
+		render(AgentChatHarness, { withHistory: true });
 		await expect.element(page.getByRole('button', { name: /clean history/i })).toBeInTheDocument();
+	});
+
+	it('shows example questions while the conversation is empty', async () => {
+		render(AgentChatHarness, { suggestions: ['Surprise me', 'A piece by Bach'] });
+		await expect.element(page.getByRole('button', { name: 'Surprise me' })).toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: 'A piece by Bach' })).toBeInTheDocument();
+	});
+
+	it('hides the examples once there is a conversation', async () => {
+		render(AgentChatHarness, { withHistory: true, suggestions: ['Surprise me'] });
+		await expect.element(page.getByText(/found 2 scores/i)).toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: 'Surprise me' })).not.toBeInTheDocument();
 	});
 });

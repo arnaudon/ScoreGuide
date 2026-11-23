@@ -622,6 +622,22 @@ class ImslpSearch(BaseModel):
     results: list[ImslpResult]
 
 
+def solo_forms(instrument: str) -> list[str]:
+    """How IMSLP writes a work for that instrument alone ("piano", "piano solo", "1 piano")."""
+    name = instrument.strip().lower()
+    return [name, f"{name} solo", f"solo {name}", f"1 {name}"]
+
+
+def _instrument_filter(stmt, instrument: str, solo: bool):
+    """Works for that instrument: any scoring that includes it, or (solo) it alone."""
+    name = instrument.strip().lower()
+    if not name:
+        return stmt
+    if solo:
+        return stmt.where(func.lower(func.trim(IMSLP.instrumentation)).in_(solo_forms(name)))
+    return stmt.where(func.lower(IMSLP.instrumentation).contains(name))
+
+
 @router.get("/search")
 @limiter.limit("120/minute")
 def search(
@@ -629,12 +645,16 @@ def search(
     current_user: Annotated[User, Depends(get_current_user)],
     q: Annotated[str, Query(max_length=200)] = "",
     instrument: Annotated[str, Query(max_length=50)] = "",
+    solo: bool = False,
     period: Period | None = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
     offset: Annotated[int, Query(ge=0, le=5000)] = 0,
     session: Session = Depends(get_session),
 ) -> ImslpSearch:
     """Search the catalogue by title, composer, catalogue number or key.
+
+    ``instrument`` keeps works scored for it; with ``solo``, only works for that
+    instrument alone (no duets, accompaniments or ensembles).
 
     Words match anywhere, ignoring case and accents ("frederic chopin nocturne").
     When nothing matches, Postgres falls back to a typo-tolerant search.
@@ -645,8 +665,7 @@ def search(
     stmt = select(IMSLP)
     for token in tokens:
         stmt = stmt.where(col(IMSLP.search_text).contains(token))
-    if instrument.strip():
-        stmt = stmt.where(func.lower(IMSLP.instrumentation).contains(instrument.strip().lower()))
+    stmt = _instrument_filter(stmt, instrument, solo)
     if period:
         stmt = stmt.where(IMSLP.period == period)
     ordered = stmt.order_by(func.length(IMSLP.title), IMSLP.title, IMSLP.id)
@@ -659,10 +678,7 @@ def search(
         fuzzy = select(IMSLP)
         for token in tokens:
             fuzzy = fuzzy.where(literal(token).op("<%")(IMSLP.search_text))
-        if instrument.strip():
-            fuzzy = fuzzy.where(
-                func.lower(IMSLP.instrumentation).contains(instrument.strip().lower())
-            )
+        fuzzy = _instrument_filter(fuzzy, instrument, solo)
         if period:
             fuzzy = fuzzy.where(IMSLP.period == period)
         closeness: ColumnElement[float] = func.word_similarity(tokens[0], IMSLP.search_text)
