@@ -70,7 +70,7 @@
 	     asking questions never pushes the rest of the page down. -->
 	<div class="grid gap-6 lg:grid-cols-5">
 		<section
-			class="bg-card shadow-card flex h-[30rem] flex-col rounded-lg border p-4 sm:p-5 lg:h-[34rem] {data.isDemo
+			class="bg-card shadow-card flex h-[30rem] min-w-0 flex-col rounded-lg border p-4 sm:p-5 lg:h-[34rem] {data.isDemo
 				? 'lg:col-span-5'
 				: 'lg:col-span-3'}"
 		>
@@ -103,13 +103,14 @@
 		</section>
 		{#if !data.isDemo}
 			<section
-				class="bg-card shadow-card flex flex-col gap-2 rounded-lg border p-4 sm:p-5 lg:col-span-2 lg:h-[34rem]"
+				class="bg-card shadow-card flex min-w-0 flex-col gap-2 rounded-lg border p-4 sm:p-5 lg:col-span-2 lg:h-[34rem]"
 				aria-labelledby="imslp-home-title"
 			>
 				<h2 id="imslp-home-title" class="text-foreground font-semibold">{m.imslp_home_title()}</h2>
 				<p class="text-muted-foreground text-sm">{m.imslp_home_desc()}</p>
 				<ImslpSearch
 					preferredInstrument={data.user.instrument}
+					class="lg:min-h-0 lg:flex-1"
 					listClass="max-h-64 overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1"
 					onSelect={(work) => {
 						imslpWork = work;

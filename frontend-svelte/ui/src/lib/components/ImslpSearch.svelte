@@ -23,12 +23,15 @@
 	let {
 		onSelect,
 		preferredInstrument = null,
-		listClass = ''
+		listClass = '',
+		class: className = ''
 	}: {
 		onSelect: (work: ImslpResult) => void;
 		preferredInstrument?: string | null;
 		/** Extra classes for the results list, e.g. a max height. */
 		listClass?: string;
+		/** Extra classes for the root, e.g. `min-h-0 flex-1` to fit a fixed-height box. */
+		class?: string;
 	} = $props();
 
 	const PAGE = 20;
@@ -101,9 +104,10 @@
 	}
 </script>
 
-<div class="flex flex-col gap-3">
-	<div class="flex flex-col gap-2 sm:flex-row">
-		<div class="relative flex-1">
+<div class="flex min-w-0 flex-col gap-3 {className}">
+	<!-- Search on its own line, filters wrap below: the box is narrow on the home page. -->
+	<div class="flex min-w-0 flex-col gap-2">
+		<div class="relative">
 			<SearchIcon
 				class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
 				aria-hidden="true"
@@ -117,33 +121,35 @@
 				autocomplete="off"
 			/>
 		</div>
-		<select
-			bind:value={instrument}
-			onchange={() => (solo = SOLO_FIRST.has(instrument))}
-			aria-label={m.imslp_filter_instrument()}
-			class="border-input bg-background focus-visible:ring-ring h-9 rounded-md border px-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
-		>
-			<option value="">{m.imslp_any_instrument()}</option>
-			{#each INSTRUMENTS as value (value)}
-				<option {value}>{instrumentLabel(value)}</option>
-			{/each}
-		</select>
-		{#if instrument}
-			<label class="flex h-9 items-center gap-1.5 text-sm whitespace-nowrap">
-				<input type="checkbox" bind:checked={solo} class="accent-primary size-4" />
-				{m.imslp_filter_solo()}
-			</label>
-		{/if}
-		<select
-			bind:value={period}
-			aria-label={m.imslp_filter_period()}
-			class="border-input bg-background focus-visible:ring-ring h-9 rounded-md border px-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
-		>
-			<option value="">{m.imslp_any_period()}</option>
-			{#each PERIODS as value (value)}
-				<option {value}>{periodLabel(value)}</option>
-			{/each}
-		</select>
+		<div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+			<select
+				bind:value={instrument}
+				onchange={() => (solo = SOLO_FIRST.has(instrument))}
+				aria-label={m.imslp_filter_instrument()}
+				class="border-input bg-background focus-visible:ring-ring h-9 max-w-full min-w-0 flex-1 basis-32 rounded-md border px-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+			>
+				<option value="">{m.imslp_any_instrument()}</option>
+				{#each INSTRUMENTS as value (value)}
+					<option {value}>{instrumentLabel(value)}</option>
+				{/each}
+			</select>
+			{#if instrument}
+				<label class="flex h-9 items-center gap-1.5 text-sm whitespace-nowrap">
+					<input type="checkbox" bind:checked={solo} class="accent-primary size-4" />
+					{m.imslp_filter_solo()}
+				</label>
+			{/if}
+			<select
+				bind:value={period}
+				aria-label={m.imslp_filter_period()}
+				class="border-input bg-background focus-visible:ring-ring h-9 max-w-full min-w-0 flex-1 basis-32 rounded-md border px-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+			>
+				<option value="">{m.imslp_any_period()}</option>
+				{#each PERIODS as value (value)}
+					<option {value}>{periodLabel(value)}</option>
+				{/each}
+			</select>
+		</div>
 	</div>
 
 	<p class="text-muted-foreground text-xs" role="status" aria-live="polite">
@@ -163,7 +169,7 @@
 	{#if results.length}
 		<ul class="flex flex-col divide-y rounded-md border {listClass}">
 			{#each results as work (work.id)}
-				<li class="flex items-center gap-2">
+				<li class="flex shrink-0 items-center gap-2">
 					<button
 						type="button"
 						class="hover:bg-accent focus-visible:ring-ring flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
