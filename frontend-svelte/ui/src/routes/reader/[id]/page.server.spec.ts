@@ -14,7 +14,8 @@ const TOC = {
 			title: 'Allegro',
 			page: 1,
 			source: 'ocr',
-			incipit_path: 'x.png'
+			incipit_path: 'x.png',
+			level: 0
 		}
 	]
 };

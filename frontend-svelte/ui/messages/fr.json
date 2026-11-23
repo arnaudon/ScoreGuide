@@ -274,6 +274,7 @@
 	"tab_open_another": "Ouvrir une autre partition",
 	"demo_login": "J'ai déjà un compte",
 	"toc_report": "Sommaire incorrect ? Signalez-le",
+	"toc_movements": "Mouvements de {title}",
 	"toc_report_placeholder": "Qu'est-ce qui ne va pas ? ex. préludes manquants, titres faux, la page 12 n'est pas un nouveau morceau… (facultatif)",
 	"toc_report_send": "Envoyer",
 	"toc_report_thanks": "Merci ! Nous utiliserons cette partition pour améliorer la détection.",

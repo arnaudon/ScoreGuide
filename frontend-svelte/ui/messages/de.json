@@ -274,6 +274,7 @@
 	"tab_open_another": "Weitere Noten öffnen",
 	"demo_login": "Ich habe schon ein Konto",
 	"toc_report": "Inhalt falsch? Melden",
+	"toc_movements": "Sätze von {title}",
 	"toc_report_placeholder": "Was stimmt nicht? z. B. Präludien fehlen, falsche Titel, Seite 12 ist kein neues Stück… (optional)",
 	"toc_report_send": "Meldung senden",
 	"toc_report_thanks": "Danke! Wir nutzen diese Noten, um die Erkennung zu verbessern.",

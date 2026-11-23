@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import type { SectionsResponse } from '#lib/types.js';
+	import type { ScoreSection, SectionsResponse } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	let {
@@ -40,6 +40,19 @@
 	let reporting = $state(false);
 	let reported = $state(false);
 	let reportFailed = $state(false);
+	// Rendered twice on the reader page (side panel and viewer drawer).
+	const uid = $props.id();
+
+	// Pieces with their movements (level 1 entries follow their piece).
+	let groups = $derived.by(() => {
+		const out: { section: ScoreSection; movements: ScoreSection[] }[] = [];
+		for (const section of toc.sections) {
+			const last = out.at(-1);
+			if (section.level > 0 && last) last.movements.push(section);
+			else out.push({ section, movements: [] });
+		}
+		return out;
+	});
 
 	// The section being read: the last one starting at or before the page.
 	let activeId = $derived.by(() => {
@@ -58,32 +71,52 @@
 		<p role="alert" class="text-destructive text-sm font-medium">{m.toc_error()}</p>
 	{/if}
 
+	{#snippet entry(section: ScoreSection, movement: boolean)}
+		<button
+			type="button"
+			onclick={() => onSelect(section.page)}
+			disabled={!canNavigate}
+			aria-current={section.id === activeId ? 'true' : undefined}
+			class={[
+				'hover:bg-accent focus-visible:ring-ring aria-[current]:border-primary aria-[current]:bg-accent flex w-full flex-col gap-1 rounded-md border text-left transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60',
+				movement ? 'p-1.5' : 'p-2'
+			]}
+		>
+			<span class="flex items-baseline justify-between gap-2">
+				<span
+					class={['text-foreground', movement ? 'text-xs font-medium' : 'text-sm font-semibold']}
+					>{section.title}</span
+				>
+				<span class="text-muted-foreground shrink-0 text-xs">
+					{m.toc_page({ page: section.page })}
+				</span>
+			</span>
+			{#if section.incipit_path}
+				<img
+					src={`/api/incipit/${section.score_id}/${section.id}`}
+					alt={m.toc_incipit_alt({ title: section.title })}
+					loading="lazy"
+					class="w-full rounded-sm bg-white dark:invert"
+				/>
+			{/if}
+		</button>
+	{/snippet}
+
 	{#if toc.sections.length}
 		<ol class="flex flex-col gap-2">
-			{#each toc.sections as section (section.id)}
+			{#each groups as group (group.section.id)}
 				<li>
-					<button
-						type="button"
-						onclick={() => onSelect(section.page)}
-						disabled={!canNavigate}
-						aria-current={section.id === activeId ? 'true' : undefined}
-						class="hover:bg-accent focus-visible:ring-ring aria-[current]:border-primary aria-[current]:bg-accent flex w-full flex-col gap-1 rounded-md border p-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
-					>
-						<span class="flex items-baseline justify-between gap-2">
-							<span class="text-foreground text-sm font-semibold">{section.title}</span>
-							<span class="text-muted-foreground shrink-0 text-xs">
-								{m.toc_page({ page: section.page })}
-							</span>
-						</span>
-						{#if section.incipit_path}
-							<img
-								src={`/api/incipit/${section.score_id}/${section.id}`}
-								alt={m.toc_incipit_alt({ title: section.title })}
-								loading="lazy"
-								class="w-full rounded-sm bg-white dark:invert"
-							/>
-						{/if}
-					</button>
+					{@render entry(group.section, false)}
+					{#if group.movements.length}
+						<ol
+							class="border-border mt-1 ml-3 flex flex-col gap-1 border-l pl-2"
+							aria-label={m.toc_movements({ title: group.section.title })}
+						>
+							{#each group.movements as section (section.id)}
+								<li>{@render entry(section, true)}</li>
+							{/each}
+						</ol>
+					{/if}
 				</li>
 			{/each}
 		</ol>
@@ -163,9 +196,9 @@
 					};
 				}}
 			>
-				<label for="toc-report-comment" class="text-sm font-medium">{m.toc_report()}</label>
+				<label for="{uid}-toc-report-comment" class="text-sm font-medium">{m.toc_report()}</label>
 				<textarea
-					id="toc-report-comment"
+					id="{uid}-toc-report-comment"
 					name="comment"
 					maxlength="1000"
 					rows="3"

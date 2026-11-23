@@ -64,7 +64,7 @@ def test_generate_and_fetch(client: TestClient, test_scores: Scores, monkeypatch
         monkeypatch,
         [
             DetectedSection(title="Allegro", page=1, source="ocr", incipit_png=PNG),
-            DetectedSection(title="Adagio", page=5, source="ocr"),
+            DetectedSection(title="Adagio", page=5, source="ocr", level=1),
         ],
     )
     response = client.post(f"/scores/{score_id}/sections/generate")
@@ -76,9 +76,9 @@ def test_generate_and_fetch(client: TestClient, test_scores: Scores, monkeypatch
     assert data["status"] == "ready"
     assert data["version"] == data["latest_version"] == sections.TOC_VERSION
     assert data["confidence"] == "medium"  # two OCR'd headings
-    assert [(s["title"], s["page"], s["position"]) for s in data["sections"]] == [
-        ("Allegro", 1, 0),
-        ("Adagio", 5, 1),
+    assert [(s["title"], s["page"], s["position"], s["level"]) for s in data["sections"]] == [
+        ("Allegro", 1, 0, 0),
+        ("Adagio", 5, 1, 1),
     ]
     first, second = data["sections"]
     assert first["incipit_path"].startswith(f"incipits/{score_id}/")

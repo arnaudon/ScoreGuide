@@ -90,6 +90,9 @@ class ScoreSection(SQLModel, table=True):
     # Detector version that produced the entry (app.toc.TOC_VERSION), so users
     # can be offered a rebuild when detection improves.
     version: int = 1
+    # 0: a piece (or any entry of a flat list), 1: a movement of the level-0
+    # entry above it.
+    level: int = 0
 
 
 def _now() -> datetime:

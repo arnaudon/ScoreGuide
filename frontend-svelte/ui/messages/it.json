@@ -274,6 +274,7 @@
 	"tab_open_another": "Apri un altro spartito",
 	"demo_login": "Ho già un account",
 	"toc_report": "Indice sbagliato? Segnalalo",
+	"toc_movements": "Movimenti di {title}",
 	"toc_report_placeholder": "Cosa non va? es. mancano i preludi, titoli sbagliati, a pagina 12 non inizia un nuovo brano… (facoltativo)",
 	"toc_report_send": "Invia la segnalazione",
 	"toc_report_thanks": "Grazie! Useremo questo spartito per migliorare il rilevamento.",
