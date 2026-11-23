@@ -274,6 +274,7 @@
 	"tab_open_another": "Open another score",
 	"demo_login": "I already have an account",
 	"toc_report": "Contents wrong? Report it",
+	"toc_movements": "Movements of {title}",
 	"toc_report_placeholder": "What's wrong? e.g. preludes missing, wrong titles, page 12 is not a new piece… (optional)",
 	"toc_report_send": "Send report",
 	"toc_report_thanks": "Thanks! We'll use this score to improve the detection.",

@@ -193,13 +193,17 @@
 							<PanelLeftClose class="size-4" />
 						</button>
 					</div>
-					<ScoreContents
-						toc={data.toc}
-						error={!!form?.tocError}
-						canNavigate={!!pdfUrl}
-						{currentPage}
-						onSelect={goToPage}
-					/>
+					<!-- Tabs switch scores in place: a fresh panel per score, so a
+					     report sent for one doesn't show as sent for the next. -->
+					{#key data.score.id}
+						<ScoreContents
+							toc={data.toc}
+							error={!!form?.tocError}
+							canNavigate={!!pdfUrl}
+							{currentPage}
+							onSelect={goToPage}
+						/>
+					{/key}
 				</aside>
 			{/if}
 			<div class="bg-card shadow-card relative min-h-0 flex-1 overflow-hidden rounded-md border">

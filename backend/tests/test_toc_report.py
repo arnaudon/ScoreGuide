@@ -52,8 +52,8 @@ def test_report_and_list(admin: TestClient, session: Session, test_scores: Score
     assert report["username"] == "testuser"
     assert report["comment"] == "no preludes"
     assert report["sections"] == [
-        {"title": "Fuga", "page": 3, "source": "ocr"},
-        {"title": "18", "page": 7, "source": "layout"},
+        {"title": "Fuga", "page": 3, "source": "ocr", "level": 0},
+        {"title": "18", "page": 7, "source": "layout", "level": 0},
     ]
     assert report["resolved"] is False
 

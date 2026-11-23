@@ -49,6 +49,8 @@ export interface ScoreSection {
 	source: string;
 	incipit_path: string;
 	version: number;
+	/** 0: a piece (or an entry of a flat list), 1: a movement of the piece above. */
+	level: number;
 }
 
 /** Matches `app.sections.SectionsResponse`. */

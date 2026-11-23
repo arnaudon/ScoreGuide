@@ -127,6 +127,7 @@ def generate_sections(score_id: int, pdf_path: str, engine: Engine) -> None:
                             source=sec.source,
                             incipit_path=incipit_path,
                             version=TOC_VERSION,
+                            level=sec.level,
                         )
                     )
                 session.commit()
@@ -230,7 +231,8 @@ def report_sections(
     """Flag the score's table of contents as wrong, keeping a snapshot of it."""
     _owned_score(score_id, current_user, session)
     snapshot = [
-        {"title": s.title, "page": s.page, "source": s.source} for s in _sections(score_id, session)
+        {"title": s.title, "page": s.page, "source": s.source, "level": s.level}
+        for s in _sections(score_id, session)
     ]
     report = TocReport(
         score_id=score_id,

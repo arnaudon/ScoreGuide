@@ -12,6 +12,10 @@ crops the first system of each as an incipit image:
    double/final barline (tempo changes inside a movement don't), and a final
    barline (thin + thick, not a repeat) opens the next system even when its
    heading isn't legible.
+4. On scans, the title area above a page's first heading is read too: a
+   piece title there ("SONATA.", "NOCTURNE No. 2") opens a piece, and the
+   movement headings that follow are listed under it (``level`` 1), so a
+   volume of sonatas reads Sonata 1 > Allegro, Adagio, Finale; Sonata 2 > ...
 
 Pages without staves (title pages, prefaces) and incipit index pages are
 skipped, and the first system with music always opens a section.
@@ -23,6 +27,7 @@ import re
 import shlex
 import subprocess
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 import numpy as np
 import pypdfium2 as pdfium
@@ -33,7 +38,7 @@ from pypdf import PdfReader
 # Bump when detection improves enough that existing tables of contents are
 # worth rebuilding: entries store the version that produced them, and the
 # reader offers a rebuild when it is older than this.
-TOC_VERSION = 2
+TOC_VERSION = 3
 
 RENDER_DPI = 100
 # Darkness threshold (0-255 grayscale) below which a pixel counts as ink.
@@ -135,6 +140,9 @@ class DetectedSection:
     page: int  # 1-based
     source: str  # "outline" | "text" | "ocr" | "layout"
     incipit_png: bytes | None = field(default=None, repr=False)
+    # 0: a piece (or any entry of a flat list), 1: a movement of the piece
+    # listed before it.
+    level: int = 0
 
 
 # --- staff detection -------------------------------------------------------
@@ -437,6 +445,44 @@ class OcrText:
     left: int = 0
 
 
+def _tesseract(img: Image.Image) -> list[tuple[int, int, str]]:
+    """(left, top, word) of every confident word Tesseract reads in ``img``.
+
+    Coordinates are in ``img`` pixels divided by ``OCR_UPSCALE`` (the image is
+    upscaled before reading).
+    """
+    img = img.resize((img.width * OCR_UPSCALE, img.height * OCR_UPSCALE), Image.Resampling.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    try:
+        out = subprocess.run(
+            [*shlex.split(TESSERACT_CMD), "stdin", "stdout", "--psm", "11", "-l", OCR_LANGS, "tsv"],
+            input=buf.getvalue(),
+            capture_output=True,
+            timeout=60,
+            check=True,
+            # One thread at the lowest priority: TOC generation is a background
+            # job and must never compete with serving the site.
+            env={**os.environ, "OMP_THREAD_LIMIT": "1"},
+            preexec_fn=lambda: os.nice(19),
+        ).stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.SubprocessError):  # pragma: no cover - no tesseract
+        return []
+    words: list[tuple[int, int, str]] = []
+    for row in out.splitlines()[1:]:
+        cols = row.split("\t")
+        if len(cols) < 12 or not cols[11].strip() or float(cols[10]) < OCR_MIN_CONF:
+            continue
+        words.append((int(cols[6]) // OCR_UPSCALE, int(cols[7]) // OCR_UPSCALE, cols[11].strip()))
+    return words
+
+
+def _reading_order(words: list[tuple[int, int, str]]) -> OcrText:
+    """Words (left, top, text) as one text, line by line, and where it starts."""
+    ordered = sorted((top // 8, left, text) for left, top, text in words)
+    return OcrText(" ".join(t for _, _, t in ordered), min((x for x, _, _ in words), default=0))
+
+
 def ocr_headings(gray: np.ndarray, systems: list[System]) -> list[OcrText]:
     """OCR the band above every system of a page in one Tesseract call.
 
@@ -458,39 +504,29 @@ def ocr_headings(gray: np.ndarray, systems: list[System]) -> list[OcrText]:
         offsets.append((y, y + strip.shape[0]))
         strips += [strip, spacer]
         y += strip.shape[0] + spacer.shape[0]
-    img = Image.fromarray(np.vstack(strips))
-    img = img.resize((img.width * OCR_UPSCALE, img.height * OCR_UPSCALE), Image.Resampling.LANCZOS)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    try:
-        out = subprocess.run(
-            [*shlex.split(TESSERACT_CMD), "stdin", "stdout", "--psm", "11", "-l", OCR_LANGS, "tsv"],
-            input=buf.getvalue(),
-            capture_output=True,
-            timeout=60,
-            check=True,
-            # One thread at the lowest priority: TOC generation is a background
-            # job and must never compete with serving the site.
-            env={**os.environ, "OMP_THREAD_LIMIT": "1"},
-            preexec_fn=lambda: os.nice(19),
-        ).stdout.decode("utf-8", "replace")
-    except (OSError, subprocess.SubprocessError):  # pragma: no cover - no tesseract
-        return [OcrText() for _ in systems]
-
     words: list[list[tuple[int, int, str]]] = [[] for _ in systems]
-    for row in out.splitlines()[1:]:
-        cols = row.split("\t")
-        if len(cols) < 12 or not cols[11].strip() or float(cols[10]) < OCR_MIN_CONF:
-            continue
-        left, top = int(cols[6]) // OCR_UPSCALE, int(cols[7]) // OCR_UPSCALE
+    for left, top, text in _tesseract(Image.fromarray(np.vstack(strips))):
         for k, (a, b) in enumerate(offsets):
             if a <= top < b:
-                words[k].append((top // 8, left, cols[11].strip()))
+                words[k].append((left, top, text))
                 break
-    return [
-        OcrText(" ".join(t for _, _, t in sorted(ws)), min((x for _, x, _ in ws), default=0))
-        for ws in words
-    ]
+    return [_reading_order(ws) for ws in words]
+
+
+def ocr_title(gray: np.ndarray, systems: list[System]) -> OcrText:
+    """OCR a page's title area: everything above the first system's heading band.
+
+    That is where a piece's title is printed ("SONATA.", "NOCTURNE No. 1"),
+    above the opening tempo that ``ocr_headings`` reads. Skipped (empty) when
+    the page's music starts near the top, as on every page inside a piece.
+    """
+    if not systems:
+        return OcrText()
+    first = systems[0]
+    bottom = _heading_band(first, 0)[0]
+    if bottom < first.staves[0].bottom - first.staves[0].top:
+        return OcrText()
+    return _reading_order(_tesseract(Image.fromarray(gray[:bottom])))
 
 
 def _known(word: str) -> bool:
@@ -509,6 +545,9 @@ def _noise(tok: str) -> bool:
     return bool(mixed and not PIECE_RE.fullmatch(core))
 
 
+LETTER_SPACED_RE = re.compile(r"(?<!\S)[A-ZÀ-Ý](?: [A-ZÀ-Ý]){2,}(?!\S)")
+
+
 def clean_title(text: str) -> str:
     """Turn OCR'd heading text into a readable title.
 
@@ -516,6 +555,9 @@ def clean_title(text: str) -> str:
     stray numbers (fingerings, bar numbers) at either end.
     """
     merged: list[str] = []
+    # Titles are often letter-spaced ("N O C T U R N E No. 1"): rejoin runs
+    # of single capital letters before single letters are dropped as debris.
+    text = LETTER_SPACED_RE.sub(lambda m: m.group(0).replace(" ", ""), text)
     for tok in text.split():
         joined = merged[-1] + tok if merged else ""
         if merged and not _known(merged[-1]) and not _known(tok) and _known(joined):
@@ -880,6 +922,159 @@ def normalize_titles(titles: list[str]) -> list[str | None]:
     return out
 
 
+# --- pieces and their movements ----------------------------------------------
+
+# Piece kinds: a heading starting with one of these names a piece (a work of
+# a volume: "Sonata", "Nocturne No. 2", "Prelude 3"), not a movement.
+PIECE_KIND_RE = re.compile(
+    r"(sonat\w*|partit\w*|suite|concerto|symphon\w*|sinfoni\w*|nocturne|notturno|"
+    r"mazurka|waltz|valse|walzer|impromptu|ballade|fantasi\w*|toccata|[ée]tude\w*|"
+    r"invention\w*|rhapsod\w*|romance|bagatelle|intermezzo|novelette|arabesque|"
+    r"humoresque|barcarolle|berceuse|polonaise|"
+    r"pr(?:ae|æ|ä|a|ee)lud\w*|pr[ée]lud[ei]\w*|pr(?:ae|æ|ä|e)ambul\w*|"
+    r"fughett\w*|fug(?:a|ue|e)|puga)",
+    re.IGNORECASE,
+)
+# Multi-movement works: their movements are listed under them even when only
+# the first one was found.
+CONTAINER_KIND_RE = re.compile(r"(sonat\w*|partit\w*|suite|concerto|symphon\w*)", re.I)
+# Variations inside a movement ("Var. 2", "Double"): under a piece's
+# movements they would only crowd the list.
+VARIATION_TITLE_RE = re.compile(r"^(?:var\w*|doubles?)\b", re.IGNORECASE)
+# The number after a piece kind: "No. 2", "Nr.3", "II" ("SONATA. 19": a
+# number after the title's full stop is the page number).
+_KIND_NUMBER_RE = re.compile(r"^(?:(no|nr|n°)\.?\s*)?(\d{1,2}|[IVXL]{1,6})\b\.?$", re.I)
+
+
+def piece_kind(title: str) -> str | None:
+    """The piece kind a title starts with ("sonata" for "SONATA No. 3"), if any.
+
+    Plurals ("Sonatinas", "Nocturnes") name a collection, as on a title or
+    catalogue page, not the piece below.
+    """
+    first = _core(title.split()[0]).lower() if title.split() else ""
+    return first if PIECE_KIND_RE.fullmatch(first) and not first.endswith("s") else None
+
+
+def title_piece(text: str) -> str:
+    """The piece title in OCR'd title-area text, or "".
+
+    The title area also holds editors' notes, composer, opus and tempo: the
+    title is the first capitalised piece-kind word and the number printed
+    right after it ("SONATA. Abbreviations: M.T. ..." → "Sonata",
+    "NOCTURNE No 2 Andantino" → "Nocturne No. 2").
+    """
+    tokens = clean_title(text).split()
+    for k, tok in enumerate(tokens):
+        if piece_kind(tok) and _core(tok)[:1].isupper():
+            kind = _core(tok)
+            kind = kind.capitalize() if kind.isupper() else kind
+            if tok.endswith("."):
+                return kind
+            rest = tokens[k + 1 : k + 3]
+            for n in (2, 1):
+                m = _KIND_NUMBER_RE.match(" ".join(rest[:n]))
+                if len(rest) >= n and m:
+                    return f"{kind} {'No. ' if m.group(1) else ''}{m.group(2)}"
+            return kind
+    return ""
+
+
+def split_piece(title: str) -> tuple[str, str]:
+    """(piece, movement) of a heading.
+
+    Text-layer headings join a page's title and opening tempo ("Sonata No. 1
+    — Allegro"); a heading that is only a piece title has no movement.
+    """
+    head, sep, rest = title.partition(" — ")
+    if sep and piece_kind(head):
+        return head, rest
+    return (title, "") if piece_kind(title) else ("", title)
+
+
+def _printed_number(piece: str) -> int | None:
+    rest = piece.split(maxsplit=1)[1:]
+    m = _KIND_NUMBER_RE.match(rest[0]) if rest else None
+    if not m:
+        return None
+    raw = m.group(2).upper()
+    return int(raw) if raw.isdigit() else _roman_value(raw)
+
+
+def number_pieces(pieces: list[str]) -> list[str]:
+    """Number the pieces of a kind printed without their number.
+
+    A volume of sonatas headed "SONATA." each time reads "Sonata 1",
+    "Sonata 2"...; printed numbers are kept when they follow the sequence
+    (or start it), others are OCR debris (a page number) and replaced by
+    the count. A kind with a single piece is left as printed.
+    """
+    kinds = [piece_kind(p) if p else None for p in pieces]
+    out = list(pieces)
+    last: dict[str, int] = {}
+    for k, (piece, kind) in enumerate(zip(pieces, kinds, strict=True)):
+        if kind is None or kinds.count(kind) < 2:
+            continue
+        printed = _printed_number(piece)
+        previous = last.get(kind)
+        plausible = printed is not None and (
+            previous is None or previous < printed <= previous + 1 + MAX_NUMBER_SKIP
+        )
+        if plausible:
+            last[kind] = printed  # type: ignore[assignment]
+        else:
+            last[kind] = (previous or 0) + 1
+            out[k] = f"{piece.split()[0]} {last[kind]}"
+    return out
+
+
+@dataclass
+class _Entry:
+    """A table-of-contents entry built from a section start."""
+
+    start: int  # index of the start it comes from
+    title: str
+    level: int
+    # The start's incipit goes with the entry (not with a piece's opening
+    # movement, listed right under the piece with the same incipit).
+    incipit: bool = True
+
+
+def nest_entries(heads: list[tuple[str, str]]) -> list[_Entry]:
+    """Entries for (piece, heading) starts: pieces with their movements.
+
+    Without any piece title the list stays flat, as detected. With them,
+    every piece is a top-level entry and the headings after it (its
+    movements: tempo, dance, form names) are listed under it. Under a piece,
+    untitled starts (barline-only) and variations are left out: next to
+    movement names they would be noise. A piece whose only movement is its
+    own opening tempo (a nocturne, not a sonata) lists none.
+    """
+    split = [(piece, title) if piece else split_piece(title) for piece, title in heads]
+    if not any(piece for piece, _ in split):
+        return [_Entry(k, title, 0) for k, (_, title) in enumerate(heads)]
+    numbered = number_pieces([piece for piece, _ in split])
+    groups: list[list[_Entry]] = []
+    for k, (piece, title) in enumerate(split):
+        if piece:
+            groups.append([_Entry(k, numbered[k], 0)])
+            if title and _norm(title) != _norm(piece):
+                groups[-1].append(_Entry(k, title, 1, incipit=False))
+        elif title and not (groups and VARIATION_TITLE_RE.match(title)):
+            if groups:
+                groups[-1].append(_Entry(k, title, 1))
+            else:
+                # Before the first piece title (it may have been illegible).
+                groups.append([_Entry(k, title, 0)])
+    out: list[_Entry] = []
+    for group in groups:
+        single = len(group) == 2 and not group[1].incipit
+        if single and not CONTAINER_KIND_RE.match(group[0].title):
+            group = group[:1]
+        out += group
+    return out
+
+
 # --- outline ---------------------------------------------------------------
 
 JUNK_TITLE_RE = re.compile(
@@ -898,7 +1093,7 @@ def _meaningful_outline(sections: list[DetectedSection], n_pages: int) -> bool:
 
 
 def outline_sections(data: bytes) -> list[DetectedSection]:
-    """Flatten the PDF outline (bookmarks) into sections, in page order."""
+    """The PDF outline (bookmarks) as sections in page order, nested ones at level 1."""
     reader = PdfReader(io.BytesIO(data))
     out: list[DetectedSection] = []
 
@@ -918,7 +1113,9 @@ def outline_sections(data: bytes) -> list[DetectedSection]:
                 continue
             title = " ".join(str(item.title or "").split())
             if title:
-                out.append(DetectedSection(title=title, page=index + 1, source="outline"))
+                out.append(
+                    DetectedSection(title=title, page=index + 1, source="outline", level=depth)
+                )
 
     try:
         walk(reader.outline, 0)
@@ -999,6 +1196,20 @@ class _PageInfo:
     ocr: list[OcrText] = field(default_factory=list)  # heading text above each system
     # Per system: barline_kind() of its closing barline.
     bar_kinds: list[str] = field(default_factory=list)
+    # OCR'd title area above the first system's heading (see ocr_title).
+    title: OcrText = field(default_factory=OcrText)
+
+
+class _Start(NamedTuple):
+    """A section start: where it is and what heads it."""
+
+    info: _PageInfo
+    sys_idx: int
+    title: str  # the heading above the system ("" when barline-only)
+    source: str
+    # Title of the piece it opens, read in the page's title area above the
+    # heading ("Sonata", "Nocturne No. 2"); "" when there is none.
+    piece: str = ""
 
 
 def _tempo_opens(ocr: OcrText, system: System, prev_final: bool) -> bool:
@@ -1073,8 +1284,8 @@ def _indented(pages: list[_PageInfo]) -> set[tuple[int, int]]:
     }
 
 
-def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]]:
-    """Pick (page, system index, title, source) for every section start."""
+def _find_starts(pages: list[_PageInfo]) -> list[_Start]:
+    """Pick (page, system index, title, source, piece) for every section start."""
     n = len(pages)
     indented = _indented(pages)
     convention = len(indented) >= INDENT_CONVENTION_MIN
@@ -1085,7 +1296,7 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
     # Running headers / footers repeat on many pages: never headings.
     repeated = {k for k, c in counts.items() if n >= 4 and c > n * 0.4}
 
-    starts: list[tuple[_PageInfo, int, str, str]] = []
+    starts: list[_Start] = []
     # Closing barline of the previous system in reading order. The first
     # system of the document (and the first after front matter) follows "an
     # end", so it always opens a section even without a legible heading.
@@ -1107,7 +1318,7 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
             heads, source = _text_headings(info, lines), "text"
         else:
             heads, source = info.ocr, "ocr"
-        page_starts = []
+        page_starts: list[tuple[int, str, str, str]] = []
         headed = 0
         for j, head in enumerate(heads):
             src = source
@@ -1140,13 +1351,21 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
                 # lowercase word ("air" inside the music) is no heading.
                 title = tidy_title(title)
                 accepted = bool(title) and (" " in title or not title[:1].islower())
+            # A piece title in the page's title area ("SONATA.") opens a piece
+            # where its first system starts one; a running header over music
+            # that carries on (single barline before it) doesn't.
+            piece = title_piece(info.title.text) if j == 0 else ""
+            if piece and not (accepted or ended or prev_kind != "single"):
+                piece = ""
             if accepted:
-                page_starts.append((j, title, src))
+                page_starts.append((j, title, src, piece))
+            elif piece:
+                page_starts.append((j, "", "ocr", piece))
             elif ended and not _split_half(info.systems[j], prev_bottom):
                 # A final barline (thin + thick) closed the previous piece,
                 # or this system is indented: it opens the next one even if
                 # its heading (e.g. a bare number) wasn't legible.
-                page_starts.append((j, "", "layout"))
+                page_starts.append((j, "", "layout", ""))
             prev_kind = kinds[j]
             prev_bottom = info.systems[j].bottom
             fresh = False
@@ -1157,8 +1376,8 @@ def _find_starts(pages: list[_PageInfo]) -> list[tuple[_PageInfo, int, str, str]
             # follows it starts fresh, like after a title page.
             prev_kind, fresh = "final", True
             continue
-        for j, cleaned, src in page_starts:
-            starts.append((info, j, cleaned, src))
+        for j, cleaned, src, piece in page_starts:
+            starts.append(_Start(info, j, cleaned, src, piece))
     return starts
 
 
@@ -1186,6 +1405,7 @@ def _merge_outline(
     for page, sys_idx, sec in detected:
         if sec.source == "layout" or (page in first_pages and sys_idx == 0):
             continue
+        sec.level = 1
         keyed.append(((page, sys_idx), sec))
     return [sec for _, sec in sorted(keyed, key=lambda item: item[0])]
 
@@ -1216,26 +1436,32 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
             lines = text_lines(page)
             # Scans have no text layer, or a hidden OCR one that is mostly
             # garbage on music: read the headings with Tesseract too.
-            ocr = ocr_headings(gray, systems) if systems and (not lines or is_scanned(page)) else []
+            scanned = bool(systems) and (not lines or is_scanned(page))
+            ocr = ocr_headings(gray, systems) if scanned else []
+            title = ocr_title(gray, systems) if scanned else OcrText()
             ink = gray < INK
             kinds = [barline_kind(ink, s) for s in systems]
-            pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr, kinds))
+            pages.append(_PageInfo(i + 1, gray.shape, systems, lines, ocr, kinds, title))
 
         # Pass 2: re-render only the pages that need an incipit crop.
-        starts = _find_starts(pages)
-        titles = normalize_titles([title for _, _, title, _ in starts])
+        found = _find_starts(pages)
+        titles = normalize_titles([st.title for st in found])
+        kept = [(st, title) for st, title in zip(found, titles, strict=True) if title is not None]
         detected: list[tuple[int, int, DetectedSection]] = []
-        for (info, sys_idx, _, source), title in zip(starts, titles, strict=True):
-            if title is None:
-                continue
-            gray = _render_gray(pdf[info.number - 1])
+        for entry in nest_entries([(st.piece, title) for st, title in kept]):
+            st = kept[entry.start][0]
+            incipit = None
+            if entry.incipit:
+                gray = _render_gray(pdf[st.info.number - 1])
+                incipit = crop_incipit(gray, st.info.systems[st.sys_idx])
             sec = DetectedSection(
-                title=title or str(len(detected) + 1),
-                page=info.number,
-                source=source,
-                incipit_png=crop_incipit(gray, info.systems[sys_idx]),
+                title=entry.title or str(len(detected) + 1),
+                page=st.info.number,
+                source=st.source,
+                incipit_png=incipit,
+                level=entry.level,
             )
-            detected.append((info.number, sys_idx, sec))
+            detected.append((st.info.number, st.sys_idx, sec))
         if outline:
             return _merge_outline(outline, detected)
         return [sec for _, _, sec in detected]

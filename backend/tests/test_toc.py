@@ -116,6 +116,7 @@ def test_crop_incipit_is_png():
         ("Variatio 3. Canone all’ Unisuono. 1 a", "Variatio 3. Canone all’ Unisuono"),
         ("II. Adagio", "II. Adagio"),
         ("Allegro T8 —", "Allegro"),
+        ("N O C T U R N E No. 1", "NOCTURNE No.1"),
     ],
 )
 def test_clean_title(raw, expected):
@@ -216,6 +217,7 @@ def test_extract_sections_outline():
         (1, "I. Allegro"),
         (3, "Sonata No. 2"),
     ]
+    assert [s.level for s in sections] == [0, 1, 0]
     assert all(s.source == "outline" and s.incipit_png for s in sections)
 
 
@@ -423,7 +425,7 @@ def test_text_heading_mid_page_opens_section():
             toc.TextLine("Fuga I", _above(h, third), 14),
         ],
     )
-    assert [(j, title, src) for _, j, title, src in toc._find_starts([page])] == [
+    assert [(j, title, src) for _, j, title, src, _ in toc._find_starts([page])] == [
         (0, "Praeludium I", "text"),
         (2, "Fuga I", "text"),
     ]
@@ -432,7 +434,7 @@ def test_text_heading_mid_page_opens_section():
         toc.TextLine("Praeludium I", 0.02, 14),
         toc.TextLine("Adagio", _above(h, second), 9),
     ]
-    assert [j for _, j, _, _ in toc._find_starts([page])] == [0]
+    assert [j for _, j, _, _, _ in toc._find_starts([page])] == [0]
 
 
 def test_text_page_final_barline_and_tempo():
@@ -442,7 +444,7 @@ def test_text_page_final_barline_and_tempo():
     h = probe.shape[0]
     first = _text_page(1, [toc.TextLine("Sonata No. 1", 0.02, 14)], final=(0, 1))
     second = _text_page(2, [toc.TextLine("Presto", _above(h, probe.systems[2]), 9)], final=(1,))
-    starts = [(p.number, j, t, s) for p, j, t, s in toc._find_starts([first, second])]
+    starts = [(p.number, j, t, s) for p, j, t, s, _ in toc._find_starts([first, second])]
     assert starts == [
         (1, 0, "Sonata No. 1", "text"),
         (1, 1, "", "layout"),
@@ -676,6 +678,7 @@ def test_sparse_outline_gets_detected_movements(monkeypatch):
         (1, "Sonata No. 1", "outline"),
         (5, "Menuetto", "ocr"),
     ]
+    assert [s.level for s in sections] == [0, 1]
     assert all(s.incipit_png for s in sections)
 
 
@@ -718,3 +721,157 @@ def test_stray_and_prose_titles_are_dropped(monkeypatch):
     monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(heads))
     assert [(s.page, s.source) for s in toc.extract_sections(data)] == [(1, "layout")]
     assert toc.tidy_title(long_note) == ""
+
+
+# --- pieces and their movements ---------------------------------------------
+
+
+def test_ocr_title_reads_the_area_above_the_first_heading(monkeypatch):
+    """The title area is read only when the music starts low on the page."""
+    margin = np.vstack([np.full((300, 800), 255, dtype=np.uint8), _page(systems=2)])
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(Image.open(io.BytesIO(kwargs["input"])).height)
+        return subprocess.CompletedProcess(cmd, 0, stdout=_tsv((40, "SONATA."), (0, "3")))
+
+    monkeypatch.setattr(toc.subprocess, "run", fake_run)
+    title = toc.ocr_title(margin, toc.page_systems(margin))
+    assert title.text == "3 SONATA."
+    # Up to the first system's heading band (420 - 2.5 staff heights), upscaled.
+    assert calls == [(420 - 100) * toc.OCR_UPSCALE]
+
+    gray = _page(systems=2)  # music right at the top: nothing to read
+    assert toc.ocr_title(gray, toc.page_systems(gray)) == toc.OcrText()
+    assert toc.ocr_title(gray, []) == toc.OcrText()
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("SONATA. 19 Abbreviations: M.T. signifies Main Theme; Ep.", "Sonata"),
+        ("SONATA 50 Abbreviations M.T. signifies", "Sonata 50"),
+        ("11 NOCTURNE No 2 Andantino espressivo cantando Op. 33, No. 2", "Nocturne No. 2"),
+        ("N O C T U R N E No.7 lento", "Nocturne No. 7"),
+        ("Partita II Allemande", "Partita II"),
+        ("Sonata in C", "Sonata"),
+        ("Sonata", "Sonata"),
+        ("Index. Vol.I.", ""),
+        ("parts of a sonata", ""),
+        ("Rondo Brillante, Op. 29. 52 Sonatinas Op. 55", ""),
+        ("", ""),
+    ],
+)
+def test_title_piece(raw, expected):
+    assert toc.title_piece(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("Sonata No. 1 — Allegro", ("Sonata No. 1", "Allegro")),
+        ("Fuga 2", ("Fuga 2", "")),
+        ("Allegro", ("", "Allegro")),
+        ("La Follette — Rondeau", ("", "La Follette — Rondeau")),
+        ("", ("", "")),
+    ],
+)
+def test_split_piece(title, expected):
+    assert toc.split_piece(title) == expected
+
+
+@pytest.mark.parametrize(
+    ("pieces", "expected"),
+    [
+        # Bare titles are counted; "19" (a page number) doesn't follow on.
+        (["Sonata", "", "Sonata 19", "Sonata"], ["Sonata 1", "", "Sonata 2", "Sonata 3"]),
+        (["Sonata No. 17", "Sonata No. 18"], ["Sonata No. 17", "Sonata No. 18"]),
+        (["Sonata No. 3", "Sonata"], ["Sonata No. 3", "Sonata 4"]),
+        (["Partita I", "Partita II"], ["Partita I", "Partita II"]),
+        (["Sonata", "Fuga"], ["Sonata", "Fuga"]),
+    ],
+)
+def test_number_pieces(pieces, expected):
+    assert toc.number_pieces(pieces) == expected
+
+
+def _nested(heads):
+    return [(e.start, e.title, e.level, e.incipit) for e in toc.nest_entries(heads)]
+
+
+def test_nest_entries_flat_without_pieces():
+    assert _nested([("", "Allegro"), ("", ""), ("", "Var. 2")]) == [
+        (0, "Allegro", 0, True),
+        (1, "", 0, True),
+        (2, "Var. 2", 0, True),
+    ]
+
+
+def test_nest_entries_sonatas_and_movements():
+    """Sonatas list their movements; untitled starts and variations under a
+    piece are dropped, a heading before the first piece title stays."""
+    heads = [
+        ("", ""),
+        ("", "Rondo"),
+        ("Sonata", "Allegro"),
+        ("", "Adagio"),
+        ("", ""),
+        ("", "var. 4"),
+        ("", "Var.I"),
+        ("Sonata 19", "Presto"),
+        ("", "Sonata — Menuetto"),
+    ]
+    assert _nested(heads) == [
+        (1, "Rondo", 0, True),
+        (2, "Sonata 1", 0, True),
+        (2, "Allegro", 1, False),
+        (3, "Adagio", 1, True),
+        (7, "Sonata 2", 0, True),
+        (7, "Presto", 1, False),
+        (8, "Sonata 3", 0, True),
+        (8, "Menuetto", 1, False),
+    ]
+
+
+def test_nest_entries_single_movement_pieces():
+    """A nocturne's opening tempo is not a movement; a sonata's is, even alone."""
+    heads = [
+        ("Nocturne No. 1", "Lento"),
+        ("Nocturne No. 2", "Nocturne No. 2"),
+        ("", "Fuga 3"),
+        ("Sonata", "Moderato"),
+    ]
+    assert _nested(heads) == [
+        (0, "Nocturne No. 1", 0, True),
+        (1, "Nocturne No. 2", 0, True),
+        (2, "Fuga 3", 0, True),
+        (3, "Sonata", 0, True),
+        (3, "Moderato", 1, False),
+    ]
+
+
+def test_extract_sections_nests_movements_under_pieces(monkeypatch):
+    """A volume of sonatas: each "SONATA." title area opens a piece, its
+    tempo headings are its movements; a running title over music that
+    carries on (single barline before it) opens nothing."""
+    data = _pdf_from_pages(
+        _page(systems=2),
+        _page(systems=2, final=(1,)),
+        _page(systems=2, final=(1,)),
+        _page(systems=2),
+        _page(systems=2),
+    )
+    heads = iter(
+        [_ocr("Allegro", ""), _ocr("", ""), _ocr("Adagio", ""), _ocr("", ""), _ocr("", "")]
+    )
+    titles = iter(["SONATA. 3 Abbreviations", "SONATA.", "", "SONATA.", "SONATA. 5"])
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: next(heads))
+    monkeypatch.setattr(toc, "ocr_title", lambda gray, systems: toc.OcrText(next(titles)))
+    sections = toc.extract_sections(data)
+    assert [(s.page, s.title, s.level, s.source, bool(s.incipit_png)) for s in sections] == [
+        (1, "Sonata 1", 0, "ocr", True),
+        (1, "Allegro", 1, "ocr", False),
+        (3, "Adagio", 1, "ocr", True),
+        (4, "Sonata 2", 0, "ocr", True),
+    ]
