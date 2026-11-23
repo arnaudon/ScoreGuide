@@ -35,15 +35,9 @@
 
 <svelte:head>
 	<title>ScoreGuide</title>
-	<meta
-		name="description"
-		content="Your intelligent music score library. Upload, manage, and discover scores with AI-powered assistance."
-	/>
+	<meta name="description" content={m.login_description()} />
 	<meta property="og:title" content="ScoreGuide" />
-	<meta
-		property="og:description"
-		content="Your intelligent music score library. Upload, manage, and discover scores with AI-powered assistance."
-	/>
+	<meta property="og:description" content={m.login_description()} />
 	<meta property="og:type" content="website" />
 </svelte:head>
 

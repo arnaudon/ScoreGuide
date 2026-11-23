@@ -81,7 +81,9 @@ def test_nothing_logged_when_no_model_call(
 def test_imslp_agent_logs_usage(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
-    async def fake_run_imslp_agent(_prompt, message_history=None, model=None, usage=None):
+    async def fake_run_imslp_agent(
+        _prompt, message_history=None, model=None, usage=None, user=None
+    ):
         _spend(usage)
         return ImslpFullResponse(
             response=ImslpResponse(response="found 3 scores", score_ids=[1, 2, 3]),
@@ -97,7 +99,9 @@ def test_imslp_agent_logs_usage(
 
 
 def test_imslp_agent_error(client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    async def fake_run_imslp_agent(_prompt, message_history=None, model=None, usage=None):
+    async def fake_run_imslp_agent(
+        _prompt, message_history=None, model=None, usage=None, user=None
+    ):
         raise RuntimeError("db down")
 
     monkeypatch.setattr(main, "run_imslp_agent", fake_run_imslp_agent)

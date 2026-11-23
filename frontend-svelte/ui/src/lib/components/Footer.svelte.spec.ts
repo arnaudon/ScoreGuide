@@ -12,21 +12,18 @@ describe('Footer.svelte', () => {
 		await expect.element(page.getByText(/Alexis Arnaudon/)).toBeInTheDocument();
 	});
 
-	it('hides the language toggle by default', async () => {
+	it('hides the language picker by default', async () => {
 		render(Footer);
-		await expect
-			.element(page.getByRole('button', { name: /switch to english/i }))
-			.not.toBeInTheDocument();
+		await expect.element(page.getByRole('combobox', { name: /language/i })).not.toBeInTheDocument();
 	});
 
-	it('shows the language toggle when showLanguageToggle is true', async () => {
+	it('offers French, English, German and Italian when showLanguageToggle is true', async () => {
 		render(Footer, { showLanguageToggle: true });
-		await expect
-			.element(page.getByRole('button', { name: /switch to english/i }))
-			.toBeInTheDocument();
-		await expect
-			.element(page.getByRole('button', { name: /switch to french/i }))
-			.toBeInTheDocument();
-		await expect.element(page.getByRole('group', { name: /language/i })).toBeInTheDocument();
+		const picker = page.getByRole('combobox', { name: /language/i });
+		await expect.element(picker).toBeInTheDocument();
+		for (const name of ['Français', 'English', 'Deutsch', 'Italiano']) {
+			await expect.element(page.getByRole('option', { name })).toBeInTheDocument();
+		}
+		await expect.element(picker).toHaveValue('en');
 	});
 });

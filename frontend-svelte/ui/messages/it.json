@@ -7,7 +7,6 @@
 	"nav_admin": "Admin",
 	"nav_logout": "Esci",
 	"footer_contact": "Contatto:",
-	"toggle_lang": "IT",
 	"add_new_score": "Aggiungi uno spartito",
 	"manual_upload": "Caricamento manuale",
 	"from_imslp": "Da IMSLP",
@@ -192,8 +191,6 @@
 	"admin_role_admin": "Admin",
 	"admin_role_user": "Utente",
 	"language_switch": "Lingua",
-	"language_switch_to_en": "Passa all'inglese",
-	"language_switch_to_fr": "Passa al francese",
 	"cookie_banner_label": "Consenso ai cookie",
 	"score_completion_failed": "L'assistente non è riuscito a completare i dati; puoi riprovare dal menu dello spartito.",
 	"toc_contents": "Indice",
@@ -428,5 +425,8 @@
 	"grant_tokens_desc": "Si somma a quanto resta a questo utente, ad esempio dopo un pagamento manuale. Non scadono.",
 	"grant_tokens_button": "Aggiungi",
 	"grant_tokens_done": "Token aggiunti.",
-	"err_grant_tokens": "Inserisci un numero intero di token maggiore di 0."
+	"err_grant_tokens": "Inserisci un numero intero di token maggiore di 0.",
+	"profile_music_label": "La tua musica",
+	"profile_music_hint": "Raccontaci come suoni: livello, anni di pratica, compositori o stili preferiti, cosa stai studiando o vorresti imparare. L'assistente lo usa per proporti spartiti adatti.",
+	"profile_music_placeholder": "es. Pianista amatoriale, 10 anni di lezioni. Amo Chopin e Debussy; la lettura a prima vista è il mio punto debole. Cerco brani di livello intermedio sotto i 5 minuti."
 }

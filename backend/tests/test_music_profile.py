@@ -85,9 +85,13 @@ def test_imslp_endpoint_passes_the_user(
 ):
     seen = {}
 
-    async def fake_run_imslp_agent(_prompt, message_history=None, model=None, usage=None, user=None):
+    async def fake_run_imslp_agent(
+        _prompt, message_history=None, model=None, usage=None, user=None
+    ):
         seen["user"] = user
-        return ImslpFullResponse(response=ImslpResponse(response="r", score_ids=[]), message_history=[])
+        return ImslpFullResponse(
+            response=ImslpResponse(response="r", score_ids=[]), message_history=[]
+        )
 
     monkeypatch.setattr(main, "run_imslp_agent", fake_run_imslp_agent)
     assert client.post("/imslp_agent", json={"prompt": "p"}).status_code == 200

@@ -77,12 +77,14 @@ export const actions: Actions = {
 		const password = data.get('password');
 		const email = data.get('email');
 		const instrument = data.get('instrument');
+		const musicProfile = data.get('music_profile')?.toString() ?? '';
 
 		if (!username || !password || !email) {
 			return fail(400, {
 				username: username?.toString(),
 				email: email?.toString(),
 				instrument: instrument?.toString(),
+				musicProfile,
 				error: m.err_missing_register_fields()
 			});
 		}
@@ -92,6 +94,7 @@ export const actions: Actions = {
 				username: username.toString(),
 				email: email.toString(),
 				instrument: instrument?.toString(),
+				musicProfile,
 				error: m.err_password_length()
 			});
 		}
@@ -104,7 +107,8 @@ export const actions: Actions = {
 				username: username.toString(),
 				password: password.toString(),
 				email: email.toString(),
-				instrument: instrument?.toString()
+				instrument: instrument?.toString(),
+				music_profile: musicProfile.trim() || undefined
 			})
 		});
 
@@ -120,6 +124,7 @@ export const actions: Actions = {
 				username: username.toString(),
 				email: email.toString(),
 				instrument: instrument?.toString(),
+				musicProfile,
 				error: errorMsg
 			});
 		}

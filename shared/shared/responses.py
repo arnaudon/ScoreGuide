@@ -1,6 +1,6 @@
 """Response models."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_ai.messages import ModelMessage
 
 
@@ -8,8 +8,12 @@ class Response(BaseModel):
     """Response model."""
 
     response: str
-    score_id: int | None = None
-    score_ids: list[int] | None = None
+    score_id: int | None = Field(
+        default=None, description="Id of the one library score the answer is about."
+    )
+    score_ids: list[int] | None = Field(
+        default=None, description="Ids of the library scores the answer is about, if several."
+    )
 
 
 class FullResponse(BaseModel):

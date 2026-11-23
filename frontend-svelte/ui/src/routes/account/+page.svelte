@@ -87,6 +87,19 @@
 						>
 					</select>
 				</div>
+				<div class="max-w-md space-y-2">
+					<label for="music_profile" class="text-sm font-medium">{m.profile_music_label()}</label>
+					<p class="text-muted-foreground text-xs">{m.profile_music_hint()}</p>
+					<textarea
+						id="music_profile"
+						name="music_profile"
+						rows="4"
+						maxlength="1000"
+						placeholder={m.profile_music_placeholder()}
+						class="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+						>{data.user?.music_profile ?? ''}</textarea
+					>
+				</div>
 				<div class="space-y-2">
 					<label for="role" class="text-sm font-medium">{m.role()}</label>
 					<Input

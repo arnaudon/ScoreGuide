@@ -1,6 +1,5 @@
 """Tests for the AI usage models."""
 
-
 from shared.usage import AIUsage, UsageSummary, utcnow
 
 

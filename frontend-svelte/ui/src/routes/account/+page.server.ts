@@ -32,6 +32,8 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const instrument = data.get('instrument');
 		const email = data.get('email');
+		// Sent only when the form has the field; an empty text clears the profile.
+		const musicProfile = data.get('music_profile');
 
 		const api = apiFetch(fetch, token);
 		const res = await api('/user', {
@@ -39,7 +41,8 @@ export const actions: Actions = {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				instrument: instrument?.toString(),
-				email: email?.toString()
+				email: email?.toString(),
+				music_profile: musicProfile === null ? undefined : musicProfile.toString()
 			})
 		});
 

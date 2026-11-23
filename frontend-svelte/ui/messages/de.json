@@ -7,7 +7,6 @@
 	"nav_admin": "Admin",
 	"nav_logout": "Abmelden",
 	"footer_contact": "Kontakt:",
-	"toggle_lang": "DE",
 	"add_new_score": "Neue Noten hinzufügen",
 	"manual_upload": "Selbst hochladen",
 	"from_imslp": "Von IMSLP",
@@ -192,8 +191,6 @@
 	"admin_role_admin": "Admin",
 	"admin_role_user": "Benutzer",
 	"language_switch": "Sprache",
-	"language_switch_to_en": "Auf Englisch umschalten",
-	"language_switch_to_fr": "Auf Französisch umschalten",
 	"cookie_banner_label": "Cookie-Hinweis",
 	"score_completion_failed": "Der Assistent konnte die Angaben nicht ergänzen; du kannst es über das Menü der Noten erneut versuchen.",
 	"toc_contents": "Inhalt",
@@ -428,5 +425,8 @@
 	"grant_tokens_desc": "Wird zum verbleibenden Guthaben dieses Benutzers addiert, z. B. nach einer manuellen Zahlung. Verfällt nicht.",
 	"grant_tokens_button": "Hinzufügen",
 	"grant_tokens_done": "Tokens hinzugefügt.",
-	"err_grant_tokens": "Gib eine ganze Zahl von Tokens grösser als 0 ein."
+	"err_grant_tokens": "Gib eine ganze Zahl von Tokens grösser als 0 ein.",
+	"profile_music_label": "Deine Musik",
+	"profile_music_hint": "Erzähl uns von deinem Spiel: Niveau, Jahre an Übung, Lieblingskomponisten oder -stile, woran du arbeitest oder was du lernen möchtest. Der Assistent schlägt dir damit passende Noten vor.",
+	"profile_music_placeholder": "z. B. Hobbypianistin, 10 Jahre Unterricht. Ich liebe Chopin und Debussy; Vom-Blatt-Spiel ist meine Schwäche. Ich suche mittelschwere Stücke unter 5 Minuten."
 }

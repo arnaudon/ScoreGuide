@@ -7,9 +7,9 @@
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '#lib/components/ui/sidebar/context.svelte.js';
 	import DarkModeToggle from './DarkModeToggle.svelte';
+	import LanguagePicker from './LanguagePicker.svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { getLocale, setLocale } from '#lib/paraglide/runtime.js';
 	import * as m from '#lib/paraglide/messages.js';
 	import { enhance } from '$app/forms';
 	import BookOpen from '@lucide/svelte/icons/book-open';
@@ -45,8 +45,6 @@
 	// prints them next to the icons instead.
 	const sidebar = useSidebar();
 	let tip = $derived({ hidden: sidebar.isMobile });
-
-	let other: 'en' | 'fr' = $derived(getLocale() === 'fr' ? 'en' : 'fr');
 
 	const button =
 		'h-11 justify-center md:size-11 md:p-0 [&>svg]:size-5 max-md:justify-start max-md:gap-3';
@@ -105,15 +103,7 @@
 		</Sidebar.Menu>
 		<div class="flex flex-col items-center gap-2 max-md:flex-row">
 			<DarkModeToggle />
-			<button
-				type="button"
-				onclick={() => setLocale(other)}
-				aria-label={other === 'en' ? m.language_switch_to_en() : m.language_switch_to_fr()}
-				title={other === 'en' ? m.language_switch_to_en() : m.language_switch_to_fr()}
-				class="border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring size-9 rounded-md border text-xs font-semibold uppercase focus-visible:ring-2 focus-visible:outline-none"
-			>
-				{other}
-			</button>
+			<LanguagePicker compact />
 		</div>
 	</Sidebar.Footer>
 </Sidebar.Root>

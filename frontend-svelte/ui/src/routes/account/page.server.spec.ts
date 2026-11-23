@@ -56,6 +56,25 @@ describe('update_profile action', () => {
 		);
 	});
 
+	it('sends the music profile only when the form has it ("" clears it)', async () => {
+		const fetch = vi.fn(async () => jsonResponse({}));
+		const send = (fields: Record<string, string>) =>
+			actions.update_profile(
+				event({
+					request: fakeRequest(fields),
+					cookies: makeCookies({ access_token: 'tok' }),
+					fetch
+				})
+			);
+		await send({ email: 'e@x', music_profile: 'Loves Debussy' });
+		await send({ email: 'e@x', music_profile: '' });
+		await send({ email: 'e@x' });
+		const bodies = fetch.mock.calls.map((c) =>
+			JSON.parse((c as unknown as [string, RequestInit])[1].body as string)
+		);
+		expect(bodies.map((b) => b.music_profile)).toEqual(['Loves Debussy', '', undefined]);
+	});
+
 	it('fails with backend detail when /user PUT returns non-OK', async () => {
 		const fetch = vi.fn(async () => jsonResponse({ detail: 'taken' }, 409));
 		const result = await actions.update_profile(
