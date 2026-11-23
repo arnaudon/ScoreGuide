@@ -1,6 +1,8 @@
 <script lang="ts">
 	import PlayIcon from '@lucide/svelte/icons/circle-play';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
+	import SearchIcon from '@lucide/svelte/icons/search';
+	import { youtubeEmbedUrl, youtubeSearchUrl, youtubeVideoId } from '#lib/youtube.js';
 	import type { IMSLPScore, ImslpResult, Score } from '#lib/types.js';
 	import { localizedField } from '#lib/i18n/score.js';
 	import * as m from '#lib/paraglide/messages.js';
@@ -45,7 +47,15 @@
 		].filter((f) => f.value)
 	);
 	let youtube = $derived(str('youtube_url'));
+	let videoId = $derived(youtubeVideoId(youtube));
+	let search = $derived(str('title') ? youtubeSearchUrl(str('composer'), str('title')) : '');
 	let permlink = $derived(str('permlink'));
+	// Nothing is loaded from YouTube until the user asks to play.
+	let playing = $state(false);
+	$effect(() => {
+		void videoId;
+		playing = false;
+	});
 </script>
 
 <div class="flex flex-col gap-5">
@@ -94,8 +104,44 @@
 		<p class="text-muted-foreground text-sm leading-relaxed whitespace-pre-line">{about}</p>
 	{/if}
 
-	{#if youtube || permlink}
+	{#if videoId}
+		{#if playing}
+			<div class="aspect-video w-full overflow-hidden rounded-lg border bg-black">
+				<iframe
+					src={youtubeEmbedUrl(videoId)}
+					title={m.watch_on_youtube()}
+					class="size-full"
+					allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+					referrerpolicy="strict-origin-when-cross-origin"
+					allowfullscreen
+				></iframe>
+			</div>
+		{:else}
+			<button
+				type="button"
+				onclick={() => (playing = true)}
+				class="bg-muted hover:bg-muted/70 flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border transition-colors"
+			>
+				<PlayIcon class="size-12 text-rose-600" />
+				<span class="text-sm font-medium">{m.youtube_play_here()}</span>
+				<span class="text-muted-foreground px-4 text-xs">{m.youtube_privacy_note()}</span>
+			</button>
+		{/if}
+	{/if}
+
+	{#if youtube || search || permlink}
 		<div class="flex flex-wrap gap-2">
+			{#if search}
+				<a
+					href={search}
+					target="_blank"
+					rel="external noopener noreferrer"
+					class="hover:bg-accent inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium"
+				>
+					<SearchIcon class="size-4 text-rose-600" />
+					{m.youtube_search()}
+				</a>
+			{/if}
 			{#if youtube}
 				<a
 					href={youtube}

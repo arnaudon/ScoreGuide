@@ -168,7 +168,7 @@
 	"privacy_h_email": "Emails",
 	"privacy_email": "We only email you to confirm your address and to reset your password. No newsletters, no marketing.",
 	"privacy_h_cookies": "Cookies",
-	"privacy_cookies": "ScoreGuide uses a login cookie and a language cookie, and stores your light/dark theme in your browser. There are no ads, no analytics and no tracking, and fonts are served from our own server.",
+	"privacy_cookies": "ScoreGuide uses a login cookie and a language cookie, and stores your light/dark theme in your browser. There are no ads, no analytics and no tracking, and fonts are served from our own server. Videos you play inside ScoreGuide come from YouTube's privacy-enhanced player, which only loads when you click play.",
 	"privacy_h_share": "Sharing",
 	"privacy_share": "Your data is never sold. It is only shared with the providers named above, to run the service, or when required by law.",
 	"privacy_h_rights": "Your rights",
@@ -435,5 +435,8 @@
 	"chat_suggest_bach": "A piece by Bach",
 	"chat_suggest_surprise": "Surprise me",
 	"label_size": "Size",
-	"imslp_filter_solo": "Solo only"
+	"imslp_filter_solo": "Solo only",
+	"youtube_search": "Search on YouTube",
+	"youtube_play_here": "Play here",
+	"youtube_privacy_note": "Loads the video from YouTube (privacy-enhanced mode) when you click."
 }
