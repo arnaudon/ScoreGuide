@@ -18,6 +18,9 @@ export const INSTRUMENTS = [
 	'orchestra'
 ] as const;
 
+/** Instruments whose repertoire is mostly solo: the search starts with "solo only" on. */
+export const SOLO_FIRST = new Set(['piano', 'organ', 'harpsichord', 'guitar']);
+
 /** Matches `shared.scores.Period`. */
 export const PERIODS = [
 	'Medieval',

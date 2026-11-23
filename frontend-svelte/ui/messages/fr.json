@@ -428,5 +428,12 @@
 	"err_grant_tokens": "Indiquez un nombre entier de jetons supérieur à 0.",
 	"profile_music_label": "Votre musique",
 	"profile_music_hint": "Parlez-nous de votre pratique : niveau, années de pratique, compositeurs ou styles préférés, ce que vous travaillez ou aimeriez apprendre. L'assistant s'en sert pour vous proposer des partitions.",
-	"profile_music_placeholder": "Ex. : pianiste amateur, 10 ans de cours. J'aime Chopin et Debussy ; le déchiffrage est mon point faible. Je cherche des pièces de niveau moyen de moins de 5 minutes."
+	"profile_music_placeholder": "Ex. : pianiste amateur, 10 ans de cours. J'aime Chopin et Debussy ; le déchiffrage est mon point faible. Je cherche des pièces de niveau moyen de moins de 5 minutes.",
+	"chat_open_score": "Ouvrir",
+	"chat_more_scores": "{count} de plus",
+	"chat_suggest_easy": "Quelque chose de facile pour 20 minutes",
+	"chat_suggest_bach": "Une pièce de Bach",
+	"chat_suggest_surprise": "Surprends-moi",
+	"label_size": "Taille",
+	"imslp_filter_solo": "Solo uniquement"
 }

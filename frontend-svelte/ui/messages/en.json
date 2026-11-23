@@ -428,5 +428,12 @@
 	"err_grant_tokens": "Enter a whole number of tokens above 0.",
 	"profile_music_label": "Your music",
 	"profile_music_hint": "Tell us about your playing: level, years of practice, favourite composers or styles, what you are working on or would like to learn. The assistant uses it to suggest scores for you.",
-	"profile_music_placeholder": "e.g. Amateur pianist, 10 years of lessons. I love Chopin and Debussy; sight-reading is my weak point. Looking for intermediate pieces under 5 minutes."
+	"profile_music_placeholder": "e.g. Amateur pianist, 10 years of lessons. I love Chopin and Debussy; sight-reading is my weak point. Looking for intermediate pieces under 5 minutes.",
+	"chat_open_score": "Open",
+	"chat_more_scores": "{count} more",
+	"chat_suggest_easy": "Something easy for 20 minutes",
+	"chat_suggest_bach": "A piece by Bach",
+	"chat_suggest_surprise": "Surprise me",
+	"label_size": "Size",
+	"imslp_filter_solo": "Solo only"
 }

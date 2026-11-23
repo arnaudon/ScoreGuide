@@ -546,3 +546,20 @@ def test_get_files(admin: TestClient, session: Session):
         empty = _add_work(session, f"Empty {bad}", "X", pdf_urls=bad)
         assert admin.get(f"/imslp/{empty.id}/files").json() == []
     assert admin.get("/imslp/999999/files").status_code == 404
+
+
+def test_search_solo(admin: TestClient, session: Session):
+    for title, scoring in (
+        ("Waltz A", "Piano"), ("Waltz B", " piano solo "), ("Waltz C", "1 piano"),
+        ("Waltz D", "piano 4 hands"), ("Waltz E", "voice, piano"), ("Waltz F", "2 pianos"),
+    ):  # fmt: skip
+        _add_work(session, title, "Composer", instrumentation=scoring)
+
+    def titles(**params):
+        found = admin.get("/imslp/search", params={"q": "waltz", **params}).json()["results"]
+        return sorted(r["title"] for r in found)
+
+    assert titles(instrument="piano") == [f"Waltz {c}" for c in "ABCDEF"]
+    assert titles(instrument="piano", solo="true") == ["Waltz A", "Waltz B", "Waltz C"]
+    assert len(titles(solo="true")) == 6  # solo needs an instrument
+    assert imslp.solo_forms(" Organ ") == ["organ", "organ solo", "solo organ", "1 organ"]

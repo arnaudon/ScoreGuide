@@ -38,7 +38,7 @@
 	import DataTableSortButton from './data-table-sort-button.svelte';
 	import { imslpAgentHistoryStore } from '#lib/stores/chat.svelte.js';
 	import * as m from '#lib/paraglide/messages.js';
-	import { aiLeftLabel } from '#lib/usage.js';
+	import { aiLeftLabel, formatBytes } from '#lib/usage.js';
 
 	let { data, form }: PageProps = $props();
 	let selectedScoreId = $state<number | null>(null);
@@ -109,7 +109,26 @@
 			}
 		},
 		{ accessorKey: 'period', header: m.label_period() },
-		{ accessorKey: 'genre', header: m.label_genre() }
+		{ accessorKey: 'genre', header: m.label_genre() },
+		{
+			accessorKey: 'number_of_plays',
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.home_stat_plays(),
+					onclick: column.getToggleSortingHandler()
+				}),
+			cell: ({ row }) => row.original.number_of_plays ?? 0
+		},
+		{
+			id: 'pdf_size',
+			accessorFn: (score) => score.pdf_size ?? 0,
+			header: ({ column }) =>
+				renderComponent(DataTableSortButton, {
+					title: m.label_size(),
+					onclick: column.getToggleSortingHandler()
+				}),
+			cell: ({ row }) => (row.original.pdf_size ? formatBytes(row.original.pdf_size) : '-')
+		}
 	];
 
 	const table = createSvelteTable({

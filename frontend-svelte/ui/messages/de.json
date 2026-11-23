@@ -428,5 +428,12 @@
 	"err_grant_tokens": "Gib eine ganze Zahl von Tokens grösser als 0 ein.",
 	"profile_music_label": "Deine Musik",
 	"profile_music_hint": "Erzähl uns von deinem Spiel: Niveau, Jahre an Übung, Lieblingskomponisten oder -stile, woran du arbeitest oder was du lernen möchtest. Der Assistent schlägt dir damit passende Noten vor.",
-	"profile_music_placeholder": "z. B. Hobbypianistin, 10 Jahre Unterricht. Ich liebe Chopin und Debussy; Vom-Blatt-Spiel ist meine Schwäche. Ich suche mittelschwere Stücke unter 5 Minuten."
+	"profile_music_placeholder": "z. B. Hobbypianistin, 10 Jahre Unterricht. Ich liebe Chopin und Debussy; Vom-Blatt-Spiel ist meine Schwäche. Ich suche mittelschwere Stücke unter 5 Minuten.",
+	"chat_open_score": "Öffnen",
+	"chat_more_scores": "{count} weitere",
+	"chat_suggest_easy": "Etwas Leichtes für 20 Minuten",
+	"chat_suggest_bach": "Ein Stück von Bach",
+	"chat_suggest_surprise": "Überrasch mich",
+	"label_size": "Grösse",
+	"imslp_filter_solo": "Nur solo"
 }

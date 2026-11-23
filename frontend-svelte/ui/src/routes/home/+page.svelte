@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import * as Table from '#lib/components/ui/table/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
 	import AgentChat from '#lib/components/AgentChat.svelte';
+	import ChatScores from '#lib/components/ChatScores.svelte';
 	import ImslpSearch from '#lib/components/ImslpSearch.svelte';
 	import ImslpAddDialog from '#lib/components/ImslpAddDialog.svelte';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
@@ -11,22 +11,6 @@
 	import { periodLabel } from '#lib/imslp.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { mainAgentHistoryStore } from '#lib/stores/chat.svelte.js';
-	import {
-		type ColumnDef,
-		type PaginationState,
-		type SortingState,
-		type ColumnFiltersState,
-		getCoreRowModel,
-		getPaginationRowModel,
-		getSortedRowModel,
-		getFilteredRowModel
-	} from '@tanstack/table-core';
-	import {
-		FlexRender,
-		createSvelteTable,
-		renderComponent
-	} from '#lib/components/ui/data-table/index.js';
-	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
 	import type { ImslpResult, Score } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
 
@@ -40,81 +24,11 @@
 	let composerMax = $derived(Math.max(1, ...summary.topComposers.map((c) => c.count)));
 	let periodMax = $derived(Math.max(1, ...summary.periods.map((p) => p.count)));
 
-	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 5 });
-	let sorting = $state<SortingState>([]);
-	let columnFilters = $state<ColumnFiltersState>([]);
-	let currentScores = $state<Score[]>([]);
-
-	const columns: ColumnDef<Score>[] = [
-		{
-			accessorKey: 'composer',
-			header: ({ column }) =>
-				renderComponent(DataTableSortButton, {
-					title: m.label_composer(),
-					onclick: column.getToggleSortingHandler()
-				})
-		},
-		{
-			accessorKey: 'title',
-			header: ({ column }) =>
-				renderComponent(DataTableSortButton, {
-					title: m.label_title(),
-					onclick: column.getToggleSortingHandler()
-				})
-		},
-		{
-			accessorKey: 'instrumentation',
-			header: ({ column }) =>
-				renderComponent(DataTableSortButton, {
-					title: m.label_instrumentation(),
-					onclick: column.getToggleSortingHandler()
-				}),
-			cell: ({ row }) => row.original.instrumentation || '-'
-		},
-		{
-			accessorKey: 'year',
-			header: ({ column }) =>
-				renderComponent(DataTableSortButton, {
-					title: m.label_year(),
-					onclick: column.getToggleSortingHandler()
-				}),
-			cell: ({ row }) => row.original.year || '-'
-		}
-	];
-
-	const table = createSvelteTable({
-		get data() {
-			return currentScores;
-		},
-		columns,
-		state: {
-			get pagination() {
-				return pagination;
-			},
-			get sorting() {
-				return sorting;
-			},
-			get columnFilters() {
-				return columnFilters;
-			}
-		},
-		onPaginationChange: (updater) => {
-			if (typeof updater === 'function') pagination = updater(pagination);
-			else pagination = updater;
-		},
-		onSortingChange: (updater) => {
-			if (typeof updater === 'function') sorting = updater(sorting);
-			else sorting = updater;
-		},
-		onColumnFiltersChange: (updater) => {
-			if (typeof updater === 'function') columnFilters = updater(columnFilters);
-			else columnFilters = updater;
-		},
-		getCoreRowModel: getCoreRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getFilteredRowModel: getFilteredRowModel()
-	});
+	/** The library scores an answer points to (several, or the one it picked). */
+	function chatScores(msg: Record<string, unknown>): Score[] {
+		if (Array.isArray(msg.scores) && msg.scores.length) return msg.scores as Score[];
+		return msg.scoreDetails ? [msg.scoreDetails as Score] : [];
+	}
 
 	function onResult(data: Record<string, unknown>) {
 		const answer = (data.answer ?? {}) as Record<string, unknown>;
@@ -124,7 +38,6 @@
 
 		const scoreId = answer.score_id ?? (typeof inner === 'object' && inner ? inner.score_id : null);
 		const scores = (data.scores as Score[] | undefined) ?? [];
-		currentScores = scores;
 
 		return {
 			question: String(data.question ?? ''),
@@ -153,106 +66,70 @@
 			{m.empty_db_p2()}
 		</div>
 	{/if}
-	<!-- While a conversation is open the chat gets a fixed height and scrolls inside. -->
-	<div class="flex flex-col {mainAgentHistoryStore.history.length ? 'h-[70vh] min-h-96' : 'py-4'}">
-		<AgentChat
-			{form}
-			action="?/ask"
-			title={m.hello_user({ name: data.user.username })}
-			titleClass="text-fancy-title text-3xl leading-tight font-semibold sm:text-4xl"
-			emptyMessage={m.what_to_play()}
-			placeholder={m.agent_placeholder_main()}
-			{onResult}
-			user={data.user}
-			store={mainAgentHistoryStore}
+	<!-- The assistant has a fixed height (the conversation scrolls inside), so
+	     asking questions never pushes the rest of the page down. -->
+	<div class="grid gap-6 lg:grid-cols-5">
+		<section
+			class="bg-card shadow-card flex h-[30rem] flex-col rounded-lg border p-4 sm:p-5 lg:h-[34rem] {data.isDemo
+				? 'lg:col-span-5'
+				: 'lg:col-span-3'}"
 		>
-			{#snippet resultSnippet({ msg, isLast })}
-				<p class="text-muted-foreground mt-2 whitespace-pre-wrap">{msg.answer}</p>
-				{#if isLast && Array.isArray(msg.scores) && msg.scores.length > 0}
-					<div
-						class="bg-card text-card-foreground shadow-card mt-4 overflow-hidden rounded-md border"
-					>
-						<Table.Root>
-							<Table.Header>
-								{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
-									<Table.Row>
-										{#each headerGroup.headers as header (header.id)}
-											<Table.Head>
-												{#if !header.isPlaceholder}
-													<FlexRender
-														content={header.column.columnDef.header}
-														context={header.getContext()}
-													/>
-												{/if}
-											</Table.Head>
-										{/each}
-									</Table.Row>
-								{/each}
-							</Table.Header>
-							<Table.Body>
-								{#each table.getRowModel().rows as row (row.id)}
-									<Table.Row
-										class="hover:bg-muted/50 cursor-pointer transition-colors {selectedScoreDetails?.id ===
-										row.original.id
-											? 'bg-muted'
-											: ''}"
-										onclick={() => {
-											selectedScoreDetails = row.original;
-											sheetOpen = true;
-										}}
-									>
-										{#each row.getVisibleCells() as cell (cell.id)}
-											<Table.Cell class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]">
-												<FlexRender
-													content={cell.column.columnDef.cell}
-													context={cell.getContext()}
-												/>
-											</Table.Cell>
-										{/each}
-									</Table.Row>
-								{/each}
-							</Table.Body>
-						</Table.Root>
-
-						<div class="border-border flex items-center justify-end space-x-2 border-t px-4 py-4">
-							<div class="text-muted-foreground flex-1 text-sm">
-								{m.page_of({
-									page: table.getState().pagination.pageIndex + 1,
-									total: Math.max(1, table.getPageCount())
-								})}
-							</div>
-							<Button
-								variant="outline"
-								size="sm"
-								onclick={() => table.previousPage()}
-								disabled={!table.getCanPreviousPage()}
+			<AgentChat
+				{form}
+				action="?/ask"
+				title={m.hello_user({ name: data.user.username })}
+				titleClass="text-fancy-title text-3xl leading-tight font-semibold sm:text-4xl"
+				emptyMessage={m.what_to_play()}
+				placeholder={m.agent_placeholder_main()}
+				suggestions={[m.chat_suggest_easy(), m.chat_suggest_bach(), m.chat_suggest_surprise()]}
+				{onResult}
+				user={data.user}
+				store={mainAgentHistoryStore}
+			>
+				{#snippet resultSnippet({ msg })}
+					<p class="whitespace-pre-wrap">{msg.answer}</p>
+					{@const found = chatScores(msg)}
+					{#if found.length}
+						<ChatScores
+							scores={found}
+							onSelect={(score) => {
+								selectedScoreDetails = score;
+								sheetOpen = true;
+							}}
+						/>
+					{/if}
+				{/snippet}
+			</AgentChat>
+		</section>
+		{#if !data.isDemo}
+			<section
+				class="bg-card shadow-card flex flex-col gap-2 rounded-lg border p-4 sm:p-5 lg:col-span-2 lg:h-[34rem]"
+				aria-labelledby="imslp-home-title"
+			>
+				<h2 id="imslp-home-title" class="text-foreground font-semibold">{m.imslp_home_title()}</h2>
+				<p class="text-muted-foreground text-sm">{m.imslp_home_desc()}</p>
+				<ImslpSearch
+					preferredInstrument={data.user.instrument}
+					listClass="max-h-64 overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1"
+					onSelect={(work) => {
+						imslpWork = work;
+						addedScoreId = undefined;
+						imslpOpen = true;
+					}}
+				/>
+				{#if addedScoreId !== undefined}
+					<p role="status" class="text-sm">
+						{m.imslp_added()}
+						{#if addedScoreId !== null}
+							<a
+								href={resolve('/reader/[id]', { id: String(addedScoreId) })}
+								class="text-primary font-medium hover:underline">{m.imslp_open_added()}</a
 							>
-								{m.previous()}
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								onclick={() => table.nextPage()}
-								disabled={!table.getCanNextPage()}
-							>
-								{m.next()}
-							</Button>
-						</div>
-					</div>
+						{/if}
+					</p>
 				{/if}
-				{#if msg.score_id}
-					<div class="mt-4">
-						<Button
-							variant="secondary"
-							size="sm"
-							href={resolve('/reader/[id]', { id: String(msg.score_id) })}
-						>
-							{m.view_pdf()} (ID: {msg.score_id})
-						</Button>
-					</div>
-				{/if}
-			{/snippet}
-		</AgentChat>
+			</section>
+		{/if}
 	</div>
 	{#if summary.total}
 		<section aria-labelledby="home-continue" class="flex flex-col gap-3">
@@ -360,36 +237,6 @@
 					{/if}
 				</div>
 			</div>
-		</section>
-	{/if}
-
-	{#if !data.isDemo}
-		<section
-			class="bg-card shadow-card flex shrink-0 flex-col gap-2 rounded-md border p-4"
-			aria-labelledby="imslp-home-title"
-		>
-			<h2 id="imslp-home-title" class="text-foreground font-semibold">{m.imslp_home_title()}</h2>
-			<p class="text-muted-foreground text-sm">{m.imslp_home_desc()}</p>
-			<ImslpSearch
-				preferredInstrument={data.user.instrument}
-				listClass="max-h-48 overflow-y-auto"
-				onSelect={(work) => {
-					imslpWork = work;
-					addedScoreId = undefined;
-					imslpOpen = true;
-				}}
-			/>
-			{#if addedScoreId !== undefined}
-				<p role="status" class="text-sm">
-					{m.imslp_added()}
-					{#if addedScoreId !== null}
-						<a
-							href={resolve('/reader/[id]', { id: String(addedScoreId) })}
-							class="text-primary font-medium hover:underline">{m.imslp_open_added()}</a
-						>
-					{/if}
-				</p>
-			{/if}
 		</section>
 	{/if}
 </div>

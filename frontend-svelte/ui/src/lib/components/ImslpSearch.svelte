@@ -10,7 +10,8 @@
 		periodLabel,
 		INSTRUMENTS,
 		PERIODS,
-		instrumentLabel
+		instrumentLabel,
+		SOLO_FIRST
 	} from '#lib/imslp.js';
 	import * as m from '#lib/paraglide/messages.js';
 
@@ -33,6 +34,8 @@
 	const PAGE = 20;
 	let q = $state('');
 	let instrument = $state(untrack(() => defaultInstrument(preferredInstrument)));
+	// Works for the instrument alone (no duets, songs, chamber music).
+	let solo = $state(untrack(() => SOLO_FIRST.has(instrument)));
 	let period = $state('');
 	let results = $state<ImslpResult[]>([]);
 	let total = $state(0);
@@ -47,6 +50,7 @@
 		controller = ctrl;
 		const fields: Record<string, string> = { q, limit: String(PAGE), offset: String(offset) };
 		if (instrument) fields.instrument = instrument;
+		if (instrument && solo) fields.solo = 'true';
 		if (period) fields.period = period;
 		const params = new URLSearchParams(fields).toString();
 		loading = true;
@@ -70,6 +74,7 @@
 	$effect(() => {
 		const words = q.trim();
 		void instrument;
+		void solo;
 		void period;
 		if (words.length < 2) {
 			controller?.abort();
@@ -114,6 +119,7 @@
 		</div>
 		<select
 			bind:value={instrument}
+			onchange={() => (solo = SOLO_FIRST.has(instrument))}
 			aria-label={m.imslp_filter_instrument()}
 			class="border-input bg-background focus-visible:ring-ring h-9 rounded-md border px-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
 		>
@@ -122,6 +128,12 @@
 				<option {value}>{instrumentLabel(value)}</option>
 			{/each}
 		</select>
+		{#if instrument}
+			<label class="flex h-9 items-center gap-1.5 text-sm whitespace-nowrap">
+				<input type="checkbox" bind:checked={solo} class="accent-primary size-4" />
+				{m.imslp_filter_solo()}
+			</label>
+		{/if}
 		<select
 			bind:value={period}
 			aria-label={m.imslp_filter_period()}
