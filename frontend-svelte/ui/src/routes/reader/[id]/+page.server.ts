@@ -6,11 +6,16 @@ import { buildScoreUpdatePayload } from '#lib/server/scoreUpdate.js';
 import { tokenRole } from '#lib/server/token.js';
 import type { Score, SectionsResponse } from '#lib/types.js';
 
+/** Score ids are numbers: a decoded `..%2F…` must not become another backend path. */
+const ID = /^\d+$/;
+
 export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 	const token = cookies.get('access_token');
 	if (!token) {
 		redirect(303, '/login');
 	}
+
+	if (!ID.test(params.id)) return { score: null, toc: EMPTY_TOC };
 
 	const api = apiFetch(fetch, token);
 	try {
@@ -72,6 +77,7 @@ export const actions: Actions = {
 		if (!token) {
 			return fail(401, { error: 'Unauthorized' });
 		}
+		if (!ID.test(params.id)) return fail(404, { tocError: true });
 		try {
 			const res = await apiFetch(fetch, token)(`/scores/${params.id}/sections/generate`, {
 				method: 'POST'
@@ -90,6 +96,7 @@ export const actions: Actions = {
 		if (!token) {
 			return fail(401, { reportError: true });
 		}
+		if (!ID.test(params.id)) return fail(404, { reportError: true });
 		const comment = String((await request.formData()).get('comment') ?? '').slice(0, 1000);
 		try {
 			const res = await apiFetch(fetch, token)(`/scores/${params.id}/sections/report`, {
@@ -114,7 +121,7 @@ export const actions: Actions = {
 
 		const data = await request.formData();
 		const id = data.get('id');
-		if (!id) {
+		if (!id || !ID.test(id.toString())) {
 			return fail(400, { error: 'Missing score ID' });
 		}
 

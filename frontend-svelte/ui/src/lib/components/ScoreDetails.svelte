@@ -5,6 +5,7 @@
 	import { youtubeEmbedUrl, youtubeSearchUrl, youtubeVideoId } from '#lib/youtube.js';
 	import type { IMSLPScore, ImslpResult, Score } from '#lib/types.js';
 	import { localizedField } from '#lib/i18n/score.js';
+	import { httpUrl } from '#lib/url.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	/**
@@ -46,10 +47,10 @@
 			{ label: m.label_notable_interpreters(), value: str('notable_interpreters') }
 		].filter((f) => f.value)
 	);
-	let youtube = $derived(str('youtube_url'));
+	let youtube = $derived(httpUrl(str('youtube_url')));
 	let videoId = $derived(youtubeVideoId(youtube));
 	let search = $derived(str('title') ? youtubeSearchUrl(str('composer'), str('title')) : '');
-	let permlink = $derived(str('permlink'));
+	let permlink = $derived(httpUrl(str('permlink')));
 	// Nothing is loaded from YouTube until the user asks to play.
 	let playing = $state(false);
 	$effect(() => {

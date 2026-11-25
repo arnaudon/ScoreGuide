@@ -110,7 +110,7 @@
 						<label for="role" class="text-sm font-medium">{m.role()}</label>
 						<Input
 							id="role"
-							value={data.user?.role || (data.user?.is_admin ? 'admin' : 'user')}
+							value={data.user?.role || 'user'}
 							disabled
 							class="max-w-md capitalize"
 						/>

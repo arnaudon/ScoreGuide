@@ -122,6 +122,8 @@ export interface User {
 	first_name: string | null;
 	last_name: string | null;
 	instrument: string | null;
+	/** Free-text profile given to the AI agents (max 1000 chars). */
+	music_profile?: string | null;
 	role: string;
 	/** Billing plan: "free" or "pro". */
 	plan: string;

@@ -34,4 +34,19 @@ describe('ScoreDetails.svelte YouTube', () => {
 		await expect.element(page.getByRole('link', { name: 'Watch on YouTube' })).toBeInTheDocument();
 		await expect.element(page.getByRole('button', { name: /Play here/ })).not.toBeInTheDocument();
 	});
+
+	it('never renders a non-http link', async () => {
+		render(ScoreDetails, {
+			score: {
+				...score('javascript:alert(1)'),
+				permlink: 'javascript:alert(2)'
+			} as unknown as Score
+		});
+		await expect.element(page.getByRole('link', { name: 'Search on YouTube' })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('link', { name: 'Watch on YouTube' }))
+			.not.toBeInTheDocument();
+		await expect.element(page.getByRole('link', { name: 'IMSLP' })).not.toBeInTheDocument();
+		expect(document.querySelector('a[href^="javascript:"]')).toBeNull();
+	});
 });

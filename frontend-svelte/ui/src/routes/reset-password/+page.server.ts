@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
 import { detailMessage } from '#lib/apiError.js';
+import { callBackend } from '#lib/server/callBackend.js';
 import { passwordLengthOk } from '#lib/password.js';
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -33,24 +34,23 @@ export const actions: Actions = {
 		}
 
 		const api = apiFetch(fetch, undefined);
-		const response = await api('/reset-password', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ token: token.toString(), new_password: newPassword.toString() })
-		});
-
-		if (!response.ok) {
-			let errorMsg: string = m.err_something_went_wrong();
-			try {
-				const result = await response.json();
-				errorMsg = detailMessage(result.detail, errorMsg);
-			} catch (e) {
-				console.error('Failed to parse reset-password error response', e);
-			}
-			return fail(response.status, { token: token.toString(), error: errorMsg });
+		const answer = await callBackend(() =>
+			api('/reset-password', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ token: token.toString(), new_password: newPassword.toString() })
+			})
+		);
+		if (!answer) {
+			return fail(503, { token: token.toString(), error: m.err_service_unavailable() });
+		}
+		if (!answer.res.ok) {
+			return fail(answer.res.status, {
+				token: token.toString(),
+				error: detailMessage(answer.data.detail, m.err_something_went_wrong())
+			});
 		}
 
-		const result = await response.json();
-		return { success: true, message: result.message };
+		return { success: true, message: answer.data.message as string | undefined };
 	}
 };

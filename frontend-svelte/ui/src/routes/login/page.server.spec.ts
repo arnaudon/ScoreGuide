@@ -181,7 +181,7 @@ describe('register action', () => {
 		expect(fetch).not.toHaveBeenCalled();
 	});
 
-	it('logs when the backend error response is not parseable JSON', async () => {
+	it('falls back to the generic message when a 4xx body is not JSON', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response('plain-text-error', {
@@ -195,7 +195,6 @@ describe('register action', () => {
 		);
 		expect(isActionFailure(result)).toBe(true);
 		expect(result).toMatchObject({ status: 409, data: { error: 'Registration failed' } });
-		expect(errSpy).toHaveBeenCalled();
 	});
 });
 

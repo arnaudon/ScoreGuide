@@ -3,6 +3,7 @@ import type { Actions } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
 import { detailMessage } from '#lib/apiError.js';
+import { callBackend } from '#lib/server/callBackend.js';
 
 export const actions: Actions = {
 	default: async ({ request, fetch }) => {
@@ -14,24 +15,23 @@ export const actions: Actions = {
 		}
 
 		const api = apiFetch(fetch, undefined);
-		const response = await api('/forgot-password', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ email: email.toString() })
-		});
-
-		if (!response.ok) {
-			let errorMsg: string = m.err_something_went_wrong();
-			try {
-				const result = await response.json();
-				errorMsg = detailMessage(result.detail, errorMsg);
-			} catch (e) {
-				console.error('Failed to parse forgot-password error response', e);
-			}
-			return fail(response.status, { email: email.toString(), error: errorMsg });
+		const answer = await callBackend(() =>
+			api('/forgot-password', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: email.toString() })
+			})
+		);
+		if (!answer) {
+			return fail(503, { email: email.toString(), error: m.err_service_unavailable() });
+		}
+		if (!answer.res.ok) {
+			return fail(answer.res.status, {
+				email: email.toString(),
+				error: detailMessage(answer.data.detail, m.err_something_went_wrong())
+			});
 		}
 
-		const result = await response.json();
-		return { email: email.toString(), message: result.message };
+		return { email: email.toString(), message: answer.data.message as string | undefined };
 	}
 };

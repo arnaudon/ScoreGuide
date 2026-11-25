@@ -2,9 +2,14 @@ import { redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 
+/**
+ * GET never signs out: a link or an `<img src="/logout">` on another site
+ * could otherwise log visitors out. Signed-in visitors get a button that
+ * POSTs the form below (the sidebar and the demo banner post it directly).
+ */
 export const load: PageServerLoad = async ({ cookies }) => {
-	cookies.delete('access_token', { path: '/', httpOnly: true, secure: !dev, sameSite: 'lax' });
-	redirect(303, '/login');
+	if (!cookies.get('access_token')) redirect(303, '/login');
+	return {};
 };
 
 export const actions: Actions = {

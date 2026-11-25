@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
+import { callBackend } from '#lib/server/callBackend.js';
 
 /** Opens the link from the confirmation email: no login needed. */
 export const load: PageServerLoad = async ({ url, fetch, cookies }) => {
@@ -25,8 +26,11 @@ export const actions: Actions = {
 	resend: async ({ cookies, fetch }) => {
 		const token = cookies.get('access_token');
 		if (!token) return fail(401, { resent: false });
-		const res = await apiFetch(fetch, token)('/resend-verification', { method: 'POST' });
-		if (!res.ok) return fail(res.status, { resent: false });
+		const answer = await callBackend(() =>
+			apiFetch(fetch, token)('/resend-verification', { method: 'POST' })
+		);
+		if (!answer) return fail(503, { resent: false });
+		if (!answer.res.ok) return fail(answer.res.status, { resent: false });
 		return { resent: true };
 	}
 };
