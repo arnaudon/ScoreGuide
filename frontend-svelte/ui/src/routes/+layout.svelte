@@ -47,8 +47,9 @@
 {#if data.loggedIn}
 	<Sidebar.Provider style="--sidebar-width: 4rem;">
 		<AppSidebar />
-		<Sidebar.Inset class="bg-background text-foreground flex w-full flex-1 flex-col">
-			<main class="w-full flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+		<!-- min-w-0: a wide table scrolls inside the page instead of pushing it past the screen. -->
+		<Sidebar.Inset class="bg-background text-foreground flex min-w-0 flex-1 flex-col">
+			<main class="w-full min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
 				<!-- Desktop: the icon rail is always shown. Mobile: opens the drawer. -->
 				<Sidebar.Trigger class="mb-4 md:hidden" />
 				{#if data.isDemo}

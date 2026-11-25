@@ -439,5 +439,6 @@
 	"imslp_filter_solo": "Nur solo",
 	"youtube_search": "Auf YouTube suchen",
 	"youtube_play_here": "Hier abspielen",
-	"youtube_privacy_note": "Lädt das Video beim Klick von YouTube (erweiterter Datenschutzmodus)."
+	"youtube_privacy_note": "Lädt das Video beim Klick von YouTube (erweiterter Datenschutzmodus).",
+	"account_demo_readonly": "Dies ist das Demokonto: Sie können sein Profil ansehen, aber nicht ändern. Erstellen Sie ein kostenloses Konto, um Ihr Instrument zu wählen und Ihre Musik zu beschreiben."
 }

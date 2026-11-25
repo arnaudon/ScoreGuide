@@ -183,6 +183,9 @@ CATALOG: list[dict[str, Any]] = [
 ]
 
 
+DEMO_INSTRUMENT = "piano"
+
+
 def get_or_create_demo_user(session: Session) -> User:
     """Return the demo user, creating it (role ``demo``, no password) if missing."""
     if not config.DEMO_USERNAME:
@@ -192,6 +195,8 @@ def get_or_create_demo_user(session: Session) -> User:
         user = User(username=config.DEMO_USERNAME, role=DEMO_ROLE, credits=0, max_credits=0)
     elif user.role != DEMO_ROLE:
         raise ValueError(f"User {user.username!r} exists and is not a demo account")
+    # The demo library is piano music; the IMSLP filter and the agents follow it.
+    user.instrument = user.instrument or DEMO_INSTRUMENT
     session.add(user)
     session.commit()
     session.refresh(user)
