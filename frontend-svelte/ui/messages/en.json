@@ -439,5 +439,6 @@
 	"imslp_filter_solo": "Solo only",
 	"youtube_search": "Search on YouTube",
 	"youtube_play_here": "Play here",
-	"youtube_privacy_note": "Loads the video from YouTube (privacy-enhanced mode) when you click."
+	"youtube_privacy_note": "Loads the video from YouTube (privacy-enhanced mode) when you click.",
+	"account_demo_readonly": "This is the demo account: you can view its profile but not change it. Create a free account to choose your instrument and describe your music."
 }

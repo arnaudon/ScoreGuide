@@ -175,8 +175,14 @@
 			</h2>
 			<dl class="grid grid-cols-3 gap-3">
 				{#each [{ label: m.home_stat_scores(), value: summary.total }, { label: m.home_stat_composers(), value: summary.composers }, summary.plays ? { label: m.home_stat_plays(), value: summary.plays } : { label: m.home_stat_periods(), value: summary.periods.length }] as stat (stat.label)}
-					<div class="bg-card shadow-card flex flex-col-reverse rounded-lg border p-4">
-						<dt class="text-muted-foreground text-xs font-medium sm:text-sm">{stat.label}</dt>
+					<div
+						class="bg-card shadow-card flex min-w-0 flex-col-reverse rounded-lg border p-3 sm:p-4"
+					>
+						<dt
+							class="text-muted-foreground text-xs font-medium break-words hyphens-auto sm:text-sm"
+						>
+							{stat.label}
+						</dt>
 						<dd class="text-foreground text-2xl font-semibold tabular-nums sm:text-3xl">
 							{stat.value}
 						</dd>

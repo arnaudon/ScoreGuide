@@ -20,7 +20,7 @@
 		value={getLocale()}
 		onchange={(event) => setLocale(event.currentTarget.value as Locale)}
 		title={m.language_switch()}
-		class="border-input bg-background hover:bg-muted focus-visible:ring-ring rounded-md border text-xs font-semibold focus-visible:ring-2 focus-visible:outline-none {compact
+		class="border-input bg-background text-foreground hover:bg-muted focus-visible:ring-ring rounded-md border text-xs font-semibold focus-visible:ring-2 focus-visible:outline-none {compact
 			? 'h-9 w-11 px-1 text-center uppercase'
 			: 'h-8 px-2'}"
 	>

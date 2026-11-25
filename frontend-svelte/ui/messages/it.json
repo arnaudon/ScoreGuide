@@ -439,5 +439,6 @@
 	"imslp_filter_solo": "Solo",
 	"youtube_search": "Cerca su YouTube",
 	"youtube_play_here": "Riproduci qui",
-	"youtube_privacy_note": "Carica il video da YouTube (modalità privacy avanzata) quando clicchi."
+	"youtube_privacy_note": "Carica il video da YouTube (modalità privacy avanzata) quando clicchi.",
+	"account_demo_readonly": "Questo è l'account demo: puoi vederne il profilo ma non modificarlo. Crea un account gratuito per scegliere il tuo strumento e descrivere la tua musica."
 }

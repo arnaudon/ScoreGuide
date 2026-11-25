@@ -191,3 +191,12 @@ def test_seed_catalog(session: Session, tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="Not a PDF"):
         demo.seed_catalog(session, fetch=lambda url: b"<html>")
+
+
+def test_demo_user_plays_piano(session: Session, demo_user: User):
+    """The demo account defaults to piano, and keeps an instrument set by hand."""
+    assert demo.get_or_create_demo_user(session).instrument == "piano"
+    demo_user.instrument = "cello"
+    session.add(demo_user)
+    session.commit()
+    assert demo.get_or_create_demo_user(session).instrument == "cello"

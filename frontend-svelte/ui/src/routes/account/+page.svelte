@@ -20,6 +20,11 @@
 		<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
 			<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.profile_information()}</h2>
 			<p class="text-muted-foreground mb-6 text-sm">{m.profile_info_desc()}</p>
+			{#if data.isDemo}
+				<p role="note" class="bg-muted text-muted-foreground mb-6 rounded-md px-3 py-2 text-sm">
+					{m.account_demo_readonly()}
+				</p>
+			{/if}
 
 			<form
 				method="POST"
@@ -33,95 +38,97 @@
 					};
 				}}
 			>
-				<div class="space-y-2">
-					<label for="username" class="text-sm font-medium">{m.username()}</label>
-					<Input id="username" value={data.user?.username} disabled class="max-w-md" />
-				</div>
-				<div class="space-y-2">
-					<label for="email" class="text-sm font-medium">{m.email()}</label>
-					<Input
-						id="email"
-						name="email"
-						type="email"
-						value={data.user?.email || ''}
-						class="max-w-md"
-						required
-					/>
-				</div>
-				<div class="space-y-2">
-					<label for="instrument" class="text-sm font-medium">{m.preferred_instrument()}</label>
-					<select
-						id="instrument"
-						name="instrument"
-						class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full max-w-md items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
-					>
-						<option value="" disabled selected={!data.user?.instrument}
-							>{m.select_instrument()}</option
+				<fieldset disabled={data.isDemo} class="space-y-4 disabled:opacity-70">
+					<div class="space-y-2">
+						<label for="username" class="text-sm font-medium">{m.username()}</label>
+						<Input id="username" value={data.user?.username} disabled class="max-w-md" />
+					</div>
+					<div class="space-y-2">
+						<label for="email" class="text-sm font-medium">{m.email()}</label>
+						<Input
+							id="email"
+							name="email"
+							type="email"
+							value={data.user?.email || ''}
+							class="max-w-md"
+							required
+						/>
+					</div>
+					<div class="space-y-2">
+						<label for="instrument" class="text-sm font-medium">{m.preferred_instrument()}</label>
+						<select
+							id="instrument"
+							name="instrument"
+							class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full max-w-md items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
 						>
-						<option value="piano" selected={data.user?.instrument === 'piano'}
-							>{m.inst_piano()}</option
+							<option value="" disabled selected={!data.user?.instrument}
+								>{m.select_instrument()}</option
+							>
+							<option value="piano" selected={data.user?.instrument === 'piano'}
+								>{m.inst_piano()}</option
+							>
+							<option value="violin" selected={data.user?.instrument === 'violin'}
+								>{m.inst_violin()}</option
+							>
+							<option value="viola" selected={data.user?.instrument === 'viola'}
+								>{m.inst_viola()}</option
+							>
+							<option value="cello" selected={data.user?.instrument === 'cello'}
+								>{m.inst_cello()}</option
+							>
+							<option value="guitar" selected={data.user?.instrument === 'guitar'}
+								>{m.inst_guitar()}</option
+							>
+							<option value="flute" selected={data.user?.instrument === 'flute'}
+								>{m.inst_flute()}</option
+							>
+							<option value="clarinet" selected={data.user?.instrument === 'clarinet'}
+								>{m.inst_clarinet()}</option
+							>
+							<option value="trumpet" selected={data.user?.instrument === 'trumpet'}
+								>{m.inst_trumpet()}</option
+							>
+							<option value="other" selected={data.user?.instrument === 'other'}
+								>{m.inst_other()}</option
+							>
+						</select>
+					</div>
+					<div class="max-w-md space-y-2">
+						<label for="music_profile" class="text-sm font-medium">{m.profile_music_label()}</label>
+						<p class="text-muted-foreground text-xs">{m.profile_music_hint()}</p>
+						<textarea
+							id="music_profile"
+							name="music_profile"
+							rows="4"
+							maxlength="1000"
+							placeholder={m.profile_music_placeholder()}
+							class="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+							>{data.user?.music_profile ?? ''}</textarea
 						>
-						<option value="violin" selected={data.user?.instrument === 'violin'}
-							>{m.inst_violin()}</option
-						>
-						<option value="viola" selected={data.user?.instrument === 'viola'}
-							>{m.inst_viola()}</option
-						>
-						<option value="cello" selected={data.user?.instrument === 'cello'}
-							>{m.inst_cello()}</option
-						>
-						<option value="guitar" selected={data.user?.instrument === 'guitar'}
-							>{m.inst_guitar()}</option
-						>
-						<option value="flute" selected={data.user?.instrument === 'flute'}
-							>{m.inst_flute()}</option
-						>
-						<option value="clarinet" selected={data.user?.instrument === 'clarinet'}
-							>{m.inst_clarinet()}</option
-						>
-						<option value="trumpet" selected={data.user?.instrument === 'trumpet'}
-							>{m.inst_trumpet()}</option
-						>
-						<option value="other" selected={data.user?.instrument === 'other'}
-							>{m.inst_other()}</option
-						>
-					</select>
-				</div>
-				<div class="max-w-md space-y-2">
-					<label for="music_profile" class="text-sm font-medium">{m.profile_music_label()}</label>
-					<p class="text-muted-foreground text-xs">{m.profile_music_hint()}</p>
-					<textarea
-						id="music_profile"
-						name="music_profile"
-						rows="4"
-						maxlength="1000"
-						placeholder={m.profile_music_placeholder()}
-						class="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-						>{data.user?.music_profile ?? ''}</textarea
-					>
-				</div>
-				<div class="space-y-2">
-					<label for="role" class="text-sm font-medium">{m.role()}</label>
-					<Input
-						id="role"
-						value={data.user?.role || (data.user?.is_admin ? 'admin' : 'user')}
-						disabled
-						class="max-w-md capitalize"
-					/>
-				</div>
+					</div>
+					<div class="space-y-2">
+						<label for="role" class="text-sm font-medium">{m.role()}</label>
+						<Input
+							id="role"
+							value={data.user?.role || (data.user?.is_admin ? 'admin' : 'user')}
+							disabled
+							class="max-w-md capitalize"
+						/>
+					</div>
 
-				{#if form?.form === 'profile' && form?.error}
-					<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
-				{/if}
-				{#if form?.form === 'profile' && form?.success}
-					<p role="status" class="text-success text-sm font-medium">
-						{m.profile_updated_success()}
-					</p>
-				{/if}
+					{#if form?.form === 'profile' && form?.error}
+						<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
+					{/if}
+					{#if form?.form === 'profile' && form?.success}
+						<p role="status" class="text-success text-sm font-medium">
+							{m.profile_updated_success()}
+						</p>
+					{/if}
 
-				<Button type="submit" disabled={loadingProfile}>
-					{loadingProfile ? m.saving() : m.save_profile()}
-				</Button>
+					<Button type="submit" disabled={loadingProfile}>
+						{loadingProfile ? m.saving() : m.save_profile()}
+					</Button>
+				</fieldset>
 			</form>
 		</section>
 
@@ -132,106 +139,108 @@
 			</section>
 		{/if}
 
-		<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
-			<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.change_password()}</h2>
-			<p class="text-muted-foreground mb-6 text-sm">{m.change_password_desc()}</p>
+		{#if !data.isDemo}
+			<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
+				<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.change_password()}</h2>
+				<p class="text-muted-foreground mb-6 text-sm">{m.change_password_desc()}</p>
 
-			<form
-				method="POST"
-				action="?/update_password"
-				class="space-y-4"
-				use:enhance={() => {
-					loadingPassword = true;
-					return async ({ update }) => {
-						loadingPassword = false;
-						update({ reset: true });
-					};
-				}}
-			>
-				<div class="space-y-2">
-					<label for="current_password" class="text-sm font-medium">{m.current_password()}</label>
-					<Input
-						id="current_password"
-						name="current_password"
-						type="password"
-						required
-						class="max-w-md"
-					/>
-				</div>
-				<div class="space-y-2">
-					<label for="new_password" class="text-sm font-medium">{m.new_password()}</label>
-					<Input
-						id="new_password"
-						name="new_password"
-						type="password"
-						required
-						minlength={8}
-						maxlength={128}
-						autocomplete="new-password"
-						class="max-w-md"
-					/>
-				</div>
-				<div class="space-y-2">
-					<label for="confirm_password" class="text-sm font-medium">{m.confirm_password()}</label>
-					<Input
-						id="confirm_password"
-						name="confirm_password"
-						type="password"
-						required
-						class="max-w-md"
-					/>
-				</div>
-
-				{#if form?.form === 'password' && form?.error}
-					<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
-				{/if}
-				{#if form?.form === 'password' && form?.success}
-					<p role="status" class="text-success text-sm font-medium">
-						{m.password_updated_success()}
-					</p>
-				{/if}
-
-				<Button type="submit" disabled={loadingPassword}>
-					{loadingPassword ? m.updating() : m.update_password()}
-				</Button>
-			</form>
-		</section>
-
-		<section
-			class="border-destructive/20 bg-card text-card-foreground shadow-card rounded-md border p-6"
-		>
-			<h2 class="text-fancy-title text-destructive mb-4 text-xl font-semibold">
-				{m.danger_zone()}
-			</h2>
-			<p class="text-muted-foreground mb-6 text-sm">{m.danger_zone_desc()}</p>
-
-			<form
-				method="POST"
-				action="?/delete_account"
-				use:enhance={() => {
-					loadingDelete = true;
-					return async ({ update }) => {
-						loadingDelete = false;
-						update();
-					};
-				}}
-			>
-				{#if form?.form === 'delete' && form?.error}
-					<p role="alert" class="text-destructive mb-4 text-sm font-medium">{form.error}</p>
-				{/if}
-				<Button
-					type="submit"
-					variant="destructive"
-					disabled={loadingDelete}
-					onclick={(e) => {
-						if (!confirm(m.delete_account_confirm())) {
-							e.preventDefault();
-						}
+				<form
+					method="POST"
+					action="?/update_password"
+					class="space-y-4"
+					use:enhance={() => {
+						loadingPassword = true;
+						return async ({ update }) => {
+							loadingPassword = false;
+							update({ reset: true });
+						};
 					}}
 				>
-					{loadingDelete ? m.deleting() : m.delete_account()}
-				</Button>
-			</form>
-		</section>
+					<div class="space-y-2">
+						<label for="current_password" class="text-sm font-medium">{m.current_password()}</label>
+						<Input
+							id="current_password"
+							name="current_password"
+							type="password"
+							required
+							class="max-w-md"
+						/>
+					</div>
+					<div class="space-y-2">
+						<label for="new_password" class="text-sm font-medium">{m.new_password()}</label>
+						<Input
+							id="new_password"
+							name="new_password"
+							type="password"
+							required
+							minlength={8}
+							maxlength={128}
+							autocomplete="new-password"
+							class="max-w-md"
+						/>
+					</div>
+					<div class="space-y-2">
+						<label for="confirm_password" class="text-sm font-medium">{m.confirm_password()}</label>
+						<Input
+							id="confirm_password"
+							name="confirm_password"
+							type="password"
+							required
+							class="max-w-md"
+						/>
+					</div>
+
+					{#if form?.form === 'password' && form?.error}
+						<p role="alert" class="text-destructive text-sm font-medium">{form.error}</p>
+					{/if}
+					{#if form?.form === 'password' && form?.success}
+						<p role="status" class="text-success text-sm font-medium">
+							{m.password_updated_success()}
+						</p>
+					{/if}
+
+					<Button type="submit" disabled={loadingPassword}>
+						{loadingPassword ? m.updating() : m.update_password()}
+					</Button>
+				</form>
+			</section>
+
+			<section
+				class="border-destructive/20 bg-card text-card-foreground shadow-card rounded-md border p-6"
+			>
+				<h2 class="text-fancy-title text-destructive mb-4 text-xl font-semibold">
+					{m.danger_zone()}
+				</h2>
+				<p class="text-muted-foreground mb-6 text-sm">{m.danger_zone_desc()}</p>
+
+				<form
+					method="POST"
+					action="?/delete_account"
+					use:enhance={() => {
+						loadingDelete = true;
+						return async ({ update }) => {
+							loadingDelete = false;
+							update();
+						};
+					}}
+				>
+					{#if form?.form === 'delete' && form?.error}
+						<p role="alert" class="text-destructive mb-4 text-sm font-medium">{form.error}</p>
+					{/if}
+					<Button
+						type="submit"
+						variant="destructive"
+						disabled={loadingDelete}
+						onclick={(e) => {
+							if (!confirm(m.delete_account_confirm())) {
+								e.preventDefault();
+							}
+						}}
+					>
+						{loadingDelete ? m.deleting() : m.delete_account()}
+					</Button>
+				</form>
+			</section>
+		{/if}
 	</div>
 </div>
