@@ -48,6 +48,13 @@ async def test_run_agent_model_http_error(monkeypatch, test_scores, test_user):
     assert isinstance(result2, FullResponse)
     assert "HTTP error" in result2.response.response
 
+    async def raise_503(*a, **kw):
+        raise MockModelHTTPError("busy", status_code=503)
+
+    dummy_agent.run = raise_503
+    result3 = await agent.run_agent("prompt", agent.Deps(user=test_user, scores=test_scores))
+    assert "high demand" in result3.response.response
+
 
 @pytest.mark.anyio
 async def test_run_agent_exception(monkeypatch, test_scores, test_user):

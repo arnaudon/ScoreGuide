@@ -73,59 +73,34 @@ export const actions: Actions = {
 			const uploadData = await uploadRes.json();
 			const filename = uploadData.file_id || uploadFilename;
 
-			// 2. Complete Score Data using the Agent
-			const initialScoreData = {
-				title: title.toString(),
-				composer: composer.toString(),
-				pdf_path: filename
-			};
-
-			const completeRes = await api('/complete_score', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(initialScoreData)
-			});
-
-			// If the agent fails (or the user is out of credits), still save the
-			// score with the user's data so the uploaded PDF isn't orphaned; it
-			// can be re-completed later.
-			const completionFailed = !completeRes.ok;
-			// Keep the backend's reason (e.g. "out of credits") so the user knows why.
-			const completionError = completionFailed ? await errorDetail(completeRes) : undefined;
-			let scoreData = completionFailed ? initialScoreData : await completeRes.json();
-
-			// Handle case where agent returns a JSON string instead of an object
-			if (typeof scoreData === 'string') {
-				try {
-					scoreData = JSON.parse(scoreData);
-				} catch (e) {
-					console.error('Could not parse scoreData string', e);
-				}
-			}
-
-			// Handle case where agent wraps the score in a response object
-			if (scoreData && typeof scoreData === 'object' && !scoreData.title) {
-				if (scoreData.score) scoreData = scoreData.score;
-				else if (scoreData.response) scoreData = scoreData.response;
-			}
-
-			// Create the final payload, ensuring pdf_path and source are explicitly set
-			const finalScoreData = {
-				...scoreData,
-				pdf_path: filename,
-				source: 'manual'
-			};
-
-			// 3. Add Score to DB
+			// 2. Save the score with the user's data, so the uploaded PDF is
+			// attached even if the agent then fails (or the user is out of credits).
 			const scoreRes = await api('/scores', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(finalScoreData)
+				body: JSON.stringify({
+					title: title.toString(),
+					composer: composer.toString(),
+					pdf_path: filename,
+					source: 'manual'
+				})
 			});
 
 			if (!scoreRes.ok) {
 				return fail(scoreRes.status, { error: m.err_save_score() });
 			}
+			const saved = (await scoreRes.json().catch(() => null)) as { id?: unknown } | null;
+
+			// 3. Complete it with the agent: the backend fills in the stored
+			// score's details and saves them. It can be re-completed later.
+			const completeRes = await api('/complete_score', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ score_id: saved?.id })
+			});
+			const completionFailed = !completeRes.ok;
+			// Keep the backend's reason (e.g. "out of credits") so the user knows why.
+			const completionError = completionFailed ? await errorDetail(completeRes) : undefined;
 
 			return { success: true, scoreAdded: true, completionFailed, completionError };
 		} catch (error) {
@@ -283,63 +258,24 @@ export const actions: Actions = {
 
 		const data = await request.formData();
 		const id = data.get('id');
-		const title = data.get('title');
-		const composer = data.get('composer');
-		const pdf_path = data.get('pdf_path');
 
-		if (!id || !title || !composer) {
+		if (!id) {
 			return fail(400, { error: m.err_missing_fields() });
 		}
 
 		const api = apiFetch(fetch, token);
 		try {
-			const initialScoreData = {
-				title: title.toString(),
-				composer: composer.toString(),
-				pdf_path: pdf_path ? pdf_path.toString() : ''
-			};
-
+			// The backend completes the stored score and saves it.
 			const completeRes = await api('/complete_score', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(initialScoreData)
+				body: JSON.stringify({ score_id: Number(id) })
 			});
 
 			if (!completeRes.ok) {
 				return fail(completeRes.status, {
 					error: (await errorDetail(completeRes)) || m.err_complete_score()
 				});
-			}
-
-			let scoreData = await completeRes.json();
-
-			if (typeof scoreData === 'string') {
-				try {
-					scoreData = JSON.parse(scoreData);
-				} catch (e) {
-					console.error('Could not parse scoreData string', e);
-				}
-			}
-
-			if (scoreData && typeof scoreData === 'object' && !scoreData.title) {
-				if (scoreData.score) scoreData = scoreData.score;
-				else if (scoreData.response) scoreData = scoreData.response;
-			}
-
-			const finalScoreData = {
-				...scoreData,
-				pdf_path: pdf_path ? pdf_path.toString() : '',
-				source: 'manual'
-			};
-
-			const updateRes = await api(`/scores/${id}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(finalScoreData)
-			});
-
-			if (!updateRes.ok) {
-				return fail(updateRes.status, { error: m.err_update_score() });
 			}
 
 			return { success: true };

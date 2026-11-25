@@ -1,6 +1,5 @@
 """test backend main.py"""
 
-import io
 import logging
 import os
 from pathlib import Path
@@ -9,8 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
+from app import uploads
 from app.main import configure_logging
 from shared.scores import Score, Scores
+from tests.pdfs import PDF, make_pdf
 
 backend_dir = Path(__file__).resolve().parent.parent
 os.environ["DATA_PATH"] = str(backend_dir / "tests/data")
@@ -35,12 +36,12 @@ def test_add_wrong_score(client: TestClient):
     assert response.status_code == 422
 
 
-def test_add_score(client: TestClient, test_scores: Scores):
+def test_add_score(client: TestClient, test_scores: Scores, uploaded):
     """test add score"""
     score = Score(
         composer="another_composer",
         title="another_title",
-        pdf_path="another_score.pdf",
+        pdf_path=uploaded(),
         user_id=0,
     )
     response = client.post("/scores", json=score.model_dump())
@@ -211,12 +212,35 @@ def test_get_pdf_range_start_after_end_falls_back_to_full(client: TestClient):
     assert response.status_code == 200
 
 
-def test_upload_pdf(client: TestClient):
-    """test upload pdf"""
-    file = io.BytesIO(b"%PDF-1.4 fake_score")
-    files = {"file": ("fake_score.pdf", file.getvalue(), "application/pdf")}
+def test_upload_pdf(client: TestClient, session: Session, test_user):
+    """An upload is stored and recorded as the user's."""
+    files = {"file": ("fake_score.pdf", PDF, "application/pdf")}
     response = client.post("/pdf", files=files)
     assert response.status_code == 200
+    row = uploads.owned(response.json()["file_id"], test_user.id, session)
+    assert row is not None and row.size == len(PDF)
+
+
+def test_upload_rejects_unreadable_or_huge_pdfs(client: TestClient, monkeypatch):
+    """The file must open as a PDF, within the page cap."""
+    from app import config
+
+    files = {"file": ("broken.pdf", b"%PDF-1.4 not really", "application/pdf")}
+    assert client.post("/pdf", files=files).status_code == 400
+    monkeypatch.setattr(config, "MAX_PDF_PAGES", 2)
+    files = {"file": ("long.pdf", make_pdf(3), "application/pdf")}
+    resp = client.post("/pdf", files=files)
+    assert resp.status_code == 413
+    assert "pages" in resp.json()["detail"]
+
+
+def test_upload_size_is_measured(client: TestClient, monkeypatch):
+    """MAX_PDF_MB applies to the bytes received, whatever the client claims."""
+    from app import config
+
+    monkeypatch.setattr(config, "MAX_PDF_MB", 0)
+    files = {"file": ("a.pdf", PDF, "application/pdf")}
+    assert client.post("/pdf", files=files).status_code == 413
 
 
 def test_upload_rejects_non_pdf_content(client: TestClient):
@@ -248,22 +272,26 @@ def test_upload_pdf_too_large(client: TestClient, monkeypatch: pytest.MonkeyPatc
     assert response.status_code == 413
 
 
-def test_delete_pdf(client: TestClient):
-    """test delete pdf"""
-    file = io.BytesIO(b"%PDF-1.4 fake_score")
-    files = {"file": ("fake_score.pdf", file.getvalue(), "application/pdf")}
-    upload = client.post("/pdf", files=files)
-    file_id = upload.json()["file_id"]
+def test_delete_pdf(client: TestClient, data_path):
+    """Only the uploader can delete a file, and only once no score uses it."""
+    files = {"file": ("fake_score.pdf", PDF, "application/pdf")}
+    file_id = client.post("/pdf", files=files).json()["file_id"]
+    # Someone else's file, or a file of a score with no upload record.
+    assert client.delete("/pdf/real_score.pdf").status_code == 404
 
-    # deleting a PDF not referenced by one of the caller's scores is a 404
-    response = client.delete(f"/pdf/{file_id}")
-    assert response.status_code == 404
+    created = client.post("/scores", json={"title": "t", "composer": "c", "pdf_path": file_id})
+    resp = client.delete(f"/pdf/{file_id}")
+    assert resp.status_code == 409  # still used by the score
+    assert (data_path / file_id).exists()
 
-    # once a score owned by the caller references it, deletion succeeds
-    score = Score(composer="c", title="t", pdf_path=file_id, user_id=0)
-    client.post("/scores", json=score.model_dump())
-    response = client.delete(f"/pdf/{file_id}")
-    assert response.status_code == 200
+    client.put(f"/scores/{created.json()['id']}", json={"pdf_path": ""})
+    # Swapping it away released it already.
+    assert not (data_path / file_id).exists()
+    assert client.delete(f"/pdf/{file_id}").status_code == 404
+
+    file_id = client.post("/pdf", files=files).json()["file_id"]
+    assert client.delete(f"/pdf/{file_id}").status_code == 200
+    assert not (data_path / file_id).exists()
 
 
 def test_run_main_agent_invalid_deps(client: TestClient):
@@ -303,7 +331,6 @@ def test_add_score_ignores_server_owned_fields(client: TestClient):
     payload = {
         "title": "mass assignment title",
         "composer": "mass assignment composer",
-        "pdf_path": "x.pdf",
         "id": 999,
         "user_id": 999,
         "number_of_plays": 42,
@@ -321,7 +348,6 @@ def test_update_score(client: TestClient):
     score = Score(
         composer="update_composer",
         title="update_title",
-        pdf_path="update_score.pdf",
         user_id=0,
     )
     response = client.post("/scores", json=score.model_dump())

@@ -22,10 +22,12 @@ skipped, and the first system with music always opens a section.
 """
 
 import io
+import logging
 import os
 import re
 import shlex
 import subprocess
+import time
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
@@ -40,7 +42,20 @@ from pypdf import PdfReader
 # reader offers a rebuild when it is older than this.
 TOC_VERSION = 3
 
+logger = logging.getLogger(__name__)
+
 RENDER_DPI = 100
+# Bounds on the work one PDF can cause (it is the user's file): the longest
+# side of a rendered page in pixels (an A4 page at RENDER_DPI is ~1170), the
+# largest page PDF allows (200 inches; larger MediaBoxes are skipped), the
+# pages scanned, and the wall time of one job, after which it keeps what it
+# found. A real outline (bookmarks) vouches for big volumes, e.g. a 684-page
+# set of sonatas, whose movements are still detected up to OUTLINE_MAX_PAGES.
+MAX_RENDER_PX = 2500
+MAX_PAGE_PT = 14400
+MAX_PAGES = int(os.getenv("TOC_MAX_PAGES", "300"))
+OUTLINE_MAX_PAGES = int(os.getenv("TOC_OUTLINE_MAX_PAGES", "1000"))
+TIME_BUDGET_S = float(os.getenv("TOC_TIME_BUDGET_S", "1800"))
 # Darkness threshold (0-255 grayscale) below which a pixel counts as ink.
 INK = 140
 # Fraction of the page width a pixel row must be inked to be a staff line.
@@ -1174,8 +1189,24 @@ def skew_angle(gray: np.ndarray) -> float:
     return float(max(np.linspace(coarse - step, coarse + step, 11), key=score))
 
 
+def render_scale(page: pdfium.PdfPage) -> float | None:
+    """Render scale for ``page``: RENDER_DPI, less for huge pages so the image
+    stays within MAX_RENDER_PX; None for a page too big (or empty) to render."""
+    width, height = page.get_size()
+    if not (0 < width <= MAX_PAGE_PT and 0 < height <= MAX_PAGE_PT):
+        return None
+    return min(RENDER_DPI / 72, MAX_RENDER_PX / max(width, height))
+
+
+# What a page that isn't rendered looks like: blank, so no staves are found.
+_BLANK = np.full((8, 8), 255, dtype=np.uint8)
+
+
 def _render_gray(page: pdfium.PdfPage) -> np.ndarray:
-    bitmap = page.render(scale=RENDER_DPI / 72, grayscale=True)
+    scale = render_scale(page)
+    if scale is None:
+        return _BLANK
+    bitmap = page.render(scale=scale, grayscale=True)
     gray = np.asarray(bitmap.to_pil().convert("L"))
     angle = skew_angle(gray)
     if abs(angle) < 0.05:
@@ -1410,15 +1441,35 @@ def _merge_outline(
     return [sec for _, sec in sorted(keyed, key=lambda item: item[0])]
 
 
-def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection]:
-    """Detect section starts (with incipits) in a score PDF."""
+def extract_sections(
+    data: bytes,
+    max_pages: int | None = None,
+    outline_max_pages: int | None = None,
+    time_budget: float | None = None,
+) -> list[DetectedSection]:
+    """Detect section starts (with incipits) in a score PDF.
+
+    Scans at most ``max_pages`` pages (``outline_max_pages`` when the PDF has
+    a real outline) and stops after ``time_budget`` seconds, keeping what it
+    found by then (defaults: MAX_PAGES, OUTLINE_MAX_PAGES, TIME_BUDGET_S).
+    """
+    deadline = time.monotonic() + (TIME_BUDGET_S if time_budget is None else time_budget)
+
+    def out_of_time() -> bool:
+        return time.monotonic() > deadline
+
     outline = outline_sections(data)
     pdf = pdfium.PdfDocument(data)
     try:
-        n = min(len(pdf), max_pages)
+        limit = (
+            (OUTLINE_MAX_PAGES if outline_max_pages is None else outline_max_pages)
+            if outline
+            else (MAX_PAGES if max_pages is None else max_pages)
+        )
+        n = min(len(pdf), limit)
 
         for sec in outline:
-            if sec.page <= n:
+            if sec.page <= n and not out_of_time():
                 gray = _render_gray(pdf[sec.page - 1])
                 systems = page_systems(gray)
                 if systems:
@@ -1430,6 +1481,9 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
         # 600-page volume must not keep them all in memory).
         pages: list[_PageInfo] = []
         for i in range(n):
+            if out_of_time():
+                logger.warning("table of contents: out of time after %d of %d pages", i, n)
+                break
             page = pdf[i]
             gray = _render_gray(page)
             systems = page_systems(gray)
@@ -1451,7 +1505,7 @@ def extract_sections(data: bytes, max_pages: int = 1000) -> list[DetectedSection
         for entry in nest_entries([(st.piece, title) for st, title in kept]):
             st = kept[entry.start][0]
             incipit = None
-            if entry.incipit:
+            if entry.incipit and not out_of_time():
                 gray = _render_gray(pdf[st.info.number - 1])
                 incipit = crop_incipit(gray, st.info.systems[st.sys_idx])
             sec = DetectedSection(
