@@ -126,3 +126,7 @@ jobs:
             # newly seeded demo scores). Only touches scores without one.
             docker exec --workdir /app/backend backend python -m app.plans backfill-sizes \
               || echo "PDF size backfill skipped (see error above)"
+            # Delete uploads never attached to a score within 24 h (they count
+            # against the quota until then).
+            docker exec --workdir /app/backend backend python -m app.plans sweep-orphans \
+              || echo "orphan sweep skipped (see error above)"
