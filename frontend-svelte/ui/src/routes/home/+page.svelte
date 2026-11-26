@@ -253,7 +253,12 @@
 	{/if}
 </div>
 
-<ScoreDetailsDialog score={shownScore} bind:open={sheetOpen} onEdit={() => (editOpen = true)} />
+<ScoreDetailsDialog
+	score={shownScore}
+	bind:open={sheetOpen}
+	user={data.user}
+	onEdit={() => (editOpen = true)}
+/>
 
 <EditScoreDialog bind:open={editOpen} score={shownScore} action="/db-viewer?/update_score" />
 

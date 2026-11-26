@@ -456,5 +456,9 @@
 	"err_service_unavailable": "Il servizio è temporaneamente non disponibile. Riprova tra un momento.",
 	"error_not_found": "Questa pagina non esiste.",
 	"error_back_home": "Torna alla home",
-	"logout_confirm": "Uscire da ScoreGuide?"
+	"logout_confirm": "Uscire da ScoreGuide?",
+	"detailed_label": "Descrizione dettagliata (avanzata)",
+	"detailed_hint": "L'IA legge diverse pagine web per scrivere una descrizione più lunga con storia, consigli di esecuzione, aneddoti e fonti. Usa circa da 3 a 5 volte più IA.",
+	"detailed_pref_label": "Descrizioni dettagliate per impostazione predefinita",
+	"detailed_pref_hint": "Quando l'IA completa uno spartito, legge diverse pagine web per una descrizione più lunga e con fonti. Usa circa da 3 a 5 volte più IA. Puoi sempre scegliere per ogni spartito."
 }

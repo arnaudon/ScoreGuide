@@ -456,5 +456,9 @@
 	"err_service_unavailable": "Le service est momentanément indisponible. Veuillez réessayer dans un instant.",
 	"error_not_found": "Cette page n'existe pas.",
 	"error_back_home": "Retour à l'accueil",
-	"logout_confirm": "Se déconnecter de ScoreGuide ?"
+	"logout_confirm": "Se déconnecter de ScoreGuide ?",
+	"detailed_label": "Description détaillée (avancé)",
+	"detailed_hint": "L'IA lit plusieurs pages web pour écrire une description plus longue : histoire, conseils de jeu, anecdotes et sources. Utilise environ 3 à 5 fois plus d'IA.",
+	"detailed_pref_label": "Descriptions détaillées par défaut",
+	"detailed_pref_hint": "Quand l'IA complète une partition, elle lit plusieurs pages web pour une description plus longue et sourcée. Utilise environ 3 à 5 fois plus d'IA. Vous pouvez toujours choisir pour chaque partition."
 }

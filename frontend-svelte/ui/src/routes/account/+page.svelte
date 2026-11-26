@@ -107,6 +107,20 @@
 							>{data.user?.music_profile ?? ''}</textarea
 						>
 					</div>
+					<div class="max-w-md space-y-1">
+						<input type="hidden" name="detailed_descriptions" value="false" />
+						<label class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium">
+							<input
+								type="checkbox"
+								name="detailed_descriptions"
+								value="true"
+								checked={data.user?.detailed_descriptions ?? false}
+								class="accent-primary size-4"
+							/>
+							{m.detailed_pref_label()}
+						</label>
+						<p class="text-muted-foreground pl-6 text-xs">{m.detailed_pref_hint()}</p>
+					</div>
 					<div class="space-y-2">
 						<label for="role" class="text-sm font-medium">{m.role()}</label>
 						<Input

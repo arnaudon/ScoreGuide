@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import ScoreDetailsDialog from '#lib/components/ScoreDetailsDialog.svelte';
+	import DetailedToggle from '#lib/components/DetailedToggle.svelte';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -291,7 +292,7 @@
 								update();
 							};
 						}}
-						class="flex flex-col gap-4 md:flex-row md:items-end"
+						class="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end"
 					>
 						<div class="flex-1 space-y-2">
 							<label for="title" class="text-sm leading-none font-medium">{m.title()}</label>
@@ -326,6 +327,13 @@
 						<Button type="submit" disabled={uploading}>
 							{uploading ? m.adding() : m.add()}
 						</Button>
+						<div class="md:basis-full">
+							<DetailedToggle
+								id="upload-detailed"
+								checked={data.user?.detailed_descriptions ?? false}
+								hint
+							/>
+						</div>
 					</form>
 				</Tabs.Content>
 				<Tabs.Content value="imslp">

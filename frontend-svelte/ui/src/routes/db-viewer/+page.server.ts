@@ -5,6 +5,7 @@ import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import { buildScoreUpdatePayload } from '#lib/server/scoreUpdate.js';
 import type { Score, User } from '#lib/types.js';
+import { formBool } from '#lib/server/formBool.js';
 import * as m from '#lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
@@ -96,7 +97,7 @@ export const actions: Actions = {
 			const completeRes = await api('/complete_score', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ score_id: saved?.id })
+				body: JSON.stringify({ score_id: saved?.id, detailed: formBool(data, 'detailed') })
 			});
 			const completionFailed = !completeRes.ok;
 			// Keep the backend's reason (e.g. "out of credits") so the user knows why.
@@ -269,7 +270,7 @@ export const actions: Actions = {
 			const completeRes = await api('/complete_score', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ score_id: Number(id) })
+				body: JSON.stringify({ score_id: Number(id), detailed: formBool(data, 'detailed') })
 			});
 
 			if (!completeRes.ok) {
