@@ -790,6 +790,10 @@ def test_split_piece(title, expected):
         (["Sonata No. 3", "Sonata"], ["Sonata No. 3", "Sonata 4"]),
         (["Partita I", "Partita II"], ["Partita I", "Partita II"]),
         (["Sonata", "Fuga"], ["Sonata", "Fuga"]),
+        (
+            ["Sonata No. 8 “Pathétique”", "Sonata No. 9"],
+            ["Sonata No. 8 “Pathétique”", "Sonata No. 9"],
+        ),
     ],
 )
 def test_number_pieces(pieces, expected):
@@ -831,6 +835,25 @@ def test_nest_entries_sonatas_and_movements():
         (7, "Presto", 1, False),
         (8, "Sonata 3", 0, True),
         (8, "Menuetto", 1, False),
+    ]
+
+
+def test_nest_entries_one_work_titled_over_each_movement():
+    """The Pathétique's title tops all three movements: one sonata, three
+    movements (quote styles differ between pages)."""
+    heads = [
+        ("", "Sonata No. 8 “Pathétique” — Grave"),
+        ("", 'Sonata No. 8 "Pathétique" — Adagio cantabile'),
+        ("", 'Sonata No. 8 "Pathétique" — Rondo'),
+        ("", "Sonata No. 9 — Allegro"),
+    ]
+    assert _nested(heads) == [
+        (0, "Sonata No. 8 “Pathétique”", 0, True),
+        (0, "Grave", 1, False),
+        (1, "Adagio cantabile", 1, True),
+        (2, "Rondo", 1, True),
+        (3, "Sonata No. 9", 0, True),
+        (3, "Allegro", 1, False),
     ]
 
 
