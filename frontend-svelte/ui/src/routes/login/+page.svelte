@@ -7,6 +7,7 @@
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
 	import * as m from '#lib/paraglide/messages.js';
+	import PlayIcon from '@lucide/svelte/icons/play';
 
 	let { form }: PageProps = $props();
 	// ?signup (from the demo banner) opens straight on the sign-up form.
@@ -22,13 +23,27 @@
 			<p class="text-muted-foreground mt-2">
 				{m.login_description()}
 			</p>
-			<p class="text-muted-foreground bg-muted mt-4 rounded p-2 text-sm">
-				{m.beta_warning()}
-				<a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline"
-					>alexis.arnaudon@scoreguide.ch</a
-				>.
-			</p>
 		</div>
+
+		{#if !isRegister}
+			<form
+				method="POST"
+				action="?/demo"
+				class="border-primary/30 bg-primary/5 mb-6 rounded-lg border p-4"
+				use:enhance
+			>
+				<Button type="submit" size="lg" class="w-full text-base">
+					<PlayIcon class="size-4" aria-hidden="true" />
+					{m.try_demo()}
+				</Button>
+				<p class="text-muted-foreground mt-2 text-center text-sm">{m.try_demo_hint()}</p>
+			</form>
+			<div class="text-muted-foreground mb-4 flex items-center gap-3 text-xs uppercase">
+				<span class="bg-border h-px flex-1"></span>
+				{m.login_or()}
+				<span class="bg-border h-px flex-1"></span>
+			</div>
+		{/if}
 
 		<h2 class="text-fancy-title mb-4 text-center text-xl font-semibold">
 			{isRegister ? m.sign_up() : m.login()}
@@ -151,13 +166,6 @@
 				{/if}
 			</Button>
 		</form>
-
-		{#if !isRegister}
-			<form method="POST" action="?/demo" class="mt-4" use:enhance>
-				<Button type="submit" variant="outline" class="w-full">{m.try_demo()}</Button>
-				<p class="text-muted-foreground mt-1 text-center text-xs">{m.try_demo_hint()}</p>
-			</form>
-		{/if}
 
 		<div class="mt-4 text-center text-sm">
 			{#if isRegister}
