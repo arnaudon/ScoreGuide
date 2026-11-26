@@ -875,3 +875,47 @@ def test_extract_sections_nests_movements_under_pieces(monkeypatch):
         (3, "Adagio", 1, "ocr", True),
         (4, "Sonata 2", 0, "ocr", True),
     ]
+
+
+def test_render_scale_is_capped_and_absurd_pages_skipped():
+    """A page's render stays under MAX_RENDER_PX; giant or empty MediaBoxes
+    aren't rendered at all."""
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument.new()
+    for size in ((595, 842), (10000, 5000), (20000, 800)):
+        pdf.new_page(*size)
+    try:
+        assert toc.render_scale(pdf[0]) == toc.RENDER_DPI / 72
+        assert toc.render_scale(pdf[1]) == toc.MAX_RENDER_PX / 10000
+        assert toc.render_scale(pdf[2]) is None
+        assert max(toc._render_gray(pdf[1]).shape) <= toc.MAX_RENDER_PX
+        assert toc.page_systems(toc._render_gray(pdf[2])) == []
+    finally:
+        pdf.close()
+
+
+def test_extract_sections_page_and_time_limits():
+    """Past the page cap or the time budget, the job stops with what it found."""
+    data = (DATA / "engraved.pdf").read_bytes()
+    assert toc.extract_sections(data)
+    assert toc.extract_sections(data, max_pages=0) == []
+    assert toc.extract_sections(data, time_budget=-1) == []
+
+
+def test_outline_volumes_get_a_larger_page_cap(monkeypatch):
+    """A PDF with a real outline is scanned up to OUTLINE_MAX_PAGES, others
+    up to MAX_PAGES; outline entries are kept either way."""
+    pages = [_page(systems=2) for _ in range(8)]
+    writer = PdfWriter(clone_from=io.BytesIO(_pdf_from_pages(*pages)))
+    writer.add_outline_item("Sonata No. 1", 0)
+    buf = io.BytesIO()
+    writer.write(buf)
+    seen = []
+    monkeypatch.setattr(toc, "ocr_headings", lambda gray, systems: seen.append(1) or _ocr("", ""))
+    sections = toc.extract_sections(buf.getvalue(), max_pages=0, outline_max_pages=8)
+    assert [s.title for s in sections] == ["Sonata No. 1"]
+    assert len(seen) == 8  # max_pages=0 is for PDFs without an outline
+    # Out of time: the outline is still listed, just without incipits.
+    sections = toc.extract_sections(buf.getvalue(), time_budget=-1)
+    assert [(s.title, s.incipit_png) for s in sections] == [("Sonata No. 1", None)]

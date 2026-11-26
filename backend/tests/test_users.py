@@ -159,9 +159,42 @@ def test_add_user_endpoint(client: TestClient):
     assert "password" not in data
     assert data["role"] == "user"
 
-    # duplicate usernames are rejected
+    # duplicate usernames are rejected, whatever their case
     resp_dup = client.post("/users", json=payload)
     assert resp_dup.status_code == 409
+    resp_dup = client.post("/users", json={**payload, "username": "BoB", "email": "b2@x.org"})
+    assert resp_dup.status_code == 409
+    assert resp_dup.json()["detail"] == "Username already taken"
+
+
+def test_add_user_race_is_a_conflict(client: TestClient, monkeypatch):
+    """Two sign-ups passing the checks at once: the unique index stops the
+    second, which gets a 409 instead of a 500."""
+    monkeypatch.setattr(users, "username_taken", lambda *_: False)
+    payload = {"username": "twin", "email": "twin@example.com", "password": "long-enough-pw"}
+    assert client.post("/users", json=payload).status_code == 200
+    resp = client.post("/users", json={**payload, "email": "other@example.com"})
+    assert resp.status_code == 409
+    assert "already taken" in resp.json()["detail"]
+
+
+def test_update_user_instrument_is_capped(client: TestClient):
+    assert client.put("/user", json={"instrument": "x" * 51}).status_code == 422
+    assert client.put("/user", json={"instrument": "cello"}).json()["instrument"] == "cello"
+
+
+def test_secret_key_required_in_production(monkeypatch):
+    """Without JWT_SECRET_KEY, production refuses to start; elsewhere a random
+    per-process key is used."""
+    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    with pytest.raises(RuntimeError, match="JWT_SECRET_KEY"):
+        users._secret_key()
+    monkeypatch.setattr(config, "APP_ENV", "development")
+    assert len(users._secret_key()) == 64
+    monkeypatch.setenv("JWT_SECRET_KEY", "configured")
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    assert users._secret_key() == "configured"
 
 
 def test_add_user_cannot_self_grant_admin(client: TestClient, session: Session):

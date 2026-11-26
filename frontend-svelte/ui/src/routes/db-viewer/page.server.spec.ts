@@ -84,11 +84,11 @@ describe('upload action', () => {
 		expect(result).toMatchObject({ status: 400, data: { error: 'Missing required fields' } });
 	});
 
-	it('uploads PDF, completes via agent, saves score on happy path', async () => {
+	it('uploads PDF, saves the score, then completes it via the agent', async () => {
 		const fetch = makeFetch()
 			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' })) // POST /pdf
-			.mockResolvedValueOnce(jsonResponse({ title: 't', composer: 'c', year: 1850 })) // POST /complete_score
-			.mockResolvedValueOnce(jsonResponse({ id: 1 })); // POST /scores
+			.mockResolvedValueOnce(jsonResponse({ id: 1 })) // POST /scores
+			.mockResolvedValueOnce(jsonResponse({ id: 1, title: 't', year: 1850 })); // POST /complete_score
 		const result = await actions.upload(
 			event({
 				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile() }),
@@ -97,16 +97,19 @@ describe('upload action', () => {
 			})
 		);
 		expect(result).toEqual({ success: true, scoreAdded: true, completionFailed: false });
-		// 3rd call is POST /scores with `source: 'manual'` + pdf_path
-		const lastBody = JSON.parse(fetch.mock.calls[2][1]!.body as string);
-		expect(lastBody).toMatchObject({ pdf_path: 'final.pdf', source: 'manual' });
+		// 2nd call is POST /scores with `source: 'manual'` + pdf_path
+		const scoreBody = JSON.parse(fetch.mock.calls[1][1]!.body as string);
+		expect(scoreBody).toMatchObject({ pdf_path: 'final.pdf', source: 'manual' });
+		// 3rd call completes that stored score by id (the backend saves the result)
+		expect(fetch.mock.calls[2][0]).toContain('/complete_score');
+		expect(JSON.parse(fetch.mock.calls[2][1]!.body as string)).toEqual({ score_id: 1 });
 	});
 
 	it('still saves the score with user data when the agent fails', async () => {
 		const fetch = makeFetch()
 			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' })) // POST /pdf
-			.mockResolvedValueOnce(new Response(null, { status: 500 })) // POST /complete_score
-			.mockResolvedValueOnce(jsonResponse({ id: 1 })); // POST /scores
+			.mockResolvedValueOnce(jsonResponse({ id: 1 })) // POST /scores
+			.mockResolvedValueOnce(new Response(null, { status: 500 })); // POST /complete_score
 		const result = await actions.upload(
 			event({
 				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile() }),
@@ -115,13 +118,28 @@ describe('upload action', () => {
 			})
 		);
 		expect(result).toEqual({ success: true, scoreAdded: true, completionFailed: true });
-		const lastBody = JSON.parse(fetch.mock.calls[2][1]!.body as string);
-		expect(lastBody).toEqual({
+		const scoreBody = JSON.parse(fetch.mock.calls[1][1]!.body as string);
+		expect(scoreBody).toEqual({
 			title: 't',
 			composer: 'c',
 			pdf_path: 'final.pdf',
 			source: 'manual'
 		});
+	});
+
+	it('fails when saving the score fails (and does not call the agent)', async () => {
+		const fetch = makeFetch()
+			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' })) // POST /pdf
+			.mockResolvedValueOnce(jsonResponse({ detail: 'Your library is full' }, 403)); // POST /scores
+		const result = await actions.upload(
+			event({
+				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile() }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({ status: 403, data: { error: 'Failed to save score' } });
+		expect(fetch).toHaveBeenCalledTimes(2);
 	});
 
 	it('fails when /pdf upload returns non-OK', async () => {
@@ -369,10 +387,10 @@ describe('update_score action', () => {
 });
 
 describe('recomplete action', () => {
-	it('fails 400 when required fields are missing', async () => {
+	it('fails 400 when the score id is missing', async () => {
 		const result = await actions.recomplete(
 			event({
-				request: fakeRequest({ id: '7' }),
+				request: fakeRequest({ title: 't' }),
 				cookies: makeCookies({ access_token: 'tok' }),
 				fetch: vi.fn()
 			})
@@ -380,10 +398,8 @@ describe('recomplete action', () => {
 		expect(result).toMatchObject({ status: 400 });
 	});
 
-	it('PUTs the recompleted score on happy path', async () => {
-		const fetch = makeFetch()
-			.mockResolvedValueOnce(jsonResponse({ title: 't', composer: 'c', year: 1850 })) // POST /complete_score
-			.mockResolvedValueOnce(jsonResponse({ id: 7 })); // PUT /scores/7
+	it('asks the backend to complete the stored score on happy path', async () => {
+		const fetch = makeFetch().mockResolvedValueOnce(jsonResponse({ id: 7, year: 1850 })); // POST /complete_score
 		const result = await actions.recomplete(
 			event({
 				request: fakeRequest({ id: '7', title: 't', composer: 'c', pdf_path: 'p.pdf' }),
@@ -392,8 +408,9 @@ describe('recomplete action', () => {
 			})
 		);
 		expect(result).toEqual({ success: true });
-		expect(fetch.mock.calls[1][1]!.method).toBe('PUT');
-		expect(fetch.mock.calls[1][0]).toContain('/scores/7');
+		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(fetch.mock.calls[0][0]).toContain('/complete_score');
+		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({ score_id: 7 });
 	});
 
 	it("surfaces the backend's reason when /complete_score fails (e.g. out of credits)", async () => {
@@ -427,9 +444,9 @@ describe('recomplete action', () => {
 describe('upload completion error', () => {
 	it('passes the completion failure reason through with the saved score', async () => {
 		const fetch = makeFetch()
-			.mockResolvedValueOnce(jsonResponse({ filename: 'f.pdf' })) // POST /pdf
-			.mockResolvedValueOnce(jsonResponse({ detail: 'Not enough credits' }, 402)) // /complete_score
-			.mockResolvedValueOnce(jsonResponse({ id: 1 })); // POST /scores
+			.mockResolvedValueOnce(jsonResponse({ file_id: 'f.pdf' })) // POST /pdf
+			.mockResolvedValueOnce(jsonResponse({ id: 1 })) // POST /scores
+			.mockResolvedValueOnce(jsonResponse({ detail: 'Not enough credits' }, 402)); // /complete_score
 		const result = await actions.upload(
 			event({
 				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile() }),

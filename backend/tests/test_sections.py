@@ -1,7 +1,10 @@
 """Tests for the score table-of-contents endpoints (app/sections.py)."""
 
+import threading
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.engine import Engine
 from sqlmodel import Session, select
 
 from app import sections
@@ -16,11 +19,10 @@ REAL_GENERATE = sections.generate_sections
 
 
 @pytest.fixture(autouse=True)
-def _isolate(monkeypatch, tmp_path):
+def _isolate(monkeypatch, data_path):
     """Local storage in a temp dir, no rate limiting, clean job registry."""
     monkeypatch.setattr(sections, "generate_sections", REAL_GENERATE)
-    monkeypatch.setenv("DATA_PATH", str(tmp_path))
-    (tmp_path / "real_score.pdf").write_bytes(b"%PDF-1.4 fake")
+    (data_path / "real_score.pdf").write_bytes(b"%PDF-1.4 fake")
     limiter.enabled = False
     sections._jobs.clear()
     yield
@@ -68,6 +70,7 @@ def test_generate_and_fetch(client: TestClient, test_scores: Scores, monkeypatch
         ],
     )
     response = client.post(f"/scores/{score_id}/sections/generate")
+    sections.wait_idle()
     assert response.status_code == 202
     assert response.json()["status"] == "running"
     assert calls == [b"%PDF-1.4 fake"]  # background task ran after the response
@@ -93,6 +96,7 @@ def test_generate_and_fetch(client: TestClient, test_scores: Scores, monkeypatch
     # Regenerate: old rows and images are replaced.
     _fake_extract(monkeypatch, [DetectedSection(title="Presto", page=2, source="text")])
     client.post(f"/scores/{score_id}/sections/generate")
+    sections.wait_idle()
     data = client.get(f"/scores/{score_id}/sections").json()
     assert [s["title"] for s in data["sections"]] == ["Presto"]
     assert client.get(f"/scores/{score_id}/sections/{first['id']}/incipit").status_code == 404
@@ -102,6 +106,7 @@ def test_generate_failure_reports_error(client: TestClient, test_scores: Scores,
     score_id = _score(test_scores).id
     _fake_extract(monkeypatch, RuntimeError("boom"))
     client.post(f"/scores/{score_id}/sections/generate")
+    sections.wait_idle()
     assert client.get(f"/scores/{score_id}/sections").json()["status"] == "error"
 
 
@@ -112,6 +117,7 @@ def test_generate_while_running_does_not_queue_twice(
     calls = _fake_extract(monkeypatch, [])
     sections._jobs[score_id] = "running"
     response = client.post(f"/scores/{score_id}/sections/generate")
+    sections.wait_idle()
     assert response.status_code == 202
     assert calls == []
     assert client.get(f"/scores/{score_id}/sections").json()["status"] == "running"
@@ -159,14 +165,15 @@ def test_incipit_wrong_score_or_missing_file(
 
 
 def test_delete_score_removes_sections(
-    client: TestClient, session: Session, test_scores: Scores, monkeypatch, tmp_path
+    client: TestClient, session: Session, test_scores: Scores, monkeypatch, data_path
 ):
     score_id = _score(test_scores).id
     _fake_extract(
         monkeypatch, [DetectedSection(title="Allegro", page=1, source="ocr", incipit_png=PNG)]
     )
     client.post(f"/scores/{score_id}/sections/generate")
-    stored = list((tmp_path / "incipits" / str(score_id)).iterdir())
+    sections.wait_idle()
+    stored = list((data_path / "incipits" / str(score_id)).iterdir())
     assert len(stored) == 1
 
     assert client.delete(f"/scores/{score_id}").status_code == 200
@@ -175,12 +182,13 @@ def test_delete_score_removes_sections(
     assert not stored[0].exists()
 
 
-def test_creating_a_score_with_a_pdf_builds_its_toc(client: TestClient, monkeypatch, tmp_path):
+def test_creating_a_score_with_a_pdf_builds_its_toc(client: TestClient, monkeypatch, uploaded):
     """Uploading = POST /scores with a pdf_path: the TOC is built right away."""
-    (tmp_path / "new.pdf").write_bytes(b"%PDF-1.4 new")
+    new = uploaded(b"%PDF-1.4 new")
     calls = _fake_extract(monkeypatch, [DetectedSection(title="Allegro", page=1, source="ocr")])
 
-    created = client.post("/scores", json={"title": "t", "composer": "c", "pdf_path": "new.pdf"})
+    created = client.post("/scores", json={"title": "t", "composer": "c", "pdf_path": new})
+    sections.wait_idle()
     assert created.status_code == 200
     assert calls == [b"%PDF-1.4 new"]
     toc = client.get(f"/scores/{created.json()['id']}/sections").json()
@@ -189,6 +197,7 @@ def test_creating_a_score_with_a_pdf_builds_its_toc(client: TestClient, monkeypa
 
     # No PDF → nothing to build.
     bare = client.post("/scores", json={"title": "t", "composer": "c"})
+    sections.wait_idle()
     assert len(calls) == 1
     assert client.get(f"/scores/{bare.json()['id']}/sections").json()["status"] == "none"
 
@@ -215,3 +224,93 @@ def test_outdated_version_is_reported(client: TestClient, session: Session, test
     assert data["version"] == 0
     assert data["latest_version"] == sections.TOC_VERSION
     assert data["confidence"] == "high"
+
+
+def _blocking_extract(monkeypatch):
+    """extract_sections that waits for ``release``; ``started`` is set on the first call."""
+    started, release = threading.Event(), threading.Event()
+    calls = []
+
+    def fake(data):
+        calls.append(data)
+        started.set()
+        assert release.wait(10)
+        return []
+
+    monkeypatch.setattr(sections, "extract_sections", fake)
+    return started, release, calls
+
+
+def _scores(session: Session, user: User, n: int) -> list[Score]:
+    made = [
+        Score(title=f"q{i}", composer="c", pdf_path="real_score.pdf", user_id=user.id)
+        for i in range(n)
+    ]
+    session.add_all(made)
+    session.commit()
+    for score in made:
+        session.refresh(score)
+    return made
+
+
+def test_jobs_run_on_one_worker_without_blocking_requests(
+    client: TestClient, session: Session, test_user: User, monkeypatch
+):
+    """Requests only enqueue: they answer while a job runs, and a score queued
+    twice runs once."""
+    started, release, calls = _blocking_extract(monkeypatch)
+    first, second = _scores(session, test_user, 2)
+    assert client.post(f"/scores/{first.id}/sections/generate").status_code == 202
+    assert started.wait(10)
+    # The worker is busy: requests still get answers right away.
+    assert client.post(f"/scores/{second.id}/sections/generate").status_code == 202
+    assert client.post(f"/scores/{second.id}/sections/generate").status_code == 202
+    assert client.get(f"/scores/{second.id}/sections").json()["status"] == "running"
+    assert sections.wait_idle(0.05) is False
+    release.set()
+    assert sections.wait_idle()
+    assert len(calls) == 2
+    assert client.get(f"/scores/{second.id}/sections").json()["status"] == "none"
+
+
+def test_queue_caps_skip_jobs(client: TestClient, session: Session, test_user: User, monkeypatch):
+    """Past the per-user (or total) cap a job is skipped: Rebuild says so with a
+    429, a new score is still created."""
+    started, release, calls = _blocking_extract(monkeypatch)
+    monkeypatch.setattr(sections, "MAX_QUEUED_PER_USER", 2)
+    scores = _scores(session, test_user, 3)
+    for score in scores[:2]:
+        assert client.post(f"/scores/{score.id}/sections/generate").status_code == 202
+    assert started.wait(10)
+    resp = client.post(f"/scores/{scores[2].id}/sections/generate")
+    assert resp.status_code == 429
+    assert client.get(f"/scores/{scores[2].id}/sections").json()["status"] == "none"
+    created = client.post("/scores", json={"title": "t", "composer": "c"})
+    assert created.status_code == 200
+
+    # Another user is held by the total cap.
+    other = User(username="other2", password="x")
+    session.add(other)
+    session.commit()
+    session.refresh(other)
+    [theirs] = _scores(session, other, 1)
+    monkeypatch.setattr(sections, "MAX_QUEUED_JOBS", 1)
+    assert sections.schedule_generation(theirs, session) is False
+    assert sections.schedule_generation(Score(title="t", composer="c"), session) is False
+    release.set()
+    assert sections.wait_idle()
+    assert len(calls) == 2
+
+
+def test_job_for_a_deleted_or_changed_score_stores_nothing(
+    client: TestClient, session: Session, test_user: User, monkeypatch, data_path
+):
+    (data_path / "other.pdf").write_bytes(b"%PDF-1.4 other")
+    _fake_extract(monkeypatch, [DetectedSection(title="Allegro", page=1, source="ocr")])
+    [score] = _scores(session, test_user, 1)
+    engine = session.get_bind()
+    assert isinstance(engine, Engine)
+    sections.generate_sections(score.id, "other.pdf", engine)  # the score moved on
+    sections.generate_sections(999999, "real_score.pdf", engine)  # deleted
+    assert session.exec(select(ScoreSection)).all() == []
+    assert sections._jobs == {}

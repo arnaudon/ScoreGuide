@@ -7,8 +7,9 @@ times the model's weight (admin setting, default 1), so bigger models use the
 tokens faster. Tokens left = included + granted - spent, all summed from the
 log. Monthly totals of the log are the usage export.
 
-Storage counts the PDFs of the user's scores (``Score.pdf_size``), each file
-once. The log and the sizes are what billing beyond the free plan will use.
+Storage counts the PDFs the user uploaded (``upload`` rows, see
+``app.uploads``), attached to a score or not. The log and the sizes are what
+billing beyond the free plan will use.
 """
 
 import argparse
@@ -25,7 +26,7 @@ from pydantic_ai.usage import RunUsage
 from sqlmodel import Session, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import config
+from app import config, uploads
 from app.db import get_session
 from app.users import get_admin_user
 from shared.scores import Score
@@ -141,14 +142,8 @@ def total_allowance(user: User, session: Session) -> int:
 
 
 def storage_used(user_id: int, session: Session) -> int:
-    """Bytes of the user's stored PDFs, each file counted once."""
-    per_file = (
-        select(Score.pdf_path, func.max(Score.pdf_size).label("size"))
-        .where(Score.user_id == user_id, Score.pdf_path != "")
-        .group_by(Score.pdf_path)
-        .subquery()
-    )
-    return int(session.exec(select(func.coalesce(func.sum(per_file.c.size), 0))).one())
+    """Bytes of the PDFs the user uploaded, attached to a score or not."""
+    return uploads.storage_used(user_id, session)
 
 
 def usage_summary(user: User, session: Session) -> UsageSummary:
@@ -208,20 +203,49 @@ def usage_row(session: Session, user_id: int, feature: str, model: str, usage: R
     )
 
 
+class MeteredUsage(RunUsage):
+    """A run's ``RunUsage`` plus the most (real) tokens the run may spend.
+
+    ``app.agent`` turns ``token_limit`` into the run's ``total_tokens_limit``,
+    so a run can't spend more than the account has left.
+    """
+
+    token_limit: int | None = None
+
+
+def token_limit(user: User, session: Session, model: str) -> int:
+    """Real tokens one run may spend: the per-run cap, or less when the account
+    has fewer weighted tokens left (admins get the per-run cap)."""
+    assert user.id is not None
+    cap = config.AI_TOTAL_TOKENS_LIMIT
+    weight = model_weights(session).get(model, 1.0)
+    if user.role == "admin" or weight <= 0:
+        return cap
+    left = total_allowance(user, session) - ai_used(user.id, session)
+    return max(1, min(cap, int(left / weight)))
+
+
+def _check_and_limit(user: User, session: Session, model: str) -> int:
+    check_ai_allowance(user, session)
+    return token_limit(user, session, model)
+
+
 @asynccontextmanager
 async def metered(
     user: User, session: AsyncSession, feature: str, model: str
-) -> AsyncIterator[RunUsage]:
+) -> AsyncIterator[MeteredUsage]:
     """Check the allowance, yield a ``RunUsage`` for the run, then log what it used.
 
     pydantic-ai fills the ``RunUsage`` passed to ``Agent.run`` in place, so
-    tokens spent by a run that fails are logged too.
+    tokens spent by a run that fails are logged too. Its ``token_limit`` is
+    what the account has left, so one run can't overdraw it.
     """
     assert user.id is not None
     user_id = user.id
     # run_sync passes SQLModel's sync Session (typed as SQLAlchemy's).
-    await session.run_sync(lambda s: check_ai_allowance(user, s))  # type: ignore[arg-type]
-    usage = RunUsage()
+    limit = await session.run_sync(lambda s: _check_and_limit(user, s, model))  # type: ignore[arg-type]
+    usage = MeteredUsage()
+    usage.token_limit = limit
     try:
         yield usage
     finally:
@@ -392,7 +416,8 @@ def get_usage(
 
 
 def backfill_sizes(session: Session) -> int:
-    """Set ``pdf_size`` on scores that don't have it yet; returns how many were set."""
+    """Set ``pdf_size`` on scores that don't have it yet, and record the files
+    of scores from before uploads were recorded; returns how many sizes were set."""
     from app.file_helper import file_helper
 
     sizes: dict[str, int] = {}
@@ -409,18 +434,24 @@ def backfill_sizes(session: Session) -> int:
             session.add(score)
             updated += 1
     session.commit()
+    uploads.backfill(session)
+    uploads.fill_sizes(session)
     return updated
 
 
 def main(argv: list[str] | None = None) -> None:  # pragma: no cover - CLI wrapper
-    """``python -m app.plans backfill-sizes``: fill PDF sizes of existing scores."""
+    """``python -m app.plans backfill-sizes``: fill PDF sizes and upload rows of
+    existing scores; ``sweep-orphans``: delete uploads no score used for a day."""
     parser = argparse.ArgumentParser(prog="app.plans")
-    parser.add_argument("command", choices=["backfill-sizes"])
-    parser.parse_args(argv)
+    parser.add_argument("command", choices=["backfill-sizes", "sweep-orphans"])
+    args = parser.parse_args(argv)
     from app.db import engine
 
     with Session(engine) as session:
-        print(f"PDF sizes set on {backfill_sizes(session)} scores")
+        if args.command == "sweep-orphans":
+            print(f"Deleted {uploads.sweep_orphans(session)} unattached uploads")
+        else:
+            print(f"PDF sizes set on {backfill_sizes(session)} scores")
 
 
 if __name__ == "__main__":  # pragma: no cover
