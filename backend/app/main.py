@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlmodel import Session, col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import annotations, config, db, imslp, llm, plans, sections, uploads, users
+from app import annotations, config, db, export, imslp, llm, plans, sections, uploads, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
 from app.db import get_async_session, get_session
 from app.file_helper import file_helper
@@ -143,6 +143,7 @@ app.include_router(sections.router, tags=["sections"])
 app.include_router(llm.router)
 app.include_router(plans.router)
 app.include_router(annotations.router, tags=["annotations"])
+app.include_router(export.router, tags=["users"])
 
 
 @app.get("/health")

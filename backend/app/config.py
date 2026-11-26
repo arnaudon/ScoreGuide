@@ -30,6 +30,8 @@ MAX_SCORES_PER_USER = int(os.getenv("MAX_SCORES_PER_USER", "1000"))
 # table-of-contents job), and the longest PDF accepted.
 SCORE_RATE_LIMIT = os.getenv("SCORE_RATE_LIMIT", "30/minute")
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "2000"))
+# "Download my data" (GET /user/export) reads every PDF of the account.
+EXPORT_RATE_LIMIT = os.getenv("EXPORT_RATE_LIMIT", "3/hour")
 # Default plan limits (the admin page overrides them): AI tokens included once
 # (weighted; admins add more by hand), and storage in MB. See app.plans.
 FREE_AI_TOKENS = int(os.getenv("FREE_AI_TOKENS", "200000"))

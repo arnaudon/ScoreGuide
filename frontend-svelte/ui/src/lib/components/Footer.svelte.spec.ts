@@ -8,6 +8,7 @@ describe('Footer.svelte', () => {
 		render(Footer);
 		await expect.element(page.getByRole('link', { name: /terms of service/i })).toBeInTheDocument();
 		await expect.element(page.getByRole('link', { name: /privacy policy/i })).toBeInTheDocument();
+		await expect.element(page.getByRole('link', { name: /legal notice/i })).toBeInTheDocument();
 		await expect.element(page.getByRole('link', { name: /^contact$/i })).toBeInTheDocument();
 		await expect.element(page.getByText(/Alexis Arnaudon/)).toBeInTheDocument();
 	});
