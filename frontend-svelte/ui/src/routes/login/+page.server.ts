@@ -5,6 +5,7 @@ import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
 import { detailMessage } from '#lib/apiError.js';
 import { passwordLengthOk } from '#lib/password.js';
+import { callBackend } from '#lib/server/callBackend.js';
 
 export const actions: Actions = {
 	login: async ({ request, cookies, fetch }) => {
@@ -24,26 +25,28 @@ export const actions: Actions = {
 		if (rememberMe) body.append('remember', 'true');
 
 		const api = apiFetch(fetch, undefined);
-		const response = await api('/token', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body
-		});
-
-		if (!response.ok) {
-			const result = await response.json();
-			return fail(response.status, {
+		const answer = await callBackend(() =>
+			api('/token', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body
+			})
+		);
+		if (!answer || (answer.res.ok && typeof answer.data.access_token !== 'string')) {
+			return fail(503, { username: username.toString(), error: m.err_service_unavailable() });
+		}
+		if (!answer.res.ok) {
+			return fail(answer.res.status, {
 				username: username.toString(),
-				error: result.detail || m.err_login_failed()
+				error: detailMessage(answer.data.detail, m.err_login_failed())
 			});
 		}
-
-		const tokenData = await response.json();
+		const accessToken = answer.data.access_token as string;
 
 		// Must match the JWT lifetime issued by the backend (users.py REMEMBER_ME_EXPIRE_MINUTES).
 		const maxAge = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24; // 30 days or 1 day
 
-		cookies.set('access_token', tokenData.access_token, {
+		cookies.set('access_token', accessToken, {
 			path: '/',
 			httpOnly: true,
 			secure: !dev,
@@ -56,12 +59,12 @@ export const actions: Actions = {
 
 	demo: async ({ cookies, fetch }) => {
 		const api = apiFetch(fetch, undefined);
-		const response = await api('/demo-login', { method: 'POST' });
-		if (!response.ok) {
-			return fail(response.status, { error: m.err_demo_unavailable() });
+		const answer = await callBackend(() => api('/demo-login', { method: 'POST' }));
+		if (!answer) return fail(503, { error: m.err_service_unavailable() });
+		if (!answer.res.ok || typeof answer.data.access_token !== 'string') {
+			return fail(answer.res.ok ? 503 : answer.res.status, { error: m.err_demo_unavailable() });
 		}
-		const tokenData = await response.json();
-		cookies.set('access_token', tokenData.access_token, {
+		cookies.set('access_token', answer.data.access_token, {
 			path: '/',
 			httpOnly: true,
 			secure: !dev,
@@ -100,32 +103,29 @@ export const actions: Actions = {
 		}
 
 		const api = apiFetch(fetch, undefined);
-		const response = await api('/users', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				username: username.toString(),
-				password: password.toString(),
-				email: email.toString(),
-				instrument: instrument?.toString(),
-				music_profile: musicProfile.trim() || undefined
+		const answer = await callBackend(() =>
+			api('/users', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					username: username.toString(),
+					password: password.toString(),
+					email: email.toString(),
+					instrument: instrument?.toString(),
+					music_profile: musicProfile.trim() || undefined
+				})
 			})
-		});
+		);
 
-		if (!response.ok) {
-			let errorMsg: string = m.err_registration_failed();
-			try {
-				const result = await response.json();
-				errorMsg = detailMessage(result.detail, errorMsg);
-			} catch (e) {
-				console.error('Failed to parse register error response', e);
-			}
-			return fail(response.status, {
+		if (!answer || !answer.res.ok) {
+			return fail(answer ? answer.res.status : 503, {
 				username: username.toString(),
 				email: email.toString(),
 				instrument: instrument?.toString(),
 				musicProfile,
-				error: errorMsg
+				error: answer
+					? detailMessage(answer.data.detail, m.err_registration_failed())
+					: m.err_service_unavailable()
 			});
 		}
 
@@ -134,15 +134,17 @@ export const actions: Actions = {
 		body.append('username', username.toString());
 		body.append('password', password.toString());
 
-		const loginRes = await api('/token', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body
-		});
+		// The account exists now: if this login fails, say so and let the user sign in.
+		const login = await callBackend(() =>
+			api('/token', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body
+			})
+		);
 
-		if (loginRes.ok) {
-			const tokenData = await loginRes.json();
-			cookies.set('access_token', tokenData.access_token, {
+		if (login?.res.ok && typeof login.data.access_token === 'string') {
+			cookies.set('access_token', login.data.access_token, {
 				path: '/',
 				httpOnly: true,
 				secure: !dev,

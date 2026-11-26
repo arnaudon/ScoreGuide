@@ -25,7 +25,7 @@ describe('GET /api/pdf/:filepath', () => {
 	});
 	afterEach(() => errSpy.mockRestore());
 
-	it('returns 404 when there is no token (cookie missing and no ?token=)', async () => {
+	it('returns 404 when there is no cookie', async () => {
 		const fetch = vi.fn();
 		const res = await GET(
 			event({
@@ -73,9 +73,9 @@ describe('GET /api/pdf/:filepath', () => {
 		expect(authHeader(fetch)).toBe('Bearer cookieToken');
 	});
 
-	it('falls back to a URL token when the cookie is absent (legacy)', async () => {
+	it('ignores a URL token when the cookie is absent', async () => {
 		const fetch = makeFetch(async () => pdfResponse());
-		await GET(
+		const res = await GET(
 			event({
 				params: { filepath: 'score.pdf' },
 				url: new URL('http://x/api/pdf/score.pdf?token=urlOnly'),
@@ -84,26 +84,47 @@ describe('GET /api/pdf/:filepath', () => {
 				fetch
 			})
 		);
-		expect(fetch.mock.calls[0][0]).not.toContain('token=');
-		expect(authHeader(fetch)).toBe('Bearer urlOnly');
+		expect(res.status).toBe(404);
+		expect(fetch).not.toHaveBeenCalled();
 	});
 
-	it('parses an embedded `?token=` segment inside the filepath param (PDF.js encoding)', async () => {
-		const fetch = makeFetch(async () => pdfResponse());
-		await GET(
+	it.each([
+		'../admin/usage',
+		'..%2Fadmin%2Fusage',
+		'sub/score.pdf',
+		'../x.pdf',
+		'..pdf',
+		'score.pdf?token=abc',
+		'score.txt',
+		'score.pdf/extra'
+	])('returns 404 without calling the backend for %s', async (filepath) => {
+		const fetch = vi.fn();
+		const res = await GET(
 			event({
-				// PDF.js double-encodes the file URL, so the literal `?token=`
-				// surfaces inside `params.filepath`.
-				params: { filepath: 'foo.pdf?token=fromPath' },
-				url: new URL('http://x/api/pdf/foo.pdf'),
-				cookies: makeCookies(),
-				request: req('http://x/api/pdf/foo.pdf'),
+				params: { filepath },
+				url: new URL('http://x/api/pdf/x'),
+				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/x'),
 				fetch
 			})
 		);
-		expect(fetch.mock.calls[0][0]).toContain('/pdf/foo.pdf');
-		expect(fetch.mock.calls[0][0]).not.toContain('token=');
-		expect(authHeader(fetch)).toBe('Bearer fromPath');
+		expect(res.status).toBe(404);
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('accepts stored file names', async () => {
+		const fetch = makeFetch(async () => pdfResponse());
+		const res = await GET(
+			event({
+				params: { filepath: '0123abcd_chopin-op.66.pdf' },
+				url: new URL('http://x/api/pdf/x'),
+				cookies: makeCookies({ access_token: 'tok' }),
+				request: req('http://x/api/pdf/x'),
+				fetch
+			})
+		);
+		expect(res.status).toBe(200);
+		expect(fetch.mock.calls[0][0]).toMatch(/\/pdf\/0123abcd_chopin-op\.66\.pdf$/);
 	});
 
 	it('streams the PDF + preserves Content-Length / Cache-Control on happy path', async () => {

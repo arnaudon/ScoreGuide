@@ -14,6 +14,7 @@
 		SOLO_FIRST
 	} from '#lib/imslp.js';
 	import * as m from '#lib/paraglide/messages.js';
+	import { httpUrl } from '#lib/url.js';
 
 	/**
 	 * Instant search of the local IMSLP catalogue (no AI, no credits): words
@@ -188,16 +189,18 @@
 							{work.composer}{#if details(work)}&ensp;·&ensp;{details(work)}{/if}
 						</span>
 					</button>
-					<a
-						href={work.permlink}
-						target="_blank"
-						rel="external noopener noreferrer"
-						class="text-muted-foreground hover:text-foreground shrink-0 p-2"
-						aria-label={m.imslp_open_page({ title: work.title })}
-						title={m.imslp_open_page({ title: work.title })}
-					>
-						<ExternalLinkIcon class="size-4" aria-hidden="true" />
-					</a>
+					{#if httpUrl(work.permlink)}
+						<a
+							href={httpUrl(work.permlink)}
+							target="_blank"
+							rel="external noopener noreferrer"
+							class="text-muted-foreground hover:text-foreground shrink-0 p-2"
+							aria-label={m.imslp_open_page({ title: work.title })}
+							title={m.imslp_open_page({ title: work.title })}
+						>
+							<ExternalLinkIcon class="size-4" aria-hidden="true" />
+						</a>
+					{/if}
 				</li>
 			{/each}
 		</ul>

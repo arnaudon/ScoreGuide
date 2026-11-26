@@ -99,6 +99,28 @@ describe('reader/[id] load', () => {
 		);
 	});
 
+	it('never sends a non-numeric id to the backend', async () => {
+		const fetch = makeFetch();
+		const cookies = makeCookies({ access_token: 'tok' });
+		expect(await load(event({ cookies, fetch, params: { id: '../admin/usage' } }))).toEqual({
+			score: null,
+			toc: EMPTY_TOC
+		});
+		const toc = await actions.generate_toc(
+			event({ cookies, fetch, params: { id: '../admin' }, request: fakeRequest() })
+		);
+		expect(toc).toMatchObject({ status: 404 });
+		const report = await actions.report_toc(
+			event({ cookies, fetch, params: { id: '../admin' }, request: fakeRequest() })
+		);
+		expect(report).toMatchObject({ status: 404 });
+		const update = await actions.update_score(
+			event({ cookies, fetch, request: fakeRequest({ id: '../users/1', title: 't' }) })
+		);
+		expect(update).toMatchObject({ status: 400 });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
 	it('still shows the score when the table of contents fails to load', async () => {
 		const cookies = makeCookies({ access_token: 'tok' });
 		const notOk = scoreAndToc(async () => new Response(null, { status: 500 }));

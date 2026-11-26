@@ -440,5 +440,9 @@
 	"youtube_search": "Chercher sur YouTube",
 	"youtube_play_here": "Lire ici",
 	"youtube_privacy_note": "Charge la vidéo depuis YouTube (mode confidentialité renforcée) quand vous cliquez.",
-	"account_demo_readonly": "Ceci est le compte de démo : son profil se consulte mais ne se modifie pas. Créez un compte gratuit pour choisir votre instrument et décrire votre musique."
+	"account_demo_readonly": "Ceci est le compte de démo : son profil se consulte mais ne se modifie pas. Créez un compte gratuit pour choisir votre instrument et décrire votre musique.",
+	"err_service_unavailable": "Le service est momentanément indisponible. Veuillez réessayer dans un instant.",
+	"error_not_found": "Cette page n'existe pas.",
+	"error_back_home": "Retour à l'accueil",
+	"logout_confirm": "Se déconnecter de ScoreGuide ?"
 }

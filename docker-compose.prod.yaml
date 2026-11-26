@@ -1,9 +1,33 @@
+# Same log cap as docker-compose.yaml, for the services only defined here
+# (YAML anchors don't cross files).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     restart: always
+    environment:
+      # Required in prod (deploy.yaml writes it from the secret): never the
+      # dev default `readonly`.
+      MCP_READONLY_PASSWORD: ${MCP_READONLY_PASSWORD:?}
+
+  mcp-postgres:
+    # Same command as docker-compose.yaml, minus the dev password default.
+    command:
+      - "--transport=sse"
+      - "--sse-host=0.0.0.0"
+      - "--sse-port=8001"
+      - "--access-mode=restricted"
+      - "postgresql://mcp_readonly:${MCP_READONLY_PASSWORD:?}@db:5432/${POSTGRES_DB:?}"
 
   pgbouncer:
-    image: edoburu/pgbouncer
+    # Pinned by digest to the image running in prod (PgBouncer 1.25.1, an old
+    # `latest` build no tag points to any more); bump on purpose.
+    image: edoburu/pgbouncer@sha256:85d1e38593617af1b5f7f285e97d407e56c29939683cc7cfe4c8f6dc19f1268b
+    logging: *logging
     restart: always
     environment:
       - DB_HOST=db
@@ -20,7 +44,9 @@ services:
       - db
 
   pgadmin:
-    image: dpage/pgadmin4
+    # Pinned by digest to the image running in prod (tag 9.13); bump on purpose.
+    image: dpage/pgadmin4@sha256:d243a4bcc02d2ee6b447c601692813531d2d0fbca18b583d9f7f9658da835d81
+    logging: *logging
     restart: always
     environment:
       # Set both in .env (deploy.yaml writes them from GitHub secrets).
@@ -35,6 +61,7 @@ services:
     # a PG16 server (version mismatch). eeshugerman/postgres-backup-s3 is the
     # maintained fork and tags images to match the server major version.
     image: eeshugerman/postgres-backup-s3:16
+    logging: *logging
     restart: always
     # This image expects POSTGRES_DATABASE / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY,
     # but .env (written by .github/workflows/deploy.yaml) provides POSTGRES_DB /
@@ -54,15 +81,16 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DATABASE=${POSTGRES_DB:-postgres}
-      # GPG-encrypt each dump (empty: unencrypted) and delete dumps older than
-      # this many days (empty: keep forever). Set by the deploy workflow.
-      - PASSPHRASE=${BACKUP_PASSPHRASE:-}
+      # GPG-encrypt each dump (required: dumps go to S3) and delete dumps older
+      # than this many days (empty: keep forever). Set by the deploy workflow.
+      - PASSPHRASE=${BACKUP_PASSPHRASE:?}
       - BACKUP_KEEP_DAYS=${BACKUP_KEEP_DAYS:-}
     depends_on:
       - db
 
   caddy:
     image: caddy:2-alpine
+    logging: *logging
     restart: always
     ports:
       - "80:80"
@@ -95,6 +123,10 @@ services:
   frontend:
     restart: always
     environment:
+      # The public origin, for SvelteKit's CSRF check on form POSTs and for
+      # absolute URLs. Without it adapter-node rebuilds it from the Host header
+      # Caddy forwards (and assumes https).
+      - ORIGIN=https://scoreguide.ch
       - BACKEND_URL=http://backend:8000
       - PUBLIC_BACKEND_URL=http://backend:8000
       # Largest request the web server accepts: a MAX_PDF_MB (50) upload plus

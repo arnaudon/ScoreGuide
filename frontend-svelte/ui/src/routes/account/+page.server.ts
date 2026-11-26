@@ -1,10 +1,12 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import * as m from '#lib/paraglide/messages.js';
 import { detailMessage } from '#lib/apiError.js';
 import { passwordLengthOk } from '#lib/password.js';
+import { callBackend } from '#lib/server/callBackend.js';
+import type { User } from '#lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -14,14 +16,13 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	}
 
 	const api = apiFetch(fetch, token);
-	const res = await api('/user');
-
-	if (!res.ok) {
+	const answer = await callBackend(() => api('/user'));
+	if (!answer) error(503, m.err_service_unavailable());
+	if (!answer.res.ok) {
 		redirect(303, '/login');
 	}
 
-	const user = await res.json();
-	return { user };
+	return { user: answer.data as unknown as User };
 };
 
 export const actions: Actions = {
@@ -36,21 +37,23 @@ export const actions: Actions = {
 		const musicProfile = data.get('music_profile');
 
 		const api = apiFetch(fetch, token);
-		const res = await api('/user', {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				instrument: instrument?.toString(),
-				email: email?.toString(),
-				music_profile: musicProfile === null ? undefined : musicProfile.toString()
+		const answer = await callBackend(() =>
+			api('/user', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					instrument: instrument?.toString(),
+					email: email?.toString(),
+					music_profile: musicProfile === null ? undefined : musicProfile.toString()
+				})
 			})
-		});
+		);
 
-		if (!res.ok) {
-			const result = await res.json();
-			return fail(res.status, {
+		if (!answer) return fail(503, { form: 'profile', error: m.err_service_unavailable() });
+		if (!answer.res.ok) {
+			return fail(answer.res.status, {
 				form: 'profile',
-				error: detailMessage(result.detail, m.err_update_profile())
+				error: detailMessage(answer.data.detail, m.err_update_profile())
 			});
 		}
 
@@ -78,28 +81,29 @@ export const actions: Actions = {
 		}
 
 		const api = apiFetch(fetch, token);
-		const res = await api('/user/password', {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				current_password: current_password.toString(),
-				new_password: new_password.toString()
+		const answer = await callBackend(() =>
+			api('/user/password', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					current_password: current_password.toString(),
+					new_password: new_password.toString()
+				})
 			})
-		});
+		);
 
-		if (!res.ok) {
-			const result = await res.json();
-			return fail(res.status, {
+		if (!answer) return fail(503, { form: 'password', error: m.err_service_unavailable() });
+		if (!answer.res.ok) {
+			return fail(answer.res.status, {
 				form: 'password',
-				error: detailMessage(result.detail, m.err_update_password())
+				error: detailMessage(answer.data.detail, m.err_update_password())
 			});
 		}
 
 		// The change signed out every session, this one included: keep the
 		// user logged in here with the fresh token the backend returns.
-		const result = await res.json().catch(() => ({}));
-		if (typeof result.access_token === 'string') {
-			cookies.set('access_token', result.access_token, {
+		if (typeof answer.data.access_token === 'string') {
+			cookies.set('access_token', answer.data.access_token, {
 				path: '/',
 				httpOnly: true,
 				secure: !dev,
@@ -115,10 +119,11 @@ export const actions: Actions = {
 		if (!token) return fail(401, { error: m.err_unauthorized() });
 
 		const api = apiFetch(fetch, token);
-		const res = await api('/user', { method: 'DELETE' });
+		const answer = await callBackend(() => api('/user', { method: 'DELETE' }));
 
-		if (!res.ok) {
-			return fail(res.status, { form: 'delete', error: m.err_delete_account() });
+		if (!answer) return fail(503, { form: 'delete', error: m.err_service_unavailable() });
+		if (!answer.res.ok) {
+			return fail(answer.res.status, { form: 'delete', error: m.err_delete_account() });
 		}
 
 		cookies.delete('access_token', { path: '/', httpOnly: true, secure: !dev, sameSite: 'lax' });

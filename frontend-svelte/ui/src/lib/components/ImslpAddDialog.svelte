@@ -7,6 +7,7 @@
 	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
 	import type { IMSLPScore, ImslpFile, ImslpResult } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
+	import { httpUrl } from '#lib/url.js';
 
 	/**
 	 * Details of an IMSLP work, links to each of its files on IMSLP, and the
@@ -94,13 +95,16 @@
 						<p class="text-muted-foreground text-sm">{m.imslp_files_loading()}</p>
 					{:else if imslpFiles.length === 0}
 						<p class="text-muted-foreground text-sm">
-							{m.imslp_files_none()}<br />
-							<a
-								href={work.permlink}
-								target="_blank"
-								rel="external noopener noreferrer"
-								class="text-primary break-all hover:underline">{work.permlink}</a
-							>
+							{m.imslp_files_none()}
+							{#if httpUrl(work.permlink)}
+								<br />
+								<a
+									href={httpUrl(work.permlink)}
+									target="_blank"
+									rel="external noopener noreferrer"
+									class="text-primary break-all hover:underline">{work.permlink}</a
+								>
+							{/if}
 						</p>
 					{:else}
 						<p class="text-muted-foreground text-xs">{m.imslp_files_hint()}</p>
@@ -117,12 +121,14 @@
 											<p class="text-muted-foreground truncate text-xs">{file.copyright}</p>
 										{/if}
 									</div>
-									<a
-										href={file.url}
-										target="_blank"
-										rel="external noopener noreferrer"
-										class="text-primary shrink-0 hover:underline">{m.imslp_files_open()}</a
-									>
+									{#if httpUrl(file.url)}
+										<a
+											href={httpUrl(file.url)}
+											target="_blank"
+											rel="external noopener noreferrer"
+											class="text-primary shrink-0 hover:underline">{m.imslp_files_open()}</a
+										>
+									{/if}
 								</li>
 							{/each}
 						</ul>

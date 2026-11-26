@@ -2,37 +2,23 @@ import type { RequestHandler } from './$types';
 import { apiFetch } from '#lib/server/fetchApi.js';
 
 /**
+ * Stored PDFs are named `<uuid hex>.pdf` (older ones `<name>.pdf`): one path
+ * segment, never `..`. Anything else (e.g. `..%2Fadmin%2Fusage`) would let this
+ * authenticated proxy reach other backend GET endpoints.
+ */
+const PDF_NAME = /^[\w.-]+\.pdf$/;
+
+/**
  * Same-origin PDF proxy. Reads the httpOnly `access_token` cookie set at
  * login and forwards it to the backend's `/pdf/{filename}` endpoint
  * server-to-server as an `Authorization: Bearer` header, so the JWT never
  * appears in any URL — neither the browser's nor the backend's access logs.
- *
- * For backwards compatibility with bookmarked PDF.js viewer URLs that
- * still carry `?token=...` in the path or query string, a token in the
- * URL is accepted but no longer required (and is still forwarded as a
- * header, not a query param).
  */
-export const GET: RequestHandler = async ({ params, url, cookies, fetch, request }) => {
-	const pathWithQuery = params.filepath;
-	let filename = pathWithQuery;
-	let urlToken: string | null;
+export const GET: RequestHandler = async ({ params, cookies, fetch, request }) => {
+	const filename = params.filepath;
+	const token = cookies.get('access_token');
 
-	// PDF.js encodes the `?file=` query param value, which means our own
-	// `?token=` query parameter ends up inside `params.filepath`. Strip it.
-	const tokenMarker = '?token=';
-	const tokenIndex = pathWithQuery.indexOf(tokenMarker);
-	if (tokenIndex !== -1) {
-		filename = pathWithQuery.substring(0, tokenIndex);
-		urlToken = pathWithQuery.substring(tokenIndex + tokenMarker.length);
-	} else {
-		urlToken = url.searchParams.get('token');
-	}
-
-	// Prefer the cookie (same-origin, httpOnly) so the JWT never has to
-	// travel through the URL. Fall back to the URL param for compatibility.
-	const token = cookies.get('access_token') ?? urlToken;
-
-	if (!filename || !token) {
+	if (!token || !PDF_NAME.test(filename) || filename.includes('..')) {
 		return new Response('Not found', { status: 404 });
 	}
 

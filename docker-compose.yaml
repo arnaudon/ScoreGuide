@@ -1,7 +1,16 @@
+# Cap each container's log (json-file default is unbounded): the VPS disk is
+# shared with GardenAI. 3 x 10 MB per container.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:16-alpine
     container_name: postgres_db
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -24,7 +33,10 @@ services:
 
 
   mcp-postgres:
-    image: crystaldba/postgres-mcp
+    # Pinned by digest to the image running in prod (tag 0.3.0); bump on
+    # purpose. Digest only, the plainest form for docker-compose v1.
+    image: crystaldba/postgres-mcp@sha256:dbbd346860d29f1543e991f30f3284bf4ab5f096d049ecc3426528f20b1b6e6b
+    logging: *logging
     # No published ports on purpose: only the backend talks to this server,
     # via the compose-internal hostname mcp-postgres:8001. Publishing it
     # would expose an unauthenticated SQL interface to the host network.
@@ -41,6 +53,7 @@ services:
 
   backend:
     container_name: backend
+    logging: *logging
     build:
       context: .
       dockerfile: Dockerfile.backend
@@ -59,6 +72,7 @@ services:
 
   frontend:
     container_name: frontend
+    logging: *logging
     build:
       context: .
       dockerfile: Dockerfile.frontend-svelte

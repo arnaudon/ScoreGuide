@@ -17,3 +17,9 @@ database/
 coverage.xml
 .DS_Store
 .aider*
+
+# Local PDFs (DATA_PATH) and database dumps at the repo root: the prod checkout
+# holds both. Root-only, so infrastructure/*.sql and postgres-init/ stay tracked.
+/data/
+/*.sql
+/*.dump

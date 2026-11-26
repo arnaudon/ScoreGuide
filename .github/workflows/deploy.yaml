@@ -22,46 +22,77 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Deploy to Infomaniak via SSH
-        uses: appleboy/ssh-action@v1.2.5
+        # Pinned to a commit (tags can be moved); bump together with the comment.
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        # Secrets reach the remote script as environment variables (the action
+        # exports them single-quoted), never pasted into the script text: a
+        # value with a quote, `$` or backtick can't break or inject into it.
+        env:
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          PUBLIC_SENTRY_DSN: ${{ secrets.PUBLIC_SENTRY_DSN }}
+          MCP_READONLY_PASSWORD: ${{ secrets.MCP_READONLY_PASSWORD }}
+          PGADMIN_DEFAULT_PASSWORD: ${{ secrets.PGADMIN_DEFAULT_PASSWORD }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Verify the server's host key (no MITM). The action negotiates the
+          # ECDSA key: `ssh-keygen -lf /etc/ssh/ssh_host_ecdsa_key.pub -E sha256`
+          # on the VPS, the `SHA256:…` field.
+          fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
           command_timeout: 30m
+          envs: JWT_SECRET_KEY,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB,GOOGLE_API_KEY,S3_ENDPOINT,S3_ACCESS_KEY,S3_SECRET_KEY,S3_BUCKET,SENTRY_DSN,PUBLIC_SENTRY_DSN,MCP_READONLY_PASSWORD,PGADMIN_DEFAULT_PASSWORD,SMTP_HOST,SMTP_PORT,SMTP_USER,SMTP_PASSWORD,SMTP_FROM,BACKUP_PASSPHRASE
           script: |
             # No -x: this script handles secrets, don't trace them into logs.
             set -euo pipefail
             docker network inspect web >/dev/null 2>&1 || docker network create web
             cd /home/debian/ScoreGuide
             git pull origin main
-            # Start fresh — all subsequent lines append.
-            echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" > .env
-            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-            echo "MODEL=google:gemini-2.5-flash-lite" >> .env
-            echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" >> .env
-            echo "S3_ENDPOINT=${{ secrets.S3_ENDPOINT }}" >> .env
-            echo "S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }}" >> .env
-            echo "S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }}" >> .env
-            echo "S3_BUCKET=${{ secrets.S3_BUCKET }}" >> .env
-            echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
-            echo "PUBLIC_SENTRY_DSN=${{ secrets.PUBLIC_SENTRY_DSN }}" >> .env
-            echo "SENTRY_ENVIRONMENT=production" >> .env
-            echo "PUBLIC_SENTRY_ENVIRONMENT=production" >> .env
-            echo "MCP_READONLY_PASSWORD=${{ secrets.MCP_READONLY_PASSWORD }}" >> .env
-            echo "PGADMIN_DEFAULT_PASSWORD=${{ secrets.PGADMIN_DEFAULT_PASSWORD }}" >> .env
-            echo "FRONTEND_URL=https://scoreguide.ch" >> .env
-            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
-            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
-            echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
-            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
-            echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> .env
-            # Daily DB dumps are GPG-encrypted with this passphrase (empty: plain,
-            # as before) and pruned after BACKUP_KEEP_DAYS. Keep a copy of the
-            # passphrase outside GitHub: without it the backups can't be restored.
-            echo "BACKUP_PASSPHRASE=${{ secrets.BACKUP_PASSPHRASE }}" >> .env
-            echo "BACKUP_KEEP_DAYS=30" >> .env
+            # Start fresh: one `NAME=value` per line, values written verbatim.
+            {
+              printf 'JWT_SECRET_KEY=%s\n' "${JWT_SECRET_KEY-}"
+              printf 'POSTGRES_USER=%s\n' "${POSTGRES_USER-}"
+              printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD-}"
+              printf 'POSTGRES_DB=%s\n' "${POSTGRES_DB-}"
+              echo "MODEL=google:gemini-2.5-flash-lite"
+              printf 'GOOGLE_API_KEY=%s\n' "${GOOGLE_API_KEY-}"
+              printf 'S3_ENDPOINT=%s\n' "${S3_ENDPOINT-}"
+              printf 'S3_ACCESS_KEY=%s\n' "${S3_ACCESS_KEY-}"
+              printf 'S3_SECRET_KEY=%s\n' "${S3_SECRET_KEY-}"
+              printf 'S3_BUCKET=%s\n' "${S3_BUCKET-}"
+              printf 'SENTRY_DSN=%s\n' "${SENTRY_DSN-}"
+              printf 'PUBLIC_SENTRY_DSN=%s\n' "${PUBLIC_SENTRY_DSN-}"
+              echo "SENTRY_ENVIRONMENT=production"
+              echo "PUBLIC_SENTRY_ENVIRONMENT=production"
+              printf 'MCP_READONLY_PASSWORD=%s\n' "${MCP_READONLY_PASSWORD-}"
+              printf 'PGADMIN_DEFAULT_PASSWORD=%s\n' "${PGADMIN_DEFAULT_PASSWORD-}"
+              echo "FRONTEND_URL=https://scoreguide.ch"
+              printf 'SMTP_HOST=%s\n' "${SMTP_HOST-}"
+              printf 'SMTP_PORT=%s\n' "${SMTP_PORT-}"
+              printf 'SMTP_USER=%s\n' "${SMTP_USER-}"
+              printf 'SMTP_PASSWORD=%s\n' "${SMTP_PASSWORD-}"
+              printf 'SMTP_FROM=%s\n' "${SMTP_FROM-}"
+              # Daily DB dumps are GPG-encrypted with this passphrase (required by
+              # docker-compose.prod.yaml) and pruned after BACKUP_KEEP_DAYS. Keep a copy
+              # of the passphrase outside GitHub: without it the backups can't be restored.
+              printf 'BACKUP_PASSPHRASE=%s\n' "${BACKUP_PASSPHRASE-}"
+              echo "BACKUP_KEEP_DAYS=30"
+            } > .env
             docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up --build -d
             # Apply Caddyfile changes; `up` leaves an unchanged caddy container alone.
             docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml \
@@ -84,8 +115,8 @@ jobs:
             # and rotate its password to the current secret. Idempotent —
             # safe to re-run every deploy. The password rides in via env so
             # it never appears on a command line.
-            docker exec -i -e MCP_READONLY_PASSWORD="${{ secrets.MCP_READONLY_PASSWORD }}" postgres_db \
-              sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v mcp_password="${MCP_READONLY_PASSWORD:-readonly}"' \
+            docker exec -i -e MCP_READONLY_PASSWORD postgres_db \
+              sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v mcp_password="${MCP_READONLY_PASSWORD:?}"' \
               < infrastructure/mcp-readonly.sql
             # Keep the demo account's library in sync with app/demo.py CATALOG
             # (no-op when it already matches). Never fail the deploy over it.
@@ -95,3 +126,7 @@ jobs:
             # newly seeded demo scores). Only touches scores without one.
             docker exec --workdir /app/backend backend python -m app.plans backfill-sizes \
               || echo "PDF size backfill skipped (see error above)"
+            # Delete uploads never attached to a score within 24 h (they count
+            # against the quota until then).
+            docker exec --workdir /app/backend backend python -m app.plans sweep-orphans \
+              || echo "orphan sweep skipped (see error above)"
