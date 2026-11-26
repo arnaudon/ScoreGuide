@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { resolve } from '$app/paths';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import type { PageProps } from './$types';
@@ -204,7 +205,18 @@
 					</Button>
 				</form>
 			</section>
+		{/if}
 
+		<!-- Right of access / portability (nFADP): every account, demo included. -->
+		<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
+			<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.download_data()}</h2>
+			<p class="text-muted-foreground mb-6 text-sm">{m.download_data_desc()}</p>
+			<Button href={resolve('/api/user/export')} variant="outline" data-sveltekit-reload
+				>{m.download_data()}</Button
+			>
+		</section>
+
+		{#if !data.isDemo}
 			<section
 				class="border-destructive/20 bg-card text-card-foreground shadow-card rounded-md border p-6"
 			>
