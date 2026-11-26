@@ -13,10 +13,12 @@ from app.main import app
 from app.users import get_admin_user
 from shared.scores import Score
 from shared.settings import Setting
+from shared.uploads import Upload
 from shared.usage import AIUsage
 from shared.user import User
+from tests.pdfs import PDF as SMALL_PDF
 
-PDF = b"%PDF-1.4 " + b"x" * 991  # 1000 bytes
+PDF = SMALL_PDF + b"\n" * (1000 - len(SMALL_PDF))  # 1000 bytes
 
 
 @pytest.fixture
@@ -93,15 +95,25 @@ def test_ai_used_counts_every_month(client: TestClient, session: Session, test_u
     assert plans.ai_used(test_user.id, session) == 109
 
 
-def test_storage_counts_each_file_once(client: TestClient, session: Session, test_user: User):
+def test_storage_counts_each_upload_once(
+    client: TestClient, session: Session, test_user: User, uploaded
+):
     base = plans.storage_used(test_user.id, session)
-    for title, path, size in (("a", "f1.pdf", 1000), ("b", "f1.pdf", 1000), ("c", "f2.pdf", 500)):
+    f1 = uploaded(PDF)
+    uploaded(SMALL_PDF)  # attached to nothing
+    for title, path in (("a", f1), ("b", f1)):
         session.add(
-            Score(title=title, composer="x", pdf_path=path, pdf_size=size, user_id=test_user.id)
+            Score(title=title, composer="x", pdf_path=path, pdf_size=1000, user_id=test_user.id)
         )
     session.add(Score(title="d", composer="x", user_id=test_user.id))
     session.commit()
-    assert plans.storage_used(test_user.id, session) == base + 1500
+    # f2 is attached to nothing and still counts.
+    assert plans.storage_used(test_user.id, session) == base + 1000 + len(SMALL_PDF)
+    other = User(username="someone", password="x")
+    session.add(other)
+    session.commit()
+    uploaded(PDF, user=other)
+    assert plans.storage_used(test_user.id, session) == base + 1000 + len(SMALL_PDF)
 
 
 def test_get_user_includes_usage(client: TestClient, session: Session, test_user: User):
@@ -137,12 +149,36 @@ def test_upload_and_scores_count_against_storage(
     session.expire_all()
     assert getattr(session.get(Score, score["id"]), "pdf_size", None) == 1000
 
-    # Changing the PDF updates the size; an unknown file counts as 0.
-    client.put(f"/scores/{score['id']}", json={"pdf_path": "missing.pdf"})
+    # Unattached uploads count too: the second one doesn't fit.
+    resp = client.post("/pdf", files={"file": ("b.pdf", PDF, "application/pdf")})
+    assert resp.status_code == 200
+    user.storage_limit_mb = 0
+    session.add(user)
+    session.commit()
+    resp = client.post("/pdf", files={"file": ("c.pdf", PDF, "application/pdf")})
+    assert resp.status_code == 413
+
+    # Swapping to the other upload updates the size and frees the first file.
+    second = session.exec(select(Upload).where(Upload.filename != file_id)).first()
+    assert second is not None
+    swapped = client.put(f"/scores/{score['id']}", json={"pdf_path": second.filename})
+    assert swapped.status_code == 200
     session.expire_all()
-    assert getattr(session.get(Score, score["id"]), "pdf_size", None) == 0
+    assert getattr(session.get(Score, score["id"]), "pdf_size", None) == 1000
+    assert session.exec(select(Upload).where(Upload.filename == file_id)).first() is None
+    assert not (storage / file_id).exists()
+    assert plans.storage_used(test_user.id, session) == 1000
     client.put(f"/scores/{score['id']}", json={"title": "renamed"})
     assert client.post("/scores", json={"title": "no pdf", "composer": "c"}).status_code == 200
+
+
+def test_pdf_size_falls_back_to_stored_file(session: Session, storage):
+    from app.main import _pdf_size
+
+    (storage / "legacy.pdf").write_bytes(PDF)
+    assert _pdf_size("legacy.pdf", session) == 1000
+    assert _pdf_size("missing.pdf", session) == 0
+    assert _pdf_size("", session) == 0
 
 
 def test_upload_size_measured_when_unknown():
@@ -209,9 +245,19 @@ def test_backfill_sizes(client: TestClient, session: Session, test_user: User, s
     for title, path in (("a", "have.pdf"), ("b", "have.pdf"), ("c", "gone.pdf")):
         session.add(Score(title=title, composer="x", pdf_path=path, user_id=test_user.id))
     session.commit()
+    session.add(Upload(user_id=test_user.id, filename="unsized.pdf"))
+    session.add(Upload(user_id=test_user.id, filename="unsized-gone.pdf"))
+    (storage / "unsized.pdf").write_bytes(SMALL_PDF)
+    session.commit()
     assert plans.backfill_sizes(session) == 2
     sizes = {s.title: s.pdf_size for s in session.exec(select(Score).where(Score.composer == "x"))}
     assert sizes == {"a": 1000, "b": 1000, "c": 0}
+    # Score files get upload rows of their owner, sized from the scores or the file.
+    rows = {u.filename: u.size for u in session.exec(select(Upload))}
+    assert rows["have.pdf"] == 1000
+    assert rows["gone.pdf"] == 0
+    assert rows["unsized.pdf"] == len(SMALL_PDF)
+    assert rows["unsized-gone.pdf"] == 0
     assert plans.backfill_sizes(session) == 0
 
 

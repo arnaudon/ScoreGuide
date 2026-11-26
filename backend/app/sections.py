@@ -1,12 +1,15 @@
 """Score table of contents: detected piece / movement starts with incipits."""
 
+import contextlib
 import io
 import logging
+import os
 import threading
 import uuid
-from typing import Annotated
+from collections import deque
+from typing import Annotated, NamedTuple
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.engine import Engine
@@ -24,12 +27,68 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Generation is CPU-bound (page rendering + OCR) and the VPS is small: run
-# one job at a time, queueing the rest.
-_generation_lock = threading.Lock()
-# score_id -> "running" | "error". In-memory: a restart forgets running
-# jobs, which then simply show as "not generated yet".
+# Generation is CPU-bound (page rendering + OCR) and the VPS is small: one
+# dedicated worker thread runs the jobs one at a time, from a bounded queue.
+# Request threads only enqueue, so a burst of new scores can never tie up
+# the threadpool that serves the sync endpoints. A full queue (or a user
+# with many jobs waiting) skips the job: the score shows "not generated
+# yet" and its owner can press Rebuild later.
+MAX_QUEUED_JOBS = int(os.getenv("TOC_MAX_QUEUED_JOBS", "20"))
+MAX_QUEUED_PER_USER = int(os.getenv("TOC_MAX_QUEUED_PER_USER", "3"))
+
+
+class _Job(NamedTuple):
+    score_id: int
+    user_id: int | None
+    pdf_path: str
+    engine: Engine
+
+
+_queue: deque[_Job] = deque()
+_cond = threading.Condition()
+_current: _Job | None = None
+_worker: threading.Thread | None = None
+# score_id -> "running" (queued or running) | "error". In-memory: a restart
+# forgets queued jobs, which then simply show as "not generated yet".
 _jobs: dict[int, str] = {}
+
+
+def _lower_priority() -> None:  # pragma: no cover - best effort, Linux only
+    """Give the worker thread the lowest CPU priority (per thread on Linux)."""
+    with contextlib.suppress(AttributeError, OSError):
+        os.setpriority(os.PRIO_PROCESS, threading.get_native_id(), 19)
+
+
+def _work() -> None:
+    """Worker loop: run queued jobs one at a time, forever."""
+    global _current
+    _lower_priority()
+    while True:
+        with _cond:
+            _cond.wait_for(lambda: bool(_queue))
+            _current = _queue.popleft()
+        try:
+            generate_sections(_current.score_id, _current.pdf_path, _current.engine)
+        except Exception:  # pragma: no cover - generate_sections logs its own errors
+            logger.exception("table of contents job crashed")
+        finally:
+            with _cond:
+                _current = None
+                _cond.notify_all()
+
+
+def _ensure_worker() -> None:
+    """Start the worker thread on first use (call with ``_cond`` held)."""
+    global _worker
+    if _worker is None or not _worker.is_alive():
+        _worker = threading.Thread(target=_work, name="toc-worker", daemon=True)
+        _worker.start()
+
+
+def wait_idle(timeout: float = 30) -> bool:
+    """Block until no job is queued or running (tests, CLI); False on timeout."""
+    with _cond:
+        return _cond.wait_for(lambda: not _queue and _current is None, timeout)
 
 
 class SectionsResponse(BaseModel):
@@ -104,51 +163,67 @@ def delete_sections(score_id: int, session: Session) -> None:
 
 
 def generate_sections(score_id: int, pdf_path: str, engine: Engine) -> None:
-    """Background job: detect sections in the score's PDF and store them."""
-    with _generation_lock:
-        try:
-            data = file_helper.download_pdf(pdf_path)["Body"].read()
-            detected = extract_sections(data)
-            with Session(engine) as session:
-                _clear_sections(score_id, session)
-                for position, sec in enumerate(detected):
-                    incipit_path = ""
-                    if sec.incipit_png:
-                        incipit_path = f"incipits/{score_id}/{uuid.uuid4().hex}.png"
-                        file_helper.upload_file(
-                            incipit_path, io.BytesIO(sec.incipit_png), "image/png"
-                        )
-                    session.add(
-                        ScoreSection(
-                            score_id=score_id,
-                            position=position,
-                            title=sec.title,
-                            page=sec.page,
-                            source=sec.source,
-                            incipit_path=incipit_path,
-                            version=TOC_VERSION,
-                            level=sec.level,
-                        )
+    """The job: detect sections in the score's PDF and store them."""
+    try:
+        data = file_helper.download_pdf(pdf_path)["Body"].read()
+        detected = extract_sections(data)
+        with Session(engine) as session:
+            score = session.get(Score, score_id)
+            if score is None or score.pdf_path != pdf_path:
+                # Deleted, or given another PDF, while the job waited.
+                _jobs.pop(score_id, None)
+                return
+            _clear_sections(score_id, session)
+            for position, sec in enumerate(detected):
+                incipit_path = ""
+                if sec.incipit_png:
+                    incipit_path = f"incipits/{score_id}/{uuid.uuid4().hex}.png"
+                    file_helper.upload_file(incipit_path, io.BytesIO(sec.incipit_png), "image/png")
+                session.add(
+                    ScoreSection(
+                        score_id=score_id,
+                        position=position,
+                        title=sec.title,
+                        page=sec.page,
+                        source=sec.source,
+                        incipit_path=incipit_path,
+                        version=TOC_VERSION,
+                        level=sec.level,
                     )
-                session.commit()
-            _jobs.pop(score_id, None)
-        except Exception:
-            logger.exception("table of contents generation failed for score %s", score_id)
-            _jobs[score_id] = "error"
+                )
+            session.commit()
+        _jobs.pop(score_id, None)
+    except Exception:
+        logger.exception("table of contents generation failed for score %s", score_id)
+        _jobs[score_id] = "error"
 
 
-def schedule_generation(score: Score, background_tasks: BackgroundTasks, session: Session) -> None:
-    """Queue a (re)generation for ``score`` unless one is already running.
+def schedule_generation(score: Score, session: Session) -> bool:
+    """Queue a (re)generation for ``score``; returns whether it is queued.
 
     Called when a score is created with a PDF and from the Rebuild button.
+    A score already queued or running is not queued twice (True). The job is
+    skipped (False) when the queue is full or the owner already has
+    ``MAX_QUEUED_PER_USER`` jobs waiting.
     """
-    if score.id is None or _jobs.get(score.id) == "running":
-        return
-    _jobs[score.id] = "running"
+    if score.id is None:
+        return False
     # The job outlives this request's session: hand it the engine instead.
     engine = session.get_bind()
     assert isinstance(engine, Engine)
-    background_tasks.add_task(generate_sections, score.id, score.pdf_path, engine)
+    with _cond:
+        if _jobs.get(score.id) == "running":
+            return True
+        pending = [*_queue, *([_current] if _current else [])]
+        mine = sum(1 for job in pending if job.user_id == score.user_id)
+        if len(_queue) >= MAX_QUEUED_JOBS or mine >= MAX_QUEUED_PER_USER:
+            logger.warning("table of contents queue full: skipping score %s", score.id)
+            return False
+        _jobs[score.id] = "running"
+        _queue.append(_Job(score.id, score.user_id, score.pdf_path, engine))
+        _ensure_worker()
+        _cond.notify_all()
+    return True
 
 
 @router.get("/scores/{score_id}/sections")
@@ -169,7 +244,6 @@ def get_sections(
 def start_generation(
     request: Request,
     score_id: int,
-    background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
 ) -> SectionsResponse:
@@ -177,7 +251,11 @@ def start_generation(
     score = _owned_score(score_id, current_user, session)
     if not score.pdf_path:
         raise HTTPException(status_code=400, detail="Score has no PDF")
-    schedule_generation(score, background_tasks, session)
+    if not schedule_generation(score, session):
+        raise HTTPException(
+            status_code=429,
+            detail="Many tables of contents are being built: please try again in a few minutes.",
+        )
     return _response("running", _sections(score_id, session))
 
 

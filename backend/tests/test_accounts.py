@@ -12,7 +12,9 @@ from app.file_helper import file_helper
 from app.main import app
 from shared.annotations import Annotation
 from shared.scores import Score, ScoreSection, TocReport
+from shared.uploads import Upload
 from shared.user import User
+from tests.pdfs import PDF
 
 
 @pytest.fixture(autouse=True)
@@ -97,7 +99,7 @@ def test_verification_link_rejections(client: TestClient, session: Session, mail
 
 
 def test_unverified_users_cannot_spend_credits_or_upload(
-    client: TestClient, session: Session, test_user: User, verification_on
+    client: TestClient, session: Session, test_user: User, verification_on, uploaded
 ):
     test_user.email_verified = False
     session.add(test_user)
@@ -105,8 +107,12 @@ def test_unverified_users_cannot_spend_credits_or_upload(
     resp = client.post("/agent", json={"prompt": "p", "deps": '{"scores": []}'})
     assert resp.status_code == 403
     assert "confirm your email" in resp.json()["detail"]
-    files = {"file": ("s.pdf", b"%PDF-1.4", "application/pdf")}
+    files = {"file": ("s.pdf", PDF, "application/pdf")}
     assert client.post("/pdf", files=files).status_code == 403
+    # Nor attach a PDF to a new score; a score without one is fine.
+    pdf_score = {"title": "t", "composer": "c", "pdf_path": uploaded()}
+    assert client.post("/scores", json=pdf_score).status_code == 403
+    assert client.post("/scores", json={"title": "t", "composer": "c"}).status_code == 200
     # Reading the library still works.
     assert client.get("/scores").status_code == 200
 
@@ -159,12 +165,9 @@ def test_forgot_password_matches_email_case_insensitively(
 
 
 def test_delete_account_removes_everything(
-    client: TestClient, session: Session, test_user: User, tmp_path, monkeypatch
+    client: TestClient, session: Session, test_user: User, data_path, uploaded
 ):
-    """Scores, sections, annotations, reports and PDF files all go."""
-    # Own storage: the shared fixture PDFs this user's seeded scores point at
-    # must survive (they're simply absent here).
-    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    """Scores, sections, annotations, reports, uploads and PDF files all go."""
     file_helper.upload_pdf("owned_by_leaver.pdf", io.BytesIO(b"%PDF-1.4"))
     score = Score(title="t", composer="c", pdf_path="owned_by_leaver.pdf", user_id=test_user.id)
     other_user = User(username="stays", email="stays@example.com", password="x")
@@ -183,6 +186,8 @@ def test_delete_account_removes_everything(
     )
     session.commit()
     user_id = test_user.id
+    # An upload never attached to a score goes too, with its row.
+    loose = uploaded()
 
     assert client.delete("/user").status_code == 200
 
@@ -195,4 +200,6 @@ def test_delete_account_removes_everything(
     assert session.get(Score, other_score.id) is not None
     with pytest.raises((FileNotFoundError, ValueError)):
         file_helper.get_size("owned_by_leaver.pdf")
+    assert not (data_path / loose).exists()
+    assert session.exec(select(Upload)).all() == []
     app.dependency_overrides.clear()

@@ -3,6 +3,7 @@
 import contextlib
 import glob
 import os
+import shutil
 import tempfile
 import uuid
 
@@ -13,11 +14,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import db, sections
+from app import db, sections, uploads
 from app.main import app, get_pdf_user
 from app.users import get_current_user
 from shared.scores import Score, Scores
 from shared.user import User
+from tests.pdfs import PDF
 
 os.environ["DATABASE_PATH"] = "test.db"
 pytestmark = pytest.mark.anyio
@@ -35,10 +37,26 @@ def cleanup_test_pdfs():
 
 
 @pytest.fixture(autouse=True)
+def data_path(tmp_path, monkeypatch):
+    """Stored files live in a per-test dir holding a copy of real_score.pdf:
+    deleting a score deletes its unused PDF, which must never be the fixture."""
+    data = tmp_path / "data"
+    data.mkdir()
+    shutil.copy(os.path.join(os.path.dirname(__file__), "data", "real_score.pdf"), data)
+    monkeypatch.setenv("DATA_PATH", str(data))
+    return data
+
+
+@pytest.fixture(autouse=True)
 def no_toc_generation(monkeypatch):
     """Creating a score queues table-of-contents generation; skip the real
     PDF processing everywhere except the tests that exercise it."""
     monkeypatch.setattr(sections, "generate_sections", lambda *args: None)
+    yield
+    # Jobs run on the worker thread: let them finish before the test's
+    # database goes away.
+    sections.wait_idle(10)
+    sections._jobs.clear()
 
 
 @pytest.fixture(name="db_file")
@@ -88,6 +106,21 @@ def test_scores_fixture():
 def test_user_fixture():
     """Test user for default db."""
     return User(username="testuser", email="test@example.com", password="hashed")
+
+
+@pytest.fixture
+def uploaded(session: Session, test_user: User, data_path):
+    """Store a PDF as an upload of ``user`` (default: the test user); returns its name."""
+
+    def make(content: bytes = PDF, user: User | None = None) -> str:
+        name = uploads.new_filename()
+        (data_path / name).write_bytes(content)
+        owner = user or test_user
+        assert owner.id is not None
+        uploads.record(session, owner.id, name, len(content))
+        return name
+
+    return make
 
 
 @pytest.fixture(name="client")

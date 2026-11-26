@@ -11,6 +11,7 @@ from app import config, demo, sections, users
 from app.main import app
 from app.rate_limit import limiter
 from shared.scores import Score
+from shared.uploads import Upload
 from shared.user import User
 
 
@@ -115,6 +116,9 @@ def test_setup_demo_copies_scores(session: Session, test_user: User, tmp_path, m
     assert (tmp_path / copy.pdf_path).read_bytes() == b"%PDF-1.4 demo"
     assert copies[1].pdf_path == ""
     assert len(generated) == 1
+    # The copy is the demo account's upload, sized for the storage quota.
+    upload = session.exec(select(Upload).where(Upload.filename == copy.pdf_path)).one()
+    assert (upload.user_id, upload.size, copy.pdf_size) == (demo_user.id, 13, 13)
 
     # Re-running replaces the library (and removes the old PDF copy).
     old_pdf = copy.pdf_path
@@ -122,6 +126,7 @@ def test_setup_demo_copies_scores(session: Session, test_user: User, tmp_path, m
     remaining = session.exec(select(Score).where(Score.user_id == demo_user.id)).all()
     assert [s.title for s in remaining] == ["Etude"]
     assert not (tmp_path / old_pdf).exists()
+    assert session.exec(select(Upload).where(Upload.filename == old_pdf)).first() is None
 
 
 def test_setup_demo_errors(session: Session, monkeypatch):

@@ -13,6 +13,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, func, select
 
 from app import config
@@ -31,12 +32,22 @@ READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY") or secrets.token_hex(32)
-if not os.getenv("JWT_SECRET_KEY"):
+
+def _secret_key() -> str:
+    """JWT signing key: required in production, random (per process) elsewhere."""
+    key = os.getenv("JWT_SECRET_KEY", "")
+    if key:
+        return key
+    if config.APP_ENV == "production":
+        raise RuntimeError("JWT_SECRET_KEY must be set in production (APP_ENV=production)")
     logger.warning(
         "JWT_SECRET_KEY is not set; using a random ephemeral secret. "
         "All tokens are invalidated on restart — set JWT_SECRET_KEY in production."
     )
+    return secrets.token_hex(32)
+
+
+SECRET_KEY = _secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 1
 # "Keep me logged in" — must match the cookie maxAge set by the Svelte login action.
@@ -110,7 +121,7 @@ class UserAdminResponse(UserResponse):
 class UserUpdateRequest(BaseModel):
     """User update request model."""
 
-    instrument: str | None = None
+    instrument: str | None = Field(default=None, max_length=50)
     email: EmailStr | None = None
     music_profile: str | None = Field(default=None, max_length=MUSIC_PROFILE_MAX_LENGTH)
 
@@ -158,6 +169,14 @@ def get_password_hash(password):
 def get_user(username: str, session: Session):
     """Get user by username."""
     return session.exec(select(User).where(User.username == username)).first()
+
+
+def username_taken(username: str, session: Session) -> bool:
+    """Whether an account already has this name, ignoring case ("Bob" = "bob")."""
+    return (
+        session.exec(select(User).where(func.lower(User.username) == username.lower())).first()
+        is not None
+    )
 
 
 # Verified against when the username doesn't exist, so unknown-user and
@@ -438,7 +457,7 @@ def add_user(
     session: Session = Depends(get_session),
 ):
     """Add a user to the db and email them a confirmation link."""
-    if get_user(user.username, session) is not None:
+    if username_taken(user.username, session):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
     if email_taken(user.email, session):
         raise HTTPException(
@@ -455,7 +474,15 @@ def add_user(
         email_verified=not config.EMAIL_VERIFICATION,
     )
     session.add(db_user)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        # Two sign-ups for the same name or email at once: the unique indexes
+        # stop the second one, which gets the same answer as a checked clash.
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Username or email already taken"
+        ) from exc
     session.refresh(db_user)
     if config.EMAIL_VERIFICATION:
         send_verification_email(db_user, background_tasks)

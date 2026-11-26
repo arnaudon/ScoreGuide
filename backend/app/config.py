@@ -10,12 +10,26 @@ tests monkeypatch the ``MODEL`` env var at call-time.
 
 import os
 
+# Where the backend runs: "production" refuses to start without the secrets a
+# deployment needs (JWT_SECRET_KEY). The deploy sets SENTRY_ENVIRONMENT and
+# S3 storage, so either marks production unless APP_ENV says otherwise;
+# tests and local dev (neither set) are "development".
+APP_ENV = (
+    os.getenv("APP_ENV")
+    or os.getenv("SENTRY_ENVIRONMENT")
+    or ("production" if os.getenv("S3_ENDPOINT") else "development")
+).lower()
+
 MCP_URL = os.getenv("MCP_URL", "http://mcp-postgres:8001/sse")
 AGENT_RATE_LIMIT = os.getenv("AGENT_RATE_LIMIT", "5/minute")
 MAX_PDF_MB = int(os.getenv("MAX_PDF_MB", "50"))
 # Storage abuse limits for one account: PDF uploads, and scores in a library.
 UPLOAD_RATE_LIMIT = os.getenv("UPLOAD_RATE_LIMIT", "30/hour")
 MAX_SCORES_PER_USER = int(os.getenv("MAX_SCORES_PER_USER", "1000"))
+# Adding or editing scores, per account (a new score with a PDF queues a
+# table-of-contents job), and the longest PDF accepted.
+SCORE_RATE_LIMIT = os.getenv("SCORE_RATE_LIMIT", "30/minute")
+MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "2000"))
 # Default plan limits (the admin page overrides them): AI tokens included once
 # (weighted; admins add more by hand), and storage in MB. See app.plans.
 FREE_AI_TOKENS = int(os.getenv("FREE_AI_TOKENS", "200000"))

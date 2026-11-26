@@ -15,7 +15,6 @@ break the demo, and vice versa). Re-running replaces the demo's scores.
 
 import argparse
 import io
-import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -23,10 +22,11 @@ import httpx
 import pypdf
 from sqlmodel import Session, select
 
-from app import annotations, config, sections
+from app import annotations, config, sections, uploads
 from app.file_helper import file_helper
 from app.users import DEMO_ROLE, get_user
 from shared.scores import Difficulty, Period, Score
+from shared.uploads import Upload
 from shared.user import User
 
 MUTOPIA = "https://www.mutopiaproject.org/ftp"
@@ -204,20 +204,23 @@ def get_or_create_demo_user(session: Session) -> User:
 
 
 def _clear_scores(user: User, session: Session) -> None:
+    pdfs = set()
     for score in session.exec(select(Score).where(Score.user_id == user.id)).all():
         sections.delete_sections(score.id, session)  # type: ignore[arg-type]
         annotations.delete_annotations(score.id, session)  # type: ignore[arg-type]
         if score.pdf_path:
-            file_helper.delete_pdf(score.pdf_path)
+            pdfs.add(score.pdf_path)
         session.delete(score)
+    pdfs.update(uploads.forget_user(user.id, session))  # type: ignore[arg-type]
     session.commit()
+    uploads.delete_unused_files(pdfs, session)
 
 
 def _copy_pdf(pdf_path: str) -> str:
     if not pdf_path:
         return ""
     data = file_helper.download_pdf(pdf_path)["Body"].read()
-    new_path = f"{uuid.uuid4().hex}.pdf"
+    new_path = uploads.new_filename()
     file_helper.upload_pdf(new_path, io.BytesIO(data))
     return new_path
 
@@ -246,6 +249,11 @@ def setup_demo(score_ids: list[int], session: Session) -> list[Score]:
 def _replace_library(user: User, fresh: list[Score], session: Session) -> list[Score]:
     _clear_scores(user, session)
     session.add_all(fresh)
+    # The copies are the demo account's uploads, like any user's PDFs.
+    for copy in fresh:
+        if copy.pdf_path:
+            copy.pdf_size = file_helper.get_size(copy.pdf_path)
+            session.add(Upload(user_id=user.id, filename=copy.pdf_path, size=copy.pdf_size))  # type: ignore[arg-type]
     session.commit()
 
     engine = session.get_bind()
@@ -312,7 +320,7 @@ def seed_catalog(
     for entry in CATALOG:
         fields = _entry_fields(entry)
         data = _fetch_pdf(entry["pdf_url"], fetch)
-        pdf_path = f"{uuid.uuid4().hex}.pdf"
+        pdf_path = uploads.new_filename()
         file_helper.upload_pdf(pdf_path, io.BytesIO(data))
         fresh.append(
             Score(

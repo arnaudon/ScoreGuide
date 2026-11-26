@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic import Field as PydanticField
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
@@ -132,6 +132,45 @@ class Scores(BaseModel):
         return len(self.scores)
 
 
+# Longest values a client may store (the database columns are unbounded):
+# room for real titles and AI-written descriptions, not for megabytes.
+# IMSLP instrumentation lists reach ~500 characters.
+NAME_MAX = 1000
+DESCRIPTION_MAX = 20000
+SHORT_DESCRIPTION_MAX = 5000
+URL_MAX = 500
+SOURCE_MAX = 100
+INTERPRETERS_MAX = 2000
+# Stored file names are ``<32 hex>.pdf`` (the API also checks ownership).
+PDF_PATH_MAX = 100
+
+# Field name -> max length, for clipping AI output to what clients may send.
+TEXT_LIMITS = {
+    "title": NAME_MAX,
+    "composer": NAME_MAX,
+    "genre": NAME_MAX,
+    "form": NAME_MAX,
+    "style": NAME_MAX,
+    "key": NAME_MAX,
+    "instrumentation": NAME_MAX,
+    "pdf_path": PDF_PATH_MAX,
+    "source": SOURCE_MAX,
+    "short_description": SHORT_DESCRIPTION_MAX,
+    "short_description_fr": SHORT_DESCRIPTION_MAX,
+    "long_description": DESCRIPTION_MAX,
+    "long_description_fr": DESCRIPTION_MAX,
+    "youtube_url": URL_MAX,
+    "notable_interpreters": INTERPRETERS_MAX,
+}
+
+
+def check_youtube_url(value: str | None) -> str | None:
+    """A video link must be a web address (or empty): no ``javascript:`` URLs."""
+    if value and not value.strip().lower().startswith(("http://", "https://")):
+        raise ValueError("youtube_url must start with http:// or https://")
+    return value
+
+
 class ScoreCreate(ScoreBase):
     """Request body for creating a score.
 
@@ -140,40 +179,52 @@ class ScoreCreate(ScoreBase):
     by pydantic's default behavior.
     """
 
-    pdf_path: str = Field(default="")
-    source: str = Field(default="IMSLP")
+    title: str = Field(max_length=NAME_MAX)
+    composer: str = Field(max_length=NAME_MAX)
+    year: int = Field(default=1750, gt=-1000, lt=3000)
+    genre: str = Field(default="Classical", max_length=NAME_MAX)
+    form: str = Field(default="Sonata", max_length=NAME_MAX)
+    style: str = Field(default="", max_length=NAME_MAX)
+    key: str = Field(default="", max_length=NAME_MAX)
+    instrumentation: str = Field(default="", max_length=NAME_MAX)
+    pdf_path: str = Field(default="", max_length=PDF_PATH_MAX)
+    source: str = Field(default="IMSLP", max_length=SOURCE_MAX)
     imslp_id: int | None = Field(default=None)
-    short_description: str = Field(default="")
-    short_description_fr: str = Field(default="")
-    long_description: str = Field(default="")
-    long_description_fr: str = Field(default="")
-    youtube_url: str = Field(default="")
+    short_description: str = Field(default="", max_length=SHORT_DESCRIPTION_MAX)
+    short_description_fr: str = Field(default="", max_length=SHORT_DESCRIPTION_MAX)
+    long_description: str = Field(default="", max_length=DESCRIPTION_MAX)
+    long_description_fr: str = Field(default="", max_length=DESCRIPTION_MAX)
+    youtube_url: str = Field(default="", max_length=URL_MAX)
     difficulty: Difficulty = Field(default=Difficulty.moderate)
-    notable_interpreters: str = Field(default="")
+    notable_interpreters: str = Field(default="", max_length=INTERPRETERS_MAX)
+
+    _youtube = field_validator("youtube_url")(check_youtube_url)
 
 
 class ScoreUpdate(BaseModel):
     """Partial update body. All fields optional; server-owned fields absent."""
 
-    title: str | None = None
-    composer: str | None = None
-    year: int | None = None
+    title: str | None = PydanticField(default=None, max_length=NAME_MAX)
+    composer: str | None = PydanticField(default=None, max_length=NAME_MAX)
+    year: int | None = PydanticField(default=None, gt=-1000, lt=3000)
     period: Period | None = None
-    genre: str | None = None
-    form: str | None = None
-    style: str | None = None
-    key: str | None = None
-    instrumentation: str | None = None
-    pdf_path: str | None = None
-    source: str | None = None
+    genre: str | None = PydanticField(default=None, max_length=NAME_MAX)
+    form: str | None = PydanticField(default=None, max_length=NAME_MAX)
+    style: str | None = PydanticField(default=None, max_length=NAME_MAX)
+    key: str | None = PydanticField(default=None, max_length=NAME_MAX)
+    instrumentation: str | None = PydanticField(default=None, max_length=NAME_MAX)
+    pdf_path: str | None = PydanticField(default=None, max_length=PDF_PATH_MAX)
+    source: str | None = PydanticField(default=None, max_length=SOURCE_MAX)
     imslp_id: int | None = None
-    short_description: str | None = None
-    short_description_fr: str | None = None
-    long_description: str | None = None
-    long_description_fr: str | None = None
-    youtube_url: str | None = None
+    short_description: str | None = PydanticField(default=None, max_length=SHORT_DESCRIPTION_MAX)
+    short_description_fr: str | None = PydanticField(default=None, max_length=SHORT_DESCRIPTION_MAX)
+    long_description: str | None = PydanticField(default=None, max_length=DESCRIPTION_MAX)
+    long_description_fr: str | None = PydanticField(default=None, max_length=DESCRIPTION_MAX)
+    youtube_url: str | None = PydanticField(default=None, max_length=URL_MAX)
     difficulty: Difficulty | None = None
-    notable_interpreters: str | None = None
+    notable_interpreters: str | None = PydanticField(default=None, max_length=INTERPRETERS_MAX)
+
+    _youtube = field_validator("youtube_url")(check_youtube_url)
 
 
 class IMSLP(ScoreBase, table=True):

@@ -1,27 +1,28 @@
 """Backend main entry point."""
 
+import json
 import logging
 import os
 import re
-import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from logging import getLogger
 from typing import Annotated
 
+import pypdfium2 as pdfium
 import sentry_sdk
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 from sqlmodel import Session, col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import annotations, config, db, imslp, llm, plans, sections, users
+from app import annotations, config, db, imslp, llm, plans, sections, uploads, users
 from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
 from app.db import get_async_session, get_session
 from app.file_helper import file_helper
@@ -33,7 +34,7 @@ from app.users import (
     get_verified_user,
 )
 from shared.annotations import Annotation
-from shared.scores import Score, ScoreCreate, Scores, ScoreUpdate, TocReport
+from shared.scores import TEXT_LIMITS, Score, ScoreCreate, Scores, ScoreUpdate, TocReport
 from shared.settings import Setting
 from shared.usage import AIUsage
 from shared.user import User
@@ -54,17 +55,40 @@ def _init_sentry() -> None:
 _init_sentry()
 
 
+# Input caps for the agent endpoints: a question is a few sentences; the
+# history the client sends back holds the previous turns, tool results
+# included (a library listing can be long); the library itself (``deps``)
+# is at most MAX_SCORES_PER_USER scores.
+PROMPT_MAX_LENGTH = 4000
+HISTORY_MAX_ITEMS = 200
+HISTORY_MAX_BYTES = 2_000_000
+DEPS_MAX_LENGTH = 5_000_000
+
+
 class ChatRequest(BaseModel):
     """Shared body for agent chat endpoints."""
 
-    prompt: str
-    message_history: list | None = None
+    prompt: str = Field(min_length=1, max_length=PROMPT_MAX_LENGTH)
+    message_history: list | None = Field(default=None, max_length=HISTORY_MAX_ITEMS)
+
+    @field_validator("message_history")
+    @classmethod
+    def _history_size(cls, value: list | None) -> list | None:
+        if value and len(json.dumps(value, default=str)) > HISTORY_MAX_BYTES:
+            raise ValueError("message_history is too large: start a new conversation")
+        return value
 
 
 class MainAgentRequest(ChatRequest):
     """Body for /agent — adds a JSON-encoded ``Scores`` blob."""
 
-    deps: str
+    deps: str = Field(max_length=DEPS_MAX_LENGTH)
+
+
+class CompleteRequest(BaseModel):
+    """Body for /complete_score: which of the caller's scores to complete."""
+
+    score_id: int
 
 
 class ModelsUpdate(BaseModel):
@@ -131,10 +155,13 @@ def health(session: Session = Depends(get_session)):
     return {"status": "ok"}
 
 
-def _pdf_size(pdf_path: str) -> int:
+def _pdf_size(pdf_path: str, session: Session) -> int:
     """Bytes of a stored PDF (0 when there is none), for the storage quota."""
     if not pdf_path:
         return 0
+    row = session.exec(select(uploads.Upload).where(uploads.Upload.filename == pdf_path)).first()
+    if row is not None and row.size:
+        return row.size
     try:
         return file_helper.get_size(pdf_path)
     except Exception:
@@ -143,13 +170,21 @@ def _pdf_size(pdf_path: str) -> int:
 
 
 @app.post("/scores")
+# Each score with a PDF queues a table-of-contents job: bound how fast one
+# account can add them (the job queue is bounded too, see app.sections).
+@limiter.limit(config.SCORE_RATE_LIMIT)
 def add_score(
+    request: Request,
     score: ScoreCreate,
     current_user: Annotated[User, Depends(get_current_user)],
-    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
     """Add a score to the db, and start building its table of contents."""
+    if score.pdf_path:
+        # A PDF means storage and a TOC job: same gate as uploading one.
+        get_verified_user(current_user)
+    assert current_user.id is not None
+    uploads.check_pdf_path(score.pdf_path, current_user.id, session)
     count = session.exec(
         select(func.count()).select_from(Score).where(Score.user_id == current_user.id)
     ).one()
@@ -159,12 +194,13 @@ def add_score(
             detail=f"Your library is full ({config.MAX_SCORES_PER_USER} scores).",
         )
     db_score = Score(**score.model_dump(), user_id=current_user.id)
-    db_score.pdf_size = _pdf_size(db_score.pdf_path)
+    db_score.pdf_size = _pdf_size(db_score.pdf_path, session)
     session.add(db_score)
     session.commit()
     session.refresh(db_score)
     if db_score.pdf_path:
-        sections.schedule_generation(db_score, background_tasks, session)
+        # Skipped when the queue is full: the reader offers a Rebuild.
+        sections.schedule_generation(db_score, session)
     return db_score
 
 
@@ -197,33 +233,72 @@ async def _agent_model(session: AsyncSession, setting_key: str):
         raise HTTPException(status_code=503, detail="AI provider not configured") from e
 
 
+def _clip_completion(completed: Score) -> dict:
+    """The completed score's details, cut to what a client may store; a video
+    link that isn't a web address is dropped."""
+    fields = completed.model_dump(include=set(ScoreUpdate.model_fields) - {"pdf_path", "source"})
+    for name, limit in TEXT_LIMITS.items():
+        if isinstance(fields.get(name), str):
+            fields[name] = fields[name][:limit]
+    if not str(fields.get("youtube_url") or "").lower().startswith(("http://", "https://")):
+        fields.pop("youtube_url", None)
+    if not isinstance(fields.get("year"), int) or not -1000 < fields["year"] < 3000:
+        fields.pop("year", None)
+    return ScoreUpdate.model_validate(fields).model_dump(exclude_none=True)
+
+
 @app.post("/complete_score")
 @limiter.limit(config.AGENT_RATE_LIMIT)
 async def complete_score(
     request: Request,
-    score: Score,
+    body: CompleteRequest,
     current_user: Annotated[User, Depends(get_verified_user)],
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Complete a score."""
+    """Fill in one of the caller's scores (details, descriptions) with the agent,
+    save them and return the updated score."""
+    score = (
+        await session.exec(
+            select(Score).where(Score.id == body.score_id, Score.user_id == current_user.id)
+        )
+    ).first()
+    if score is None:
+        raise HTTPException(status_code=404, detail="Score not found")
     name, model = await _agent_model(session, "model_complete")
 
     async with plans.metered(current_user, session, "complete_score", name) as usage:
         try:
-            return await run_complete_agent(score, model, usage=usage)
+            completed = await run_complete_agent(score, model, usage=usage)
         except Exception as e:
             logger.exception("complete_score failed")
             raise HTTPException(status_code=500, detail="Agent execution failed") from e
+    try:
+        updates = _clip_completion(completed)
+    except ValidationError as e:
+        logger.warning("complete_score: unusable agent output: %s", e)
+        raise HTTPException(status_code=500, detail="Agent execution failed") from e
+    for key, value in updates.items():
+        setattr(score, key, value)
+    session.add(score)
+    await session.commit()
+    await session.refresh(score)
+    return score
 
 
 @app.put("/scores/{score_id}")
+@limiter.limit(config.SCORE_RATE_LIMIT)
 def update_score(
+    request: Request,
     score_id: int,
     score_update: ScoreUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
 ):
-    """Update a score in the db."""
+    """Update a score in the db.
+
+    A new ``pdf_path`` must be a file the user uploaded; the old file goes
+    once no score uses it any more.
+    """
     db_score = session.exec(
         select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
     ).first()
@@ -231,14 +306,23 @@ def update_score(
     if not db_score:
         raise HTTPException(status_code=404, detail="Score not found")
 
+    old_pdf = db_score.pdf_path
+    if score_update.pdf_path is not None:
+        assert current_user.id is not None
+        uploads.check_pdf_path(score_update.pdf_path, current_user.id, session, current=old_pdf)
     for key, value in score_update.model_dump(exclude_unset=True).items():
+        if value is None and key in {"title", "composer", "pdf_path", "year"}:
+            continue  # not nullable
         setattr(db_score, key, value)
-    if "pdf_path" in score_update.model_fields_set:
-        db_score.pdf_size = _pdf_size(db_score.pdf_path)
+    if db_score.pdf_path != old_pdf:
+        db_score.pdf_size = _pdf_size(db_score.pdf_path, session)
 
     session.add(db_score)
     session.commit()
     session.refresh(db_score)
+    if old_pdf and db_score.pdf_path != old_pdf:
+        uploads.release(old_pdf, session)
+        session.refresh(db_score)
     return db_score
 
 
@@ -248,15 +332,18 @@ def delete_score(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
 ):
-    """Delete a score from the db."""
+    """Delete a score from the db, and its PDF when no other score uses it."""
     score = session.exec(
         select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
     ).first()
+    pdf = score.pdf_path if score is not None else ""
     if score is not None:
         sections.delete_sections(score.id, session)  # type: ignore[arg-type]
         annotations.delete_annotations(score.id, session)  # type: ignore[arg-type]
         session.delete(score)
     session.commit()
+    if pdf:
+        uploads.release(pdf, session)
 
 
 @app.delete("/user")
@@ -272,6 +359,8 @@ def delete_account(
     """
     scores = session.exec(select(Score).where(Score.user_id == current_user.id)).all()
     pdfs = {s.pdf_path for s in scores if s.pdf_path}
+    # Uploads too, attached to a score or not.
+    pdfs.update(uploads.forget_user(current_user.id, session))  # type: ignore[arg-type]
     for score in scores:
         sections.delete_sections(score.id, session)  # type: ignore[arg-type]
         annotations.delete_annotations(score.id, session)  # type: ignore[arg-type]
@@ -284,12 +373,7 @@ def delete_account(
     session.delete(current_user)
     session.commit()
     # Files last, once the rows are gone; keep any PDF another score uses.
-    for pdf in pdfs:
-        if session.exec(select(Score).where(Score.pdf_path == pdf)).first() is None:
-            try:
-                file_helper.delete_pdf(pdf)
-            except Exception:  # pragma: no cover - storage hiccup, rows are gone
-                logger.exception("could not delete %s", pdf)
+    uploads.delete_unused_files(pdfs, session)
     return {"message": "Account deleted successfully"}
 
 
@@ -413,18 +497,10 @@ def set_active_model(body: ModelsUpdate, session: Session = Depends(get_session)
     return {"message": "Models updated", "models": body.models}
 
 
-def get_pdf_user(  # pragma: no cover
-    request: Request, token: str = "", session: Session = Depends(get_session)
-):
-    """Dependency for PDF endpoints.
-
-    Prefers the ``Authorization: Bearer`` header (used by the SvelteKit
-    proxy); falls back to a ``token`` query param for legacy viewer URLs,
-    since ``<img>``/``<embed>`` can't send headers or cross-origin cookies.
-    """
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        token = auth.removeprefix("Bearer ")
+def get_pdf_user(request: Request, session: Session = Depends(get_session)):  # pragma: no cover
+    """Dependency for PDF endpoints: the ``Authorization: Bearer`` header the
+    SvelteKit proxy sends (tokens in URLs end up in logs, so no query param)."""
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     return get_current_user_from_token(token, session)
 
 
@@ -506,18 +582,34 @@ def get_pdf(
 
 
 def _upload_size(file: UploadFile) -> int:
-    """Bytes of an upload (measured when the client didn't say)."""
-    if file.size is not None:
-        return file.size
+    """Bytes of an upload, measured (the client's figure may be missing or wrong)."""
     file.file.seek(0, 2)
     size = file.file.tell()
     file.file.seek(0)
     return size
 
 
+def _check_pdf(data: bytes) -> None:
+    """400 unless pdfium can open the file; 413 past MAX_PDF_PAGES pages."""
+    try:
+        pdf = pdfium.PdfDocument(data)
+    except pdfium.PdfiumError as e:
+        raise HTTPException(status_code=400, detail="This PDF can't be read") from e
+    try:
+        pages = len(pdf)
+    finally:
+        pdf.close()
+    if pages == 0:  # pragma: no cover - pdfium already refuses page-less files
+        raise HTTPException(status_code=400, detail="This PDF can't be read")
+    if pages > config.MAX_PDF_PAGES:
+        raise HTTPException(
+            status_code=413, detail=f"PDF too long (at most {config.MAX_PDF_PAGES} pages)"
+        )
+
+
 @app.post("/pdf")
-# Per account (the key is the bearer token): bounds how fast one account can
-# fill the storage, including PDFs never attached to a score.
+# Per account (the key is the session's user): bounds how fast one account
+# can fill the storage, including PDFs never attached to a score.
 @limiter.limit(config.UPLOAD_RATE_LIMIT)
 def upload_pdf(
     request: Request,
@@ -525,25 +617,37 @@ def upload_pdf(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
 ):
-    """Upload a pdf file, within the user's storage limit."""
+    """Upload a pdf file, within the user's storage limit.
+
+    The file is recorded as the user's upload: it counts against their
+    storage from now on, and only they can attach it to a score.
+    """
     if file.content_type != "application/pdf":  # pragma: no cover
         raise HTTPException(status_code=400, detail="Only PDFs allowed")
-    if file.size is not None and file.size > config.MAX_PDF_MB * 1024 * 1024:
+    size = _upload_size(file)
+    if size > config.MAX_PDF_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail="PDF too large")
     # The content type is whatever the client claims: check the file itself.
     head = file.file.read(1024)
     file.file.seek(0)
     if b"%PDF-" not in head:
         raise HTTPException(status_code=400, detail="Only PDFs allowed")
-    plans.check_storage(current_user, session, _upload_size(file))
+    data = file.file.read()
+    file.file.seek(0)
+    _check_pdf(data)
+    plans.check_storage(current_user, session, size)
+    assert current_user.id is not None
+    file_id = uploads.new_filename()
+    # Recorded first: a stored file is never missing from the quota.
+    row = uploads.record(session, current_user.id, file_id, size)
     try:
-        file_id = f"{uuid.uuid4().hex}.pdf"
         file_helper.upload_pdf(file_id, file.file)
-        return {"message": "Upload successful", "file_id": file_id}
-
     except Exception as e:  # pragma: no cover
         logger.exception("pdf upload failed")
+        session.delete(row)
+        session.commit()
         raise HTTPException(status_code=500, detail="Upload failed") from e
+    return {"message": "Upload successful", "file_id": file_id}
 
 
 @app.delete("/pdf/{filename}")
@@ -552,7 +656,10 @@ def delete_pdf(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
 ):
-    """Delete a pdf file owned by the current user."""
-    _get_owned_score_by_pdf(filename, current_user, session)
-    file_helper.delete_pdf(filename)
+    """Delete a pdf file the current user uploaded and no score uses."""
+    assert current_user.id is not None
+    if uploads.owned(filename, current_user.id, session) is None:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    if not uploads.release(filename, session):
+        raise HTTPException(status_code=409, detail="This PDF is still used by a score")
     return {"message": "Delete successful"}
