@@ -23,6 +23,8 @@ class User(SQLModel, table=True):
     # The user's own words about their playing (level, tastes, goals); given
     # to the assistants so they suggest suitable scores.
     music_profile: str | None = Field(default=None)
+    # Let the AI read web pages for longer, sourced score descriptions (costs more).
+    detailed_descriptions: bool = Field(default=False)
     password: str | None = None
     role: str = Field(default="user")
     # Legacy per-request counters, replaced by the token allowance of `plan`

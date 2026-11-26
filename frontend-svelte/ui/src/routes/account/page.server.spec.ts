@@ -75,6 +75,28 @@ describe('update_profile action', () => {
 		expect(bodies.map((b) => b.music_profile)).toEqual(['Loves Debussy', '', undefined]);
 	});
 
+	it('sends the detailed-descriptions preference only when the form has it', async () => {
+		const fetch = vi.fn(async () => jsonResponse({}));
+		const cases: Record<string, string>[] = [
+			{ detailed_descriptions: 'true' },
+			{ detailed_descriptions: 'false' },
+			{}
+		];
+		for (const fields of cases) {
+			await actions.update_profile(
+				event({
+					request: fakeRequest({ email: 'e@x', ...fields }),
+					cookies: makeCookies({ access_token: 'tok' }),
+					fetch
+				})
+			);
+		}
+		const bodies = fetch.mock.calls.map((c) =>
+			JSON.parse((c as unknown as [string, RequestInit])[1].body as string)
+		);
+		expect(bodies.map((b) => b.detailed_descriptions)).toEqual([true, false, undefined]);
+	});
+
 	it('fails with backend detail when /user PUT returns non-OK', async () => {
 		const fetch = vi.fn(async () => jsonResponse({ detail: 'taken' }, 409));
 		const result = await actions.update_profile(

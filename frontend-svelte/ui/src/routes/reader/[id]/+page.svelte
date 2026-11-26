@@ -2,14 +2,14 @@
 	import type { PageProps } from './$types';
 	import { onMount } from 'svelte';
 	import { page as appPage } from '$app/state';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import ListIcon from '@lucide/svelte/icons/list';
 	import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import Maximize from '@lucide/svelte/icons/maximize';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
+	import ScoreDetailsDialog from '#lib/components/ScoreDetailsDialog.svelte';
 	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import ScoreContents from '#lib/components/ScoreContents.svelte';
 	import ScoreViewer from '#lib/components/ScoreViewer.svelte';
@@ -284,18 +284,12 @@
 	{/if}
 </div>
 
-<Dialog.Root bind:open={sheetOpen}>
-	<Dialog.Content>
-		<Dialog.Header>
-			<Dialog.Title class="text-fancy-title text-2xl"
-				>{data.score?.title || m.score_details()}</Dialog.Title
-			>
-			<Dialog.Description>{data.score?.composer || m.score_details_desc()}</Dialog.Description>
-		</Dialog.Header>
-		{#if data.score}
-			<ScoreDetails score={data.score} />
-		{/if}
-	</Dialog.Content>
-</Dialog.Root>
+<ScoreDetailsDialog
+	score={data.score}
+	bind:open={sheetOpen}
+	showOpen={false}
+	onEdit={() => (editOpen = true)}
+	onDeleted={() => goto(resolve('/db-viewer'))}
+/>
 
 <EditScoreDialog bind:open={editOpen} score={data.score} />

@@ -3,14 +3,10 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import * as Table from '#lib/components/ui/table/index.js';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
-	import TrashIcon from '@lucide/svelte/icons/trash-2';
-	import SparklesIcon from '@lucide/svelte/icons/sparkles';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
-	import BookOpenIcon from '@lucide/svelte/icons/book-open';
+	import ScoreDetailsDialog from '#lib/components/ScoreDetailsDialog.svelte';
+	import DetailedToggle from '#lib/components/DetailedToggle.svelte';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -45,9 +41,6 @@
 	let agentSelectedScore = $state<IMSLPScore | ImslpResult | null>(null);
 	let imslpSheetOpen = $state(false);
 	let uploading = $state(false);
-	let recompleting = $state(false);
-	let recompleteError = $state<string | null>(null);
-	let deleteError = $state<string | null>(null);
 	let sheetOpen = $state(false);
 	let editOpen = $state(false);
 	let manualFiles = $state<FileList | undefined>();
@@ -55,8 +48,6 @@
 
 	function openDetails(id: number) {
 		selectedScoreId = id;
-		recompleteError = null;
-		deleteError = null;
 		sheetOpen = true;
 	}
 
@@ -301,7 +292,7 @@
 								update();
 							};
 						}}
-						class="flex flex-col gap-4 md:flex-row md:items-end"
+						class="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end"
 					>
 						<div class="flex-1 space-y-2">
 							<label for="title" class="text-sm leading-none font-medium">{m.title()}</label>
@@ -336,6 +327,13 @@
 						<Button type="submit" disabled={uploading}>
 							{uploading ? m.adding() : m.add()}
 						</Button>
+						<div class="md:basis-full">
+							<DetailedToggle
+								id="upload-detailed"
+								checked={data.user?.detailed_descriptions ?? false}
+								hint
+							/>
+						</div>
 					</form>
 				</Tabs.Content>
 				<Tabs.Content value="imslp">
@@ -644,120 +642,13 @@
 	</div>
 </div>
 
-<Dialog.Root bind:open={sheetOpen}>
-	<Dialog.Content>
-		<Dialog.Header>
-			<Dialog.Title class="text-fancy-title text-2xl"
-				>{selectedScore?.title || m.score_details()}</Dialog.Title
-			>
-			<Dialog.Description>{selectedScore?.composer || m.score_details_desc()}</Dialog.Description>
-		</Dialog.Header>
-		{#if selectedScore}
-			<ScoreDetails score={selectedScore} />
-
-			<!-- The forms are empty: their buttons sit in the action row below
-			     and point at them with the form attribute. -->
-			<form
-				id="recomplete-form"
-				method="POST"
-				action="?/recomplete"
-				hidden
-				use:enhance={() => {
-					recompleting = true;
-					recompleteError = null;
-					return async ({ update, result }) => {
-						recompleting = false;
-						if (result.type === 'success') {
-							await invalidateAll();
-						} else if (result.type === 'failure') {
-							recompleteError = (result.data?.error as string) || m.failed_to_complete_score();
-						}
-						await update({ reset: false });
-					};
-				}}
-			>
-				<input type="hidden" name="id" value={selectedScore.id} />
-				<input type="hidden" name="title" value={selectedScore.title} />
-				<input type="hidden" name="composer" value={selectedScore.composer} />
-				<input type="hidden" name="pdf_path" value={selectedScore.pdf_path || ''} />
-			</form>
-			<form
-				id="delete-form"
-				method="POST"
-				action="?/delete"
-				hidden
-				use:enhance={() => {
-					deleteError = null;
-					return async ({ update, result }) => {
-						// Shown inside the dialog: the page banner is hidden behind it.
-						if (result.type === 'failure') {
-							deleteError = (result.data?.error as string) || m.err_delete_score();
-							return;
-						}
-						if (result.type === 'success') {
-							sheetOpen = false;
-							selectedScoreId = null;
-						}
-						await update();
-					};
-				}}
-			>
-				<input type="hidden" name="id" value={selectedScore.id} />
-			</form>
-
-			<div class="border-border flex flex-col gap-2 border-t pt-4">
-				{#if recompleteError}
-					<p role="alert" class="text-destructive text-sm font-medium">{recompleteError}</p>
-				{/if}
-				{#if deleteError}
-					<p role="alert" class="text-destructive text-sm font-medium">{deleteError}</p>
-				{/if}
-				<div class="flex flex-wrap items-center gap-2">
-					{#if !page.data.isDemo}
-						<Button
-							type="submit"
-							form="delete-form"
-							variant="ghost"
-							size="icon"
-							class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-							aria-label={m.delete_score()}
-							title={m.delete_score()}
-						>
-							<TrashIcon />
-						</Button>
-					{/if}
-					<span class="flex-1"></span>
-					{#if !page.data.isDemo}
-						<Button
-							type="submit"
-							form="recomplete-form"
-							variant="outline"
-							disabled={recompleting}
-							title={aiLeftLabel(data.user)}
-						>
-							<SparklesIcon />{recompleting ? m.running_agent() : m.rerun_complete_agent()}
-						</Button>
-						<Button
-							variant="outline"
-							onclick={() => {
-								sheetOpen = false;
-								editOpen = true;
-							}}
-						>
-							<PencilIcon />{m.edit_score()}
-						</Button>
-					{/if}
-					<Button href={resolve('/reader/[id]', { id: String(selectedScore.id) })}>
-						<BookOpenIcon />{m.view_pdf()}
-					</Button>
-				</div>
-				{#if !page.data.isDemo && aiLeftLabel(data.user)}
-					<p class="text-muted-foreground text-end text-xs">{aiLeftLabel(data.user)}</p>
-				{/if}
-			</div>
-		{/if}
-	</Dialog.Content>
-</Dialog.Root>
+<ScoreDetailsDialog
+	score={selectedScore}
+	bind:open={sheetOpen}
+	user={data.user}
+	onEdit={() => (editOpen = true)}
+	onDeleted={() => (selectedScoreId = null)}
+/>
 
 <ImslpAddDialog bind:work={agentSelectedScore} bind:open={imslpSheetOpen} />
 

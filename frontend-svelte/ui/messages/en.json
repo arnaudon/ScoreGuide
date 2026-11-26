@@ -456,5 +456,9 @@
 	"err_service_unavailable": "The service is temporarily unavailable. Please try again in a moment.",
 	"error_not_found": "This page does not exist.",
 	"error_back_home": "Back to home",
-	"logout_confirm": "Log out of ScoreGuide?"
+	"logout_confirm": "Log out of ScoreGuide?",
+	"detailed_label": "Detailed description (advanced)",
+	"detailed_hint": "The AI reads several web pages to write a longer description with history, playing tips, anecdotes and sources. Uses about 3 to 5 times more AI.",
+	"detailed_pref_label": "Detailed descriptions by default",
+	"detailed_pref_hint": "When the AI fills in a score, it reads several web pages for a longer, sourced description. Uses about 3 to 5 times more AI. You can still choose for each score."
 }

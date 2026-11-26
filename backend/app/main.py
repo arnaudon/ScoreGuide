@@ -89,6 +89,9 @@ class CompleteRequest(BaseModel):
     """Body for /complete_score: which of the caller's scores to complete."""
 
     score_id: int
+    # Read web pages for a longer, sourced description (more AI tokens).
+    # None: the user's preference.
+    detailed: bool | None = None
 
 
 class ModelsUpdate(BaseModel):
@@ -269,7 +272,10 @@ async def complete_score(
 
     async with plans.metered(current_user, session, "complete_score", name) as usage:
         try:
-            completed = await run_complete_agent(score, model, usage=usage)
+            detailed = (
+                current_user.detailed_descriptions if body.detailed is None else body.detailed
+            )
+            completed = await run_complete_agent(score, model, usage=usage, detailed=detailed)
         except Exception as e:
             logger.exception("complete_score failed")
             raise HTTPException(status_code=500, detail="Agent execution failed") from e

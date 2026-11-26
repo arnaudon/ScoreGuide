@@ -102,6 +102,7 @@ class UserResponse(BaseModel):
     last_name: str | None = None
     instrument: str | None = None
     music_profile: str | None = None
+    detailed_descriptions: bool = False
     role: str
     plan: str = "free"
     last_login: datetime | None = None
@@ -124,6 +125,7 @@ class UserUpdateRequest(BaseModel):
     instrument: str | None = Field(default=None, max_length=50)
     email: EmailStr | None = None
     music_profile: str | None = Field(default=None, max_length=MUSIC_PROFILE_MAX_LENGTH)
+    detailed_descriptions: bool | None = None
 
 
 class PasswordChangeRequest(BaseModel):
@@ -529,6 +531,9 @@ def update_user(
         updated = True
     if req.music_profile is not None:
         current_user.music_profile = req.music_profile.strip() or None
+        updated = True
+    if req.detailed_descriptions is not None:
+        current_user.detailed_descriptions = req.detailed_descriptions
         updated = True
 
     new_email = req.email.lower() if req.email is not None else None

@@ -413,6 +413,21 @@ describe('recomplete action', () => {
 		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({ score_id: 7 });
 	});
 
+	it('passes the detailed-description choice on', async () => {
+		const fetch = makeFetch().mockResolvedValueOnce(jsonResponse({ id: 7 }));
+		await actions.recomplete(
+			event({
+				request: fakeRequest({ id: '7', detailed: 'true' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({
+			score_id: 7,
+			detailed: true
+		});
+	});
+
 	it("surfaces the backend's reason when /complete_score fails (e.g. out of credits)", async () => {
 		const fetch = makeFetch(async () => jsonResponse({ detail: 'Not enough credits' }, 402));
 		const result = await actions.recomplete(

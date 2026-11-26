@@ -6,6 +6,7 @@ import * as m from '#lib/paraglide/messages.js';
 import { detailMessage } from '#lib/apiError.js';
 import { passwordLengthOk } from '#lib/password.js';
 import { callBackend } from '#lib/server/callBackend.js';
+import { formBool } from '#lib/server/formBool.js';
 import type { User } from '#lib/types.js';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
@@ -44,7 +45,8 @@ export const actions: Actions = {
 				body: JSON.stringify({
 					instrument: instrument?.toString(),
 					email: email?.toString(),
-					music_profile: musicProfile === null ? undefined : musicProfile.toString()
+					music_profile: musicProfile === null ? undefined : musicProfile.toString(),
+					detailed_descriptions: formBool(data, 'detailed_descriptions')
 				})
 			})
 		);
