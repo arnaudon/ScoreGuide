@@ -242,13 +242,27 @@ def _clip_completion(completed: Score) -> dict:
     link that isn't a web address is dropped."""
     fields = completed.model_dump(include=set(ScoreUpdate.model_fields) - {"pdf_path", "source"})
     for name, limit in TEXT_LIMITS.items():
-        if isinstance(fields.get(name), str):
-            fields[name] = fields[name][:limit]
+        value = fields.get(name)
+        # A collection's details can come back as lists (one key per piece).
+        if isinstance(value, list | tuple):
+            value = ", ".join(str(v) for v in value if v not in (None, ""))
+        if isinstance(value, str):
+            fields[name] = value[:limit]
     if not str(fields.get("youtube_url") or "").lower().startswith(("http://", "https://")):
         fields.pop("youtube_url", None)
     if not isinstance(fields.get("year"), int) or not -1000 < fields["year"] < 3000:
         fields.pop("year", None)
-    return ScoreUpdate.model_validate(fields).model_dump(exclude_none=True)
+    # The model's output isn't validated on the way in (Score is a table model):
+    # skip the fields it got wrong rather than lose the whole (paid-for) answer.
+    try:
+        return ScoreUpdate.model_validate(fields).model_dump(exclude_none=True)
+    except ValidationError as e:
+        bad = {err["loc"][0] for err in e.errors() if err["loc"]}
+        logger.warning("complete_score: dropping invalid fields %s", sorted(map(str, bad)))
+        kept = {k: v for k, v in fields.items() if k not in bad and v not in (None, "")}
+        if not kept:
+            raise
+        return ScoreUpdate.model_validate(kept).model_dump(exclude_none=True)
 
 
 @app.post("/complete_score")

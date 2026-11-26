@@ -318,6 +318,8 @@ async def run_agent(
 COMPLETE_SYSTEM_PROMPT = """You are a music expert helping musicians who are about to play a piece.
 Fill in accurate information about the piece. Search the web for anything you are not sure of;
 never guess dates, names or anecdotes. Ignore pdf_path, user_id, id and number_of_plays.
+Every field is a single line of plain text: for a collection of pieces, list the keys
+in one line ("A minor, A major, G minor"), never as a list.
 
 short_description: one sentence.
 
