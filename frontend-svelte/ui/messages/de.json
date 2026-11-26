@@ -274,6 +274,7 @@
 	"dismiss": "Schliessen",
 	"try_demo": "Demo ausprobieren",
 	"try_demo_hint": "Schau dich in einer Bibliothek zum Ansehen um – ohne Konto.",
+	"login_or": "oder",
 	"demo_banner": "Du siehst eine Demo nur zum Ansehen: Hochladen und Bearbeiten sind deaktiviert, und der Assistent gibt vorbereitete Antworten. Bleistiftstriche und Notizen bleiben in diesem Browser.",
 	"demo_signup": "Kostenloses Konto erstellen",
 	"err_demo_unavailable": "Die Demo ist gerade nicht verfügbar.",

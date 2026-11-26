@@ -274,6 +274,7 @@
 	"dismiss": "Dismiss",
 	"try_demo": "Try the demo",
 	"try_demo_hint": "Look around a read-only library — no account needed.",
+	"login_or": "or",
 	"demo_banner": "You are browsing a read-only demo: uploading and editing are disabled, and the assistant gives scripted answers. Pencil marks and notes stay in this browser.",
 	"demo_signup": "Create a free account",
 	"err_demo_unavailable": "The demo is not available right now.",

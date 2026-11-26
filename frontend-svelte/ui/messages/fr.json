@@ -274,6 +274,7 @@
 	"dismiss": "Fermer",
 	"try_demo": "Essayer la démo",
 	"try_demo_hint": "Découvrez une bibliothèque en lecture seule — sans compte.",
+	"login_or": "ou",
 	"demo_banner": "Vous visitez une démo en lecture seule : l'import et la modification sont désactivés, et l'assistant donne des réponses préparées. Vos annotations restent dans ce navigateur.",
 	"demo_signup": "Créer un compte gratuit",
 	"err_demo_unavailable": "La démo n'est pas disponible pour le moment.",
