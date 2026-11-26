@@ -77,11 +77,12 @@ describe('update_profile action', () => {
 
 	it('sends the detailed-descriptions preference only when the form has it', async () => {
 		const fetch = vi.fn(async () => jsonResponse({}));
-		for (const fields of [
+		const cases: Record<string, string>[] = [
 			{ detailed_descriptions: 'true' },
 			{ detailed_descriptions: 'false' },
 			{}
-		]) {
+		];
+		for (const fields of cases) {
 			await actions.update_profile(
 				event({
 					request: fakeRequest({ email: 'e@x', ...fields }),
