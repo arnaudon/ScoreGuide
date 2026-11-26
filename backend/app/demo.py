@@ -22,7 +22,7 @@ import httpx
 import pypdf
 from sqlmodel import Session, select
 
-from app import annotations, config, sections, uploads
+from app import annotations, config, demo_texts, sections, uploads
 from app.file_helper import file_helper
 from app.users import DEMO_ROLE, get_user
 from shared.scores import Difficulty, Period, Score
@@ -48,16 +48,9 @@ CATALOG: list[dict[str, Any]] = [
         "notable_interpreters": "Glenn Gould, András Schiff, Sviatoslav Richter",
         "short_description": "The opening prelude of The Well-Tempered Clavier, Book I.",
         "short_description_fr": "Le prélude d'ouverture du Clavier bien tempéré, livre I.",
-        "long_description": (
-            "A single flowing pattern of broken chords carries a slow, searching "
-            "harmonic journey from C major and back. Ideal for working on even touch "
-            "and voicing the top note of each figure."
-        ),
-        "long_description_fr": (
-            "Un seul motif d'accords brisés porte un lent parcours harmonique qui part "
-            "de do majeur et y revient. Idéal pour travailler un toucher égal et faire "
-            "chanter la note supérieure de chaque figure."
-        ),
+        "long_description": demo_texts.BACH_846,
+        "long_description_fr": demo_texts.BACH_846_FR,
+        "youtube_url": "https://www.youtube.com/watch?v=tHAR2Q7FmL8",
     },
     {
         "pdf_url": f"{MUTOPIA}/BeethovenLv/WoO59/fur_Elise_WoO59/fur_Elise_WoO59-a4.pdf",
@@ -72,16 +65,9 @@ CATALOG: list[dict[str, Any]] = [
         "notable_interpreters": "Alfred Brendel, Wilhelm Kempff",
         "short_description": "Beethoven's famous bagatelle in rondo form.",
         "short_description_fr": "La célèbre bagatelle de Beethoven, en forme de rondo.",
-        "long_description": (
-            "The gentle A-minor refrain returns between two contrasting episodes: a "
-            "lyrical one in F major and a stormier one over a repeated bass note. The "
-            "challenge is keeping the refrain light and singing."
-        ),
-        "long_description_fr": (
-            "Le doux refrain en la mineur revient entre deux épisodes contrastés : l'un "
-            "lyrique en fa majeur, l'autre plus agité sur une basse répétée. Tout l'enjeu "
-            "est de garder le refrain léger et chantant."
-        ),
+        "long_description": demo_texts.ELISE,
+        "long_description_fr": demo_texts.ELISE_FR,
+        "youtube_url": "https://www.youtube.com/watch?v=s71I_EWJk7I",
     },
     {
         "pdf_url": [
@@ -98,17 +84,9 @@ CATALOG: list[dict[str, Any]] = [
         "notable_interpreters": "Wilhelm Kempff, Emil Gilels, Daniel Barenboim",
         "short_description": "Beethoven's dramatic early sonata, in three movements.",
         "short_description_fr": "La sonate dramatique de jeunesse de Beethoven, en 3 mouvements.",
-        "long_description": (
-            "A slow, weighty Grave introduction bursts into a stormy Allegro; the "
-            "Adagio cantabile is one of Beethoven's most beloved melodies; the Rondo "
-            "closes with restless energy. Use the contents to jump between movements."
-        ),
-        "long_description_fr": (
-            "Une introduction Grave, lente et pesante, débouche sur un Allegro "
-            "tempétueux ; l'Adagio cantabile est l'une des mélodies les plus aimées de "
-            "Beethoven ; le Rondo conclut avec une énergie fébrile. La table des "
-            "matières permet de passer d'un mouvement à l'autre."
-        ),
+        "long_description": demo_texts.PATHETIQUE,
+        "long_description_fr": demo_texts.PATHETIQUE_FR,
+        "youtube_url": "https://www.youtube.com/watch?v=-Vn0imk60CA",
     },
     {
         "pdf_url": f"{MUTOPIA}/ChopinFF/O28/Chop-28-4/Chop-28-4-a4.pdf",
@@ -123,16 +101,9 @@ CATALOG: list[dict[str, Any]] = [
         "notable_interpreters": "Martha Argerich, Maurizio Pollini, Alfred Cortot",
         "short_description": "A short, mournful prelude, played at Chopin's own funeral.",
         "short_description_fr": "Un court prélude mélancolique, joué aux funérailles de Chopin.",
-        "long_description": (
-            "A plaintive melody floats over slowly shifting left-hand chords that slide "
-            "down by half steps. Few notes, but every chord change needs careful "
-            "pedalling and balance."
-        ),
-        "long_description_fr": (
-            "Une mélodie plaintive flotte sur des accords de la main gauche qui glissent "
-            "lentement par demi-tons. Peu de notes, mais chaque changement d'accord "
-            "demande une pédale et un équilibre soignés."
-        ),
+        "long_description": demo_texts.CHOPIN_28_4,
+        "long_description_fr": demo_texts.CHOPIN_28_4_FR,
+        "youtube_url": "https://www.youtube.com/watch?v=R-ESEyc9-pI",
     },
     {
         "pdf_url": f"{MUTOPIA}/SchumannR/O15/SchumannOp15No07/SchumannOp15No07-a4.pdf",
@@ -147,16 +118,9 @@ CATALOG: list[dict[str, Any]] = [
         "notable_interpreters": "Vladimir Horowitz, Martha Argerich, Clara Haskil",
         "short_description": "“Dreaming”, the best-known of the Scenes from Childhood.",
         "short_description_fr": "« Rêverie », la plus connue des Scènes d'enfants.",
-        "long_description": (
-            "One rising phrase is repeated and reharmonised throughout, shared between "
-            "the hands across several inner voices. It rewards a supple tempo and "
-            "careful voicing of the melody."
-        ),
-        "long_description_fr": (
-            "Une même phrase ascendante revient sans cesse, réharmonisée et partagée "
-            "entre les mains sur plusieurs voix intérieures. Elle demande un tempo souple "
-            "et une mélodie bien mise en valeur."
-        ),
+        "long_description": demo_texts.TRAUMEREI,
+        "long_description_fr": demo_texts.TRAUMEREI_FR,
+        "youtube_url": "https://www.youtube.com/watch?v=-YTwY0cUz_0",
     },
     {
         "pdf_url": f"{MUTOPIA}/SatieE/gymnopedie_1/gymnopedie_1-a4.pdf",
@@ -171,14 +135,9 @@ CATALOG: list[dict[str, Any]] = [
         "notable_interpreters": "Pascal Rogé, Aldo Ciccolini, Reinbert de Leeuw",
         "short_description": "Slow and calm, over a gently rocking accompaniment.",
         "short_description_fr": "Lent et calme, sur un accompagnement doucement balancé.",
-        "long_description": (
-            "A simple melody floats over an unchanging bass-and-chord accompaniment in "
-            "3/4. Easy to read, harder to keep perfectly still and even."
-        ),
-        "long_description_fr": (
-            "Une mélodie simple flotte sur un accompagnement basse-accord immuable à "
-            "3/4. Facile à lire, plus difficile à garder parfaitement calme et égal."
-        ),
+        "long_description": demo_texts.GYMNOPEDIE,
+        "long_description_fr": demo_texts.GYMNOPEDIE_FR,
+        "youtube_url": "https://www.youtube.com/watch?v=0CUhakq1q-I",
     },
 ]
 

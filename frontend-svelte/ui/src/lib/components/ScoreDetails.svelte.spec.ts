@@ -50,3 +50,30 @@ describe('ScoreDetails.svelte YouTube', () => {
 		expect(document.querySelector('a[href^="javascript:"]')).toBeNull();
 	});
 });
+
+describe('ScoreDetails.svelte description and plays', () => {
+	it('renders sections, lists and source links', async () => {
+		render(ScoreDetails, {
+			score: {
+				...score(),
+				long_description:
+					'## History\nWritten in 1888.\n\n## Sources\n- Wikipedia: https://en.wikipedia.org/wiki/Gymnop%C3%A9dies'
+			} as unknown as Score
+		});
+		await expect.element(page.getByRole('heading', { name: 'History' })).toBeInTheDocument();
+		await expect.element(page.getByRole('heading', { name: 'Sources' })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('link', { name: 'en.wikipedia.org' }))
+			.toHaveAttribute('href', 'https://en.wikipedia.org/wiki/Gymnop%C3%A9dies');
+	});
+
+	it('shows how often a library score was played', async () => {
+		render(ScoreDetails, { score: { ...score(), number_of_plays: 3 } as unknown as Score });
+		await expect.element(page.getByText('Played 3×')).toBeInTheDocument();
+	});
+
+	it('says when a score was never opened, and nothing for IMSLP results', async () => {
+		render(ScoreDetails, { score: { ...score(), number_of_plays: 0 } as unknown as Score });
+		await expect.element(page.getByText('Not opened yet')).toBeInTheDocument();
+	});
+});

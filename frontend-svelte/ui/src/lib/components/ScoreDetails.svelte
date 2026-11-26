@@ -2,10 +2,12 @@
 	import PlayIcon from '@lucide/svelte/icons/circle-play';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import SearchIcon from '@lucide/svelte/icons/search';
+	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import { youtubeEmbedUrl, youtubeSearchUrl, youtubeVideoId } from '#lib/youtube.js';
 	import type { IMSLPScore, ImslpResult, Score } from '#lib/types.js';
 	import { localizedField } from '#lib/i18n/score.js';
 	import { httpUrl } from '#lib/url.js';
+	import { parseDescription, type Inline } from '#lib/description.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	/**
@@ -37,8 +39,20 @@
 		].filter((c) => c.value && c.value !== '0')
 	);
 	let difficulty = $derived(str('difficulty'));
+	// Only library scores count plays (IMSLP results have no such field).
+	let plays = $derived(
+		typeof rec.number_of_plays === 'number' ? (rec.number_of_plays as number) : null
+	);
 	let summary = $derived(localizedField(score, 'short_description'));
-	let about = $derived(localizedField(score, 'long_description'));
+	let about = $derived(parseDescription(localizedField(score, 'long_description')));
+	/** A link shows its site (the full address is in the tooltip). */
+	const linkLabel = (href: string) => {
+		try {
+			return new URL(href).hostname.replace(/^www\./, '');
+		} catch {
+			return href;
+		}
+	};
 	let facts = $derived(
 		[
 			{ label: m.label_genre(), value: str('genre') },
@@ -60,28 +74,38 @@
 </script>
 
 <div class="flex flex-col gap-5">
-	{#if chips.length || difficulty}
-		<ul class="flex flex-wrap gap-1.5" aria-label={m.score_details()}>
-			{#each chips as chip (chip.label)}
-				<li
-					class="bg-muted text-foreground rounded-full px-2.5 py-0.5 text-xs font-medium"
-					title={chip.label}
+	{#if chips.length || difficulty || plays !== null}
+		<div class="flex flex-wrap items-start gap-2">
+			<ul class="flex flex-1 flex-wrap gap-1.5" aria-label={m.score_details()}>
+				{#each chips as chip (chip.label)}
+					<li
+						class="bg-muted text-foreground rounded-full px-2.5 py-0.5 text-xs font-medium"
+						title={chip.label}
+					>
+						<span class="sr-only">{chip.label}: </span>{chip.value}
+					</li>
+				{/each}
+				{#if difficulty}
+					<li
+						class={[
+							'rounded-full px-2.5 py-0.5 text-xs font-medium capitalize',
+							DIFFICULTY_TONE[difficulty] ?? 'bg-muted text-foreground'
+						]}
+						title={m.label_difficulty()}
+					>
+						<span class="sr-only">{m.label_difficulty()}: </span>{difficulty}
+					</li>
+				{/if}
+			</ul>
+			{#if plays !== null}
+				<span
+					class="text-muted-foreground ml-auto inline-flex shrink-0 items-center gap-1.5 text-xs font-medium"
 				>
-					<span class="sr-only">{chip.label}: </span>{chip.value}
-				</li>
-			{/each}
-			{#if difficulty}
-				<li
-					class={[
-						'rounded-full px-2.5 py-0.5 text-xs font-medium capitalize',
-						DIFFICULTY_TONE[difficulty] ?? 'bg-muted text-foreground'
-					]}
-					title={m.label_difficulty()}
-				>
-					<span class="sr-only">{m.label_difficulty()}: </span>{difficulty}
-				</li>
+					<BookOpenIcon class="size-3.5" aria-hidden="true" />
+					{plays ? m.home_played_times({ count: plays }) : m.home_never_played()}
+				</span>
 			{/if}
-		</ul>
+		</div>
 	{/if}
 
 	{#if summary}
@@ -101,8 +125,36 @@
 		</dl>
 	{/if}
 
-	{#if about}
-		<p class="text-muted-foreground text-sm leading-relaxed whitespace-pre-line">{about}</p>
+	{#snippet inline(parts: Inline[])}
+		{#each parts as part, i (i)}
+			{#if part.href}
+				<a
+					href={part.href}
+					title={part.href}
+					target="_blank"
+					rel="external noopener noreferrer"
+					class="text-primary break-all hover:underline">{linkLabel(part.href)}</a
+				>
+			{:else}{part.text}{/if}
+		{/each}
+	{/snippet}
+
+	{#if about.length}
+		<div class="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
+			{#each about as block, i (i)}
+				{#if block.kind === 'heading'}
+					<h3 class="text-foreground mt-2 text-base font-semibold first:mt-0">{block.text}</h3>
+				{:else if block.kind === 'list'}
+					<ul class="list-disc space-y-1 pl-5">
+						{#each block.items as item, j (j)}
+							<li>{@render inline(item)}</li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="whitespace-pre-line">{@render inline(block.parts)}</p>
+				{/if}
+			{/each}
+		</div>
 	{/if}
 
 	{#if videoId}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
+	import ScoreDetailsDialog from '#lib/components/ScoreDetailsDialog.svelte';
+	import EditScoreDialog from '#lib/components/EditScoreDialog.svelte';
 	import AgentChat from '#lib/components/AgentChat.svelte';
 	import ChatScores from '#lib/components/ChatScores.svelte';
 	import ImslpSearch from '#lib/components/ImslpSearch.svelte';
@@ -9,17 +9,22 @@
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import { composerName, summarizeLibrary } from '#lib/library.js';
 	import { periodLabel } from '#lib/imslp.js';
-	import { Button } from '#lib/components/ui/button/index.js';
 	import { mainAgentHistoryStore } from '#lib/stores/chat.svelte.js';
 	import type { ImslpResult, Score } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	let { form, data } = $props();
 	let sheetOpen = $state(false);
+	let editOpen = $state(false);
 	let selectedScoreDetails = $state<Score | null>(null);
 	let imslpWork = $state<ImslpResult | null>(null);
 	let imslpOpen = $state(false);
 	let addedScoreId = $state<number | null | undefined>(undefined);
+	// After an edit or an AI rerun the page data reloads: show the fresh copy.
+	let shownScore = $derived(
+		(data.scores ?? []).find((s: Score) => s.id === selectedScoreDetails?.id) ??
+			selectedScoreDetails
+	);
 	let summary = $derived(summarizeLibrary(data.scores ?? []));
 	let composerMax = $derived(Math.max(1, ...summary.topComposers.map((c) => c.count)));
 	let periodMax = $derived(Math.max(1, ...summary.periods.map((p) => p.count)));
@@ -248,28 +253,9 @@
 	{/if}
 </div>
 
-<Dialog.Root bind:open={sheetOpen}>
-	<Dialog.Content>
-		<Dialog.Header>
-			<Dialog.Title class="text-fancy-title text-2xl"
-				>{selectedScoreDetails?.title || m.score_details()}</Dialog.Title
-			>
-			<Dialog.Description
-				>{selectedScoreDetails?.composer || m.score_details_desc()}</Dialog.Description
-			>
-		</Dialog.Header>
-		{#if selectedScoreDetails}
-			<ScoreDetails score={selectedScoreDetails} />
+<ScoreDetailsDialog score={shownScore} bind:open={sheetOpen} onEdit={() => (editOpen = true)} />
 
-			<div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-				<Button
-					href={resolve('/reader/[id]', { id: String(selectedScoreDetails.id) })}
-					class="w-full">{m.view_pdf()}</Button
-				>
-			</div>
-		{/if}
-	</Dialog.Content>
-</Dialog.Root>
+<EditScoreDialog bind:open={editOpen} score={shownScore} action="/db-viewer?/update_score" />
 
 <ImslpAddDialog
 	bind:work={imslpWork}
