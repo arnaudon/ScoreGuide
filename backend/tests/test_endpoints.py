@@ -114,12 +114,36 @@ def test_complete_score_unusable_output(
     assert resp.status_code == 200
     assert resp.json()["year"] == 1750  # out-of-range year dropped, the rest saved
 
-    async def broken(_score, _model, usage):
+    async def broken(_score, _model, usage, detailed=False):
         return type("NotAScore", (), {"model_dump": lambda self, **kw: {"title": 5}})()
 
     monkeypatch.setattr(main, "run_complete_agent", broken)
     resp = client.post("/complete_score", json={"score_id": _first_score_id(session, test_user)})
     assert resp.status_code == 500
+
+
+def test_complete_score_keeps_good_fields_of_a_messy_answer(
+    client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
+):
+    """A collection: keys as a list, a made-up difficulty; the rest is saved."""
+
+    async def fake_run_complete_agent(_score, _model, usage, detailed=False):
+        _spend(usage)
+        return Score(
+            title="Preludes",
+            composer="Chopin",
+            key=["A minor (No. 1)", "", "E-flat minor (No. 6)"],  # type: ignore[arg-type]
+            difficulty="impossible",  # type: ignore[arg-type]
+            long_description="## History\nWritten in Mallorca.",
+        )
+
+    monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
+    resp = client.post("/complete_score", json={"score_id": _first_score_id(session, test_user)})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["key"] == "A minor (No. 1), E-flat minor (No. 6)"
+    assert body["long_description"] == "## History\nWritten in Mallorca."
+    assert body["difficulty"] != "impossible"
 
 
 def test_complete_score_error_still_logs_spent_tokens(

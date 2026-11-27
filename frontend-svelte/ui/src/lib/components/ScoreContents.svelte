@@ -96,7 +96,7 @@
 					src={`/api/incipit/${section.score_id}/${section.id}`}
 					alt={m.toc_incipit_alt({ title: section.title })}
 					loading="lazy"
-					class="w-full rounded-sm bg-white dark:invert"
+					class="w-full rounded-sm bg-white dark:brightness-90"
 				/>
 			{/if}
 		</button>

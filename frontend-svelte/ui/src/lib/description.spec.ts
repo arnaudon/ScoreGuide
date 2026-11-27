@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkify, parseDescription } from './description';
+import { inline, linkify, parseDescription } from './description';
 
 describe('parseDescription', () => {
 	it('keeps an unstructured description as one paragraph', () => {
@@ -43,6 +43,42 @@ describe('linkify', () => {
 	it('never links other schemes', () => {
 		expect(linkify('javascript:alert(1) and ftp://x')).toEqual([
 			{ text: 'javascript:alert(1) and ftp://x' }
+		]);
+	});
+});
+
+describe('markdown the AI writes anyway', () => {
+	it('reads bold, italics, other bullets and heading levels', () => {
+		const text =
+			'### **History**\nBrahms wrote **Op. 118** in 1893.\n\n## Playing it\n* **Voicing**: use *rubato*.\n1. Second\n• Third';
+		expect(parseDescription(text)).toEqual([
+			{ kind: 'heading', text: 'History' },
+			{
+				kind: 'paragraph',
+				parts: [{ text: 'Brahms wrote ' }, { text: 'Op. 118', strong: true }, { text: ' in 1893.' }]
+			},
+			{ kind: 'heading', text: 'Playing it' },
+			{
+				kind: 'list',
+				items: [
+					[
+						{ text: 'Voicing', strong: true },
+						{ text: ': use ' },
+						{ text: 'rubato', em: true },
+						{ text: '.' }
+					],
+					[{ text: 'Second' }],
+					[{ text: 'Third' }]
+				]
+			}
+		]);
+	});
+
+	it('keeps lone asterisks out and links inside bold', () => {
+		expect(inline('a ** b')).toEqual([{ text: 'a  b' }]);
+		expect(inline('2 * 3 = 6')).toEqual([{ text: '2 * 3 = 6' }]);
+		expect(inline('**https://x.org**')).toEqual([
+			{ text: 'https://x.org', href: 'https://x.org', strong: true }
 		]);
 	});
 });

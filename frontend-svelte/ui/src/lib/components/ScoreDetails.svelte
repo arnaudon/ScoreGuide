@@ -135,7 +135,8 @@
 					rel="external noopener noreferrer"
 					class="text-primary break-all hover:underline">{linkLabel(part.href)}</a
 				>
-			{:else}{part.text}{/if}
+			{:else if part.strong}<strong class="text-foreground font-semibold">{part.text}</strong
+				>{:else if part.em}<em>{part.text}</em>{:else}{part.text}{/if}
 		{/each}
 	{/snippet}
 

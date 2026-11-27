@@ -40,7 +40,7 @@ from pypdf import PdfReader
 # Bump when detection improves enough that existing tables of contents are
 # worth rebuilding: entries store the version that produced them, and the
 # reader offers a rebuild when it is older than this.
-TOC_VERSION = 3
+TOC_VERSION = 4
 
 logger = logging.getLogger(__name__)
 
@@ -1008,8 +1008,12 @@ def split_piece(title: str) -> tuple[str, str]:
 
 
 def _printed_number(piece: str) -> int | None:
-    rest = piece.split(maxsplit=1)[1:]
-    m = _KIND_NUMBER_RE.match(rest[0]) if rest else None
+    rest = piece.split()[1:3]
+    # "Sonata No. 8 “Pathétique”": the number is "No. 8", two tokens.
+    m = next(
+        (m for n in (2, 1) if len(rest) >= n and (m := _KIND_NUMBER_RE.match(" ".join(rest[:n])))),
+        None,
+    )
     if not m:
         return None
     raw = m.group(2).upper()
@@ -1068,6 +1072,17 @@ def nest_entries(heads: list[tuple[str, str]]) -> list[_Entry]:
     split = [(piece, title) if piece else split_piece(title) for piece, title in heads]
     if not any(piece for piece, _ in split):
         return [_Entry(k, title, 0) for k, (_, title) in enumerate(heads)]
+    # A work's title repeated over each of its movements ("Sonata No. 8
+    # “Pathétique”" atop every movement) is the same piece carrying on. A bare
+    # kind ("SONATA." over each sonata of a volume) is not: those are new pieces.
+    current = ""
+    for k, (piece, title) in enumerate(split):
+        if not piece:
+            continue
+        if len(piece.split()) > 1 and _norm(piece) == current:
+            split[k] = ("", title)
+        else:
+            current = _norm(piece)
     numbered = number_pieces([piece for piece, _ in split])
     groups: list[list[_Entry]] = []
     for k, (piece, title) in enumerate(split):
