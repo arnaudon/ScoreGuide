@@ -1,7 +1,7 @@
 """Detailed descriptions: the preference, the page reader and its safety checks."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -108,16 +108,19 @@ async def test_fetch_refuses_private_hosts(monkeypatch):
             await sources.fetch_page_text("https://example.org/x", 100, client)
 
 
-def _ctx(*urls):
+def _ctx(*urls, deps=None):
     part = ToolReturnPart(tool_name="search", content=[{"href": u} for u in urls], tool_call_id="1")
-    return SimpleNamespace(messages=[ModelRequest(parts=[part])])
+    return SimpleNamespace(
+        messages=[ModelRequest(parts=[part])], deps=deps or agent.CompleteDeps(detailed=True)
+    )
 
 
 @pytest.mark.asyncio
 async def test_read_page_only_reads_found_pages_up_to_the_limit(monkeypatch):
     fetch = AsyncMock(return_value="Composed in 1888.")
     monkeypatch.setattr(sources, "fetch_page_text", fetch)
-    read_page = agent._page_reader(max_pages=1, max_chars=100)
+    monkeypatch.setattr(agent.config, "DETAILED_MAX_PAGES", 1)
+    read_page = agent.read_page
     ctx = _ctx(WIKI, "https://example.org/b")
 
     assert (await read_page(ctx, "https://invented.example")).startswith("Refused: only")
@@ -130,7 +133,7 @@ async def test_read_page_only_reads_found_pages_up_to_the_limit(monkeypatch):
 @pytest.mark.asyncio
 async def test_read_page_reports_failures(monkeypatch):
     monkeypatch.setattr(sources, "fetch_page_text", AsyncMock(side_effect=ValueError("HTTP 500")))
-    read_page = agent._page_reader(max_pages=2, max_chars=100)
+    read_page = agent.read_page
     assert await read_page(_ctx(WIKI), WIKI) == "Could not read the page: HTTP 500"
     monkeypatch.setattr(sources, "fetch_page_text", AsyncMock(return_value=""))
     assert await read_page(_ctx(WIKI), WIKI) == "(empty page)"
@@ -138,13 +141,20 @@ async def test_read_page_reports_failures(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("detailed", [False, True])
-async def test_detailed_mode_adds_the_reader_and_the_brief(monkeypatch, detailed):
-    result = MagicMock(output=Score(title="t", composer="c"))
-    result.all_messages.return_value = []
-    agent_cls = MagicMock()
-    agent_cls.return_value.run = AsyncMock(return_value=result)
-    monkeypatch.setattr(agent, "Agent", agent_cls)
-    await agent.run_complete_agent(Score(title="t", composer="c"), detailed=detailed)
-    kwargs = agent_cls.call_args.kwargs
-    assert len(kwargs["tools"]) == (2 if detailed else 1)
-    assert ("DETAILED MODE" in kwargs["system_prompt"]) is detailed
+async def test_detailed_mode_adds_the_reader_and_the_brief(detailed):
+    from pydantic_ai.messages import ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import AgentInfo, FunctionModel
+
+    seen = {}
+
+    def answer(_messages, info: AgentInfo):
+        seen["tools"] = [t.name for t in info.function_tools]
+        seen["instructions"] = info.instructions or ""
+        args = {"title": "t", "composer": "c"} | dict.fromkeys(agent.DESCRIPTION_FIELDS, "x")
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, args)])
+
+    await agent.run_complete_agent(
+        Score(title="t", composer="c"), model=FunctionModel(answer), detailed=detailed
+    )
+    assert ("read_page" in seen["tools"]) is detailed
+    assert ("DETAILED MODE" in seen["instructions"]) is detailed

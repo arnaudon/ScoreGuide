@@ -9,6 +9,8 @@
 	import { httpUrl } from '#lib/url.js';
 	import { parseDescription, type Inline } from '#lib/description.js';
 	import { splitNames } from '#lib/names.js';
+	import { formLabel, genreLabel, keyLabel } from '#lib/metadata.js';
+	import { periodLabel } from '#lib/imslp.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	/**
@@ -34,8 +36,8 @@
 	let chips = $derived(
 		[
 			{ label: m.label_year(), value: str('year') },
-			{ label: m.label_period(), value: str('period') },
-			{ label: m.label_key_signature(), value: str('key') },
+			{ label: m.label_period(), value: periodLabel(str('period')) },
+			{ label: m.label_key_signature(), value: keyLabel(str('key')) },
 			{ label: m.label_instrumentation(), value: str('instrumentation') }
 		].filter((c) => c.value && c.value !== '0')
 	);
@@ -56,8 +58,8 @@
 	};
 	let facts = $derived(
 		[
-			{ label: m.label_genre(), value: str('genre') },
-			{ label: m.label_form(), value: str('form') },
+			{ label: m.label_genre(), value: genreLabel(str('genre')) },
+			{ label: m.label_form(), value: formLabel(str('form')) },
 			{ label: m.label_style(), value: str('style') }
 		].filter((f) => f.value)
 	);

@@ -157,58 +157,48 @@ async def test_run_agent_exception(monkeypatch):
     assert result.response.response == "An unexpected error occurred"
 
 
-@pytest.mark.asyncio
-async def test_run_complete_agent_success(monkeypatch):
-    """Test run_complete_agent successfully completes a score."""
-    score = Score(title="test", composer="test")
-    mock_result = MagicMock()
-    mock_result.output = score
-    mock_agent_run = AsyncMock(return_value=mock_result)
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.run = mock_agent_run
-    mock_agent_class = MagicMock(return_value=mock_agent_instance)
-    monkeypatch.setattr("app.agent.Agent", mock_agent_class)
-    result = await agent.run_complete_agent(score)
-    assert result == score
+def _failing(error: Exception):
+    """A model that fails its first request with ``error``."""
+    from pydantic_ai.models.function import FunctionModel
+
+    def fail(_messages, _info):
+        raise error
+
+    return FunctionModel(fail)
 
 
 @pytest.mark.asyncio
-async def test_run_complete_agent_http_error_429(monkeypatch):
-    """Test run_complete_agent propagates a 429 HTTP error instead of swallowing it."""
-    mock_agent_run = AsyncMock(side_effect=ModelHTTPError(429, "error"))
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.run = mock_agent_run
-    mock_agent_class = MagicMock(return_value=mock_agent_instance)
-    monkeypatch.setattr("app.agent.Agent", mock_agent_class)
-    score = Score(title="test", composer="test")
-    with pytest.raises(ModelHTTPError):
-        await agent.run_complete_agent(score)
+async def test_run_complete_agent_success():
+    """The test model's answer fills the score; what it left empty keeps the stored value."""
+    from pydantic_ai.models.test import TestModel
+
+    score = Score(title="test", composer="test", instrumentation="Piano", style="old")
+    answer = {
+        "title": "Test",
+        "composer": "Tester",
+        "style": "",
+        "short_description": "s",
+        "short_description_fr": "s",
+        "long_description": "## History\\nWritten in 1893.",
+        "long_description_fr": "l",
+    }
+    model = TestModel(call_tools=[], custom_output_args=answer)
+    result = await agent.run_complete_agent(score, model=model)
+    assert (result.title, result.composer, result.short_description) == ("Test", "Tester", "s")
+    assert (result.instrumentation, result.style) == ("Piano", "old")
+    # Escaped line breaks are undone by the output validator.
+    assert result.long_description == "## History\nWritten in 1893."
 
 
 @pytest.mark.asyncio
-async def test_run_complete_agent_http_error_other(monkeypatch):
-    """Test run_complete_agent propagates a non-429 HTTP error instead of swallowing it."""
-    mock_agent_run = AsyncMock(side_effect=ModelHTTPError(500, "error"))
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.run = mock_agent_run
-    mock_agent_class = MagicMock(return_value=mock_agent_instance)
-    monkeypatch.setattr("app.agent.Agent", mock_agent_class)
+@pytest.mark.parametrize(
+    "error", [ModelHTTPError(429, "m"), ModelHTTPError(500, "m"), RuntimeError("error")]
+)
+async def test_run_complete_agent_propagates_errors(error):
+    """Model errors reach the endpoint (which logs the tokens and answers 500)."""
     score = Score(title="test", composer="test")
-    with pytest.raises(ModelHTTPError):
-        await agent.run_complete_agent(score)
-
-
-@pytest.mark.asyncio
-async def test_run_complete_agent_exception(monkeypatch):
-    """Test run_complete_agent propagates a generic exception instead of swallowing it."""
-    mock_agent_run = AsyncMock(side_effect=Exception("error"))
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.run = mock_agent_run
-    mock_agent_class = MagicMock(return_value=mock_agent_instance)
-    monkeypatch.setattr("app.agent.Agent", mock_agent_class)
-    score = Score(title="test", composer="test")
-    with pytest.raises(Exception, match="error"):
-        await agent.run_complete_agent(score)
+    with pytest.raises(type(error)):
+        await agent.run_complete_agent(score, model=_failing(error))
 
 
 @pytest.mark.asyncio
@@ -316,3 +306,64 @@ async def test_run_complete_agent_requires_descriptions():
     result = await agent.run_complete_agent(score, model=TestModel(call_tools=[]))
     assert result.long_description and result.short_description_fr
     assert (result.id, result.user_id, result.pdf_path) == (None, None, "x.pdf")
+
+
+async def test_run_complete_agent_tidies_details_and_reads_contents():
+    """Genre/form/key come back in the fixed vocabulary; the table of contents is in the prompt."""
+    from pydantic_ai.messages import ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import AgentInfo, FunctionModel
+
+    prompts = []
+
+    def answer(messages, info: AgentInfo):
+        prompts.append(str(messages[0].parts[-1].content))
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    info.output_tools[0].name,
+                    {
+                        "title": "Six Piano Pieces, Op. 118",
+                        "composer": "Johannes Brahms",
+                        "genre": "Piano",
+                        "form": "Klavierstücke",
+                        "key": ["A minor", "A major"],
+                        "short_description": "s",
+                        "short_description_fr": "s",
+                        "long_description": "l",
+                        "long_description_fr": "l",
+                    },
+                )
+            ]
+        )
+
+    schema = agent.ScoreCompletion.model_json_schema()
+    assert schema["properties"]["form"]["enum"][0] == "Sonata"
+    score = Score(title="Op 118", composer="Brahms")
+    result = await agent.run_complete_agent(
+        score, model=FunctionModel(answer), contents=["p. 1: Intermezzo", "p. 5: Ballade"]
+    )
+    assert (
+        "<table_of_contents>\np. 1: Intermezzo\np. 5: Ballade\n</table_of_contents>" in prompts[0]
+    )
+    assert (result.title, result.composer) == ("Six Piano Pieces, Op. 118", "Johannes Brahms")
+    assert (result.genre, result.form, result.key) == ("Solo keyboard", "Character piece", "Mixed")
+
+
+async def test_run_complete_agent_keeps_title_of_another_work():
+    from pydantic_ai.models.test import TestModel
+
+    score = Score(title="D 960", composer="Schubert")
+    model = TestModel(
+        call_tools=[],
+        custom_output_args={
+            "title": "Some other piece",
+            "composer": "Someone",
+            "same_work": False,
+            "short_description": "s",
+            "short_description_fr": "s",
+            "long_description": "l",
+            "long_description_fr": "l",
+        },
+    )
+    result = await agent.run_complete_agent(score, model=model)
+    assert (result.title, result.composer) == ("D 960", "Schubert")

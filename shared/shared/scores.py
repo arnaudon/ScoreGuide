@@ -8,6 +8,8 @@ from pydantic import BaseModel, field_validator
 from pydantic import Field as PydanticField
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
+from shared.metadata import normalize_form, normalize_genre, normalize_key, tidy_style
+
 if TYPE_CHECKING:
     from shared.user import User
 
@@ -41,8 +43,8 @@ class ScoreBase(SQLModel):
     composer: str = Field()
     year: int = Field(default=1750, gt=-1000)
     period: Period = Field(default=Period.Classical)
-    genre: str = Field(default="Classical")
-    form: str = Field(default="Sonata")
+    genre: str = Field(default="")
+    form: str = Field(default="")
     style: str = Field(default="")
     key: str = Field(default="")
     instrumentation: str = Field(default="")
@@ -164,6 +166,15 @@ TEXT_LIMITS = {
 }
 
 
+def _normalized(fn):
+    """A validator that passes None (a field left out of an update) through."""
+
+    def check(value: str | None) -> str | None:
+        return None if value is None else fn(value)
+
+    return check
+
+
 def check_youtube_url(value: str | None) -> str | None:
     """A video link must be a web address (or empty): no ``javascript:`` URLs."""
     if value and not value.strip().lower().startswith(("http://", "https://")):
@@ -182,8 +193,8 @@ class ScoreCreate(ScoreBase):
     title: str = Field(max_length=NAME_MAX)
     composer: str = Field(max_length=NAME_MAX)
     year: int = Field(default=1750, gt=-1000, lt=3000)
-    genre: str = Field(default="Classical", max_length=NAME_MAX)
-    form: str = Field(default="Sonata", max_length=NAME_MAX)
+    genre: str = Field(default="", max_length=NAME_MAX)
+    form: str = Field(default="", max_length=NAME_MAX)
     style: str = Field(default="", max_length=NAME_MAX)
     key: str = Field(default="", max_length=NAME_MAX)
     instrumentation: str = Field(default="", max_length=NAME_MAX)
@@ -199,6 +210,11 @@ class ScoreCreate(ScoreBase):
     notable_interpreters: str = Field(default="", max_length=INTERPRETERS_MAX)
 
     _youtube = field_validator("youtube_url")(check_youtube_url)
+    # The fixed vocabulary of shared.metadata: unknown genres/forms become "".
+    _genre = field_validator("genre")(_normalized(normalize_genre))
+    _form = field_validator("form")(_normalized(normalize_form))
+    _key = field_validator("key")(_normalized(normalize_key))
+    _style = field_validator("style")(_normalized(tidy_style))
 
 
 class ScoreUpdate(BaseModel):
@@ -225,6 +241,11 @@ class ScoreUpdate(BaseModel):
     notable_interpreters: str | None = PydanticField(default=None, max_length=INTERPRETERS_MAX)
 
     _youtube = field_validator("youtube_url")(check_youtube_url)
+    # The fixed vocabulary of shared.metadata: unknown genres/forms become "".
+    _genre = field_validator("genre")(_normalized(normalize_genre))
+    _form = field_validator("form")(_normalized(normalize_form))
+    _key = field_validator("key")(_normalized(normalize_key))
+    _style = field_validator("style")(_normalized(tidy_style))
 
 
 class IMSLP(ScoreBase, table=True):

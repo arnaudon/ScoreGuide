@@ -13,7 +13,7 @@ dependencies = [
     # OpenAI-compatible API, DuckDuckGo search, the MCP client, and logfire for
     # USE_LOGFIRE). The full `pydantic-ai` also pulls Anthropic, the CLI, evals
     # and the web UI: ~60 MB of image nobody imports.
-    "pydantic-ai-slim[duckduckgo,google,logfire,mcp,openai]>=2.28.0",
+    "pydantic-ai-slim[duckduckgo,google,logfire,mcp,openai]>=2.75.0",
     # imported directly by app/file_helper.py; was only ever present
     # transitively via pydantic-ai's bedrock extra until 2.x dropped it
     "boto3>=1.40.0",
