@@ -64,9 +64,9 @@
 		>
 			{m.empty_db_p1()}
 
-			<a href={resolve('db-viewer')} class="text-primary font-medium hover:underline"
-				>{m.empty_db_link()}</a
-			>
+			<a href={resolve('db-viewer')} class="text-primary font-medium hover:underline">
+				{m.empty_db_link()}
+			</a>
 
 			{m.empty_db_p2()}
 		</div>
@@ -129,8 +129,10 @@
 						{#if addedScoreId !== null}
 							<a
 								href={resolve('/reader/[id]', { id: String(addedScoreId) })}
-								class="text-primary font-medium hover:underline">{m.imslp_open_added()}</a
+								class="text-primary font-medium hover:underline"
 							>
+								{m.imslp_open_added()}
+							</a>
 						{/if}
 					</p>
 				{/if}
@@ -143,9 +145,9 @@
 				<h2 id="home-continue" class="text-fancy-title text-foreground text-2xl font-semibold">
 					{summary.continueIsRecent ? m.home_recent() : m.home_continue()}
 				</h2>
-				<a href={resolve('/db-viewer')} class="text-primary text-sm font-medium hover:underline"
-					>{m.home_see_library()}</a
-				>
+				<a href={resolve('/db-viewer')} class="text-primary text-sm font-medium hover:underline">
+					{m.home_see_library()}
+				</a>
 			</div>
 			<ul class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 				{#each summary.continue as score (score.id)}
@@ -156,12 +158,14 @@
 						>
 							<span
 								class="text-muted-foreground truncate text-xs font-medium tracking-wide uppercase"
-								>{composerName(score.composer)}</span
 							>
+								{composerName(score.composer)}
+							</span>
 							<span
 								class="text-fancy-title text-foreground group-hover:text-primary line-clamp-3 text-base leading-snug font-semibold sm:text-lg"
-								>{score.title}</span
 							>
+								{score.title}
+							</span>
 							<span class="text-muted-foreground mt-auto flex items-center gap-1.5 pt-2 text-xs">
 								<BookOpenIcon class="size-3.5" aria-hidden="true" />
 								{score.number_of_plays
@@ -238,11 +242,13 @@
 								<li class="flex justify-between gap-3">
 									<a
 										href={resolve('/reader/[id]', { id: String(score.id) })}
-										class="text-foreground hover:text-primary truncate">{score.title}</a
+										class="text-foreground hover:text-primary truncate"
 									>
-									<span class="text-muted-foreground shrink-0 tabular-nums"
-										>{m.home_played_times({ count: score.number_of_plays })}</span
-									>
+										{score.title}
+									</a>
+									<span class="text-muted-foreground shrink-0 tabular-nums">
+										{m.home_played_times({ count: score.number_of_plays })}
+									</span>
 								</li>
 							{/each}
 						</ol>

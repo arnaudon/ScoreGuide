@@ -181,8 +181,9 @@
 							{#if work.in_library}
 								<span
 									class="bg-primary/10 text-primary shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
-									>{m.imslp_in_library()}</span
 								>
+									{m.imslp_in_library()}
+								</span>
 							{/if}
 						</span>
 						<span class="text-muted-foreground truncate text-xs">

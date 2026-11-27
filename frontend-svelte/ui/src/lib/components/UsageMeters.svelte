@@ -50,9 +50,9 @@
 	{#if usage.plan !== 'pro'}
 		<p class="text-muted-foreground text-sm">
 			{m.usage_upgrade()}
-			<a href={resolve('/contact')} class="text-primary font-medium hover:underline"
-				>{m.contact()}</a
-			>
+			<a href={resolve('/contact')} class="text-primary font-medium hover:underline">
+				{m.contact()}
+			</a>
 		</p>
 	{/if}
 </div>

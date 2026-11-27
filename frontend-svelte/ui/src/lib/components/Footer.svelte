@@ -15,9 +15,9 @@
 	<div class="flex flex-col items-center justify-between gap-4 md:flex-row">
 		<div class="w-full text-center text-xs md:w-1/3 md:text-left">
 			{m.beta_warning()}
-			<a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline"
-				>alexis.arnaudon@scoreguide.ch</a
-			>.
+			<a href="mailto:alexis.arnaudon@scoreguide.ch" class="text-primary hover:underline">
+				alexis.arnaudon@scoreguide.ch
+			</a>.
 		</div>
 
 		<div class="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 md:w-1/3">

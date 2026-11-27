@@ -28,15 +28,16 @@
 				title={m.view_details()}
 			>
 				<span class="text-foreground block truncate font-medium">{score.title}</span>
-				<span class="text-muted-foreground block truncate text-xs"
-					>{composerName(score.composer)}</span
-				>
+				<span class="text-muted-foreground block truncate text-xs">
+					{composerName(score.composer)}
+				</span>
 			</button>
 			<a
 				href={resolve('/reader/[id]', { id: String(score.id) })}
 				class="text-primary hover:bg-primary/10 inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium"
-				><BookOpenIcon class="size-3.5" />{m.chat_open_score()}</a
 			>
+				<BookOpenIcon class="size-3.5" />{m.chat_open_score()}
+			</a>
 		</li>
 	{/each}
 </ul>
@@ -44,6 +45,8 @@
 	<button
 		type="button"
 		class="text-primary mt-2 text-xs font-medium hover:underline"
-		onclick={() => (showAll = true)}>{m.chat_more_scores({ count: scores.length - SHOWN })}</button
+		onclick={() => (showAll = true)}
 	>
+		{m.chat_more_scores({ count: scores.length - SHOWN })}
+	</button>
 {/if}

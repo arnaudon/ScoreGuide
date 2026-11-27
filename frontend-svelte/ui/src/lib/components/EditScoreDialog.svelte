@@ -162,9 +162,9 @@
 					<Input id="edit-key" name="key" bind:value={fields.scoreKey} />
 				</div>
 				<div class="space-y-2">
-					<label for="edit-instrumentation" class="text-sm font-medium"
-						>{m.label_instrumentation()}</label
-					>
+					<label for="edit-instrumentation" class="text-sm font-medium">
+						{m.label_instrumentation()}
+					</label>
 					<Input
 						id="edit-instrumentation"
 						name="instrumentation"
@@ -185,9 +185,9 @@
 					</select>
 				</div>
 				<div class="space-y-2">
-					<label for="edit-short-description" class="text-sm font-medium"
-						>{m.label_short_description()}</label
-					>
+					<label for="edit-short-description" class="text-sm font-medium">
+						{m.label_short_description()}
+					</label>
 					<textarea
 						id="edit-short-description"
 						name="short_description"
@@ -195,9 +195,9 @@
 						class={textareaClass}></textarea>
 				</div>
 				<div class="space-y-2">
-					<label for="edit-long-description" class="text-sm font-medium"
-						>{m.label_long_description()}</label
-					>
+					<label for="edit-long-description" class="text-sm font-medium">
+						{m.label_long_description()}
+					</label>
 					<textarea
 						id="edit-long-description"
 						name="long_description"
@@ -206,9 +206,9 @@
 						class={textareaClass}></textarea>
 				</div>
 				<div class="space-y-2">
-					<label for="edit-notable-interpreters" class="text-sm font-medium"
-						>{m.label_notable_interpreters()}</label
-					>
+					<label for="edit-notable-interpreters" class="text-sm font-medium">
+						{m.label_notable_interpreters()}
+					</label>
 					<Input
 						id="edit-notable-interpreters"
 						name="notable_interpreters"

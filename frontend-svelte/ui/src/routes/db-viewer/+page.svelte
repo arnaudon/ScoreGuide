@@ -348,8 +348,9 @@
 					<details class="mt-6" open={imslpAgentHistoryStore.history.length > 0}>
 						<summary
 							class="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium"
-							>{m.imslp_ask_assistant()}</summary
 						>
+							{m.imslp_ask_assistant()}
+						</summary>
 						<div
 							class="mt-3 flex flex-col {imslpAgentHistoryStore.history.length > 0
 								? 'h-[500px]'
@@ -496,9 +497,9 @@
 						<Button type="submit" variant="destructive">{m.delete()}</Button>
 					</form>
 				{/if}
-				<Button href={resolve('/reader/[id]', { id: String(selectedScoreId) })}
-					>{m.view_pdf()}</Button
-				>
+				<Button href={resolve('/reader/[id]', { id: String(selectedScoreId) })}>
+					{m.view_pdf()}
+				</Button>
 			</div>
 		{/if}
 	</div>

@@ -332,8 +332,10 @@
 						<span
 							class="text-xs {data.credentials?.[field.name]?.set
 								? 'text-success'
-								: 'text-muted-foreground'}">{credentialState(field.name)}</span
+								: 'text-muted-foreground'}"
 						>
+							{credentialState(field.name)}
+						</span>
 					</div>
 					<input
 						id={field.name}
@@ -388,20 +390,20 @@
 						removed: data.progress.removed ?? 0
 					})}
 				{:else if data.progress.status === 'error'}
-					<span class="text-destructive"
-						>{m.imslp_sync_error({ start: data.progress.start, error: data.progress.error })}</span
-					>
+					<span class="text-destructive">
+						{m.imslp_sync_error({ start: data.progress.start, error: data.progress.error })}
+					</span>
 				{:else if syncing}
 					{m.imslp_sync_running({ works: data.progress.works, start: data.progress.start })}
 				{:else}
 					{m.imslp_sync_cancelled({ works: data.progress.works, start: data.progress.start })}
 				{/if}
 				{#if data.progress.updated_at}
-					<span class="text-muted-foreground block text-xs"
-						>{m.imslp_sync_updated({
+					<span class="text-muted-foreground block text-xs">
+						{m.imslp_sync_updated({
 							time: new Date(data.progress.updated_at + 'Z').toLocaleString()
-						})}</span
-					>
+						})}
+					</span>
 				{/if}
 			</div>
 		{/if}
@@ -472,9 +474,9 @@
 							/>
 						</div>
 						<div class="space-y-1">
-							<label for="{plan}_storage_mb" class="text-sm font-medium"
-								>{m.plan_storage_mb()}</label
-							>
+							<label for="{plan}_storage_mb" class="text-sm font-medium">
+								{m.plan_storage_mb()}
+							</label>
 							<Input
 								id="{plan}_storage_mb"
 								name="{plan}_storage_mb"
@@ -527,8 +529,10 @@
 			<Button
 				variant="outline"
 				href={`/admin/usage.csv${data.month ? `?month=${data.month}` : ''}`}
-				data-sveltekit-reload>{m.download_csv()}</Button
+				data-sveltekit-reload
 			>
+				{m.download_csv()}
+			</Button>
 		</form>
 	</div>
 	<div class="overflow-x-auto">
@@ -646,9 +650,9 @@
 					{/each}
 					<Table.Cell class="text-right">
 						<div class="flex items-center justify-end gap-2">
-							<Button variant="outline" size="sm" onclick={() => openEditDialog(row.original)}
-								>{m.edit()}</Button
-							>
+							<Button variant="outline" size="sm" onclick={() => openEditDialog(row.original)}>
+								{m.edit()}
+							</Button>
 						</div>
 					</Table.Cell>
 				</Table.Row>
