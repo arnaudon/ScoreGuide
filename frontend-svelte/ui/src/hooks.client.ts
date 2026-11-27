@@ -15,7 +15,10 @@ if (PUBLIC_SENTRY_DSN) {
 		environment: PUBLIC_SENTRY_ENVIRONMENT ?? 'production',
 		tracesSampleRate: Number(PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? '0.1'),
 		// Privacy page: nothing about the person in reports.
-		dataCollection: SENTRY_DATA_COLLECTION
+		dataCollection: SENTRY_DATA_COLLECTION,
+		// The SDK's SvelteKit page tracing subscribes to `$app/stores`, which this
+		// SvelteKit removed: it throws and breaks every page. Errors only, for now.
+		integrations: (defaults) => defaults.filter((i) => i.name !== 'BrowserTracing')
 	});
 }
 
