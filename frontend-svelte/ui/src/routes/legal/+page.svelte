@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegalPage from '#lib/components/LegalPage.svelte';
 	import { resolve } from '$app/paths';
 	import * as m from '#lib/paraglide/messages.js';
 
@@ -9,13 +10,7 @@
 	const ADDRESS: string[] = [];
 </script>
 
-<svelte:head>
-	<title>{m.legal_notice()} · ScoreGuide</title>
-</svelte:head>
-
-<div class="mx-auto prose max-w-3xl px-4 py-12 sm:px-6 lg:px-8 dark:prose-invert">
-	<h1>{m.legal_notice()}</h1>
-
+<LegalPage title={m.legal_notice()}>
 	<h2>{m.legal_h_operator()}</h2>
 	<address class="not-italic">
 		{OPERATOR}<br />
@@ -35,4 +30,4 @@
 
 	<h2>{m.legal_h_links()}</h2>
 	<p>{m.legal_links()}</p>
-</div>
+</LegalPage>
