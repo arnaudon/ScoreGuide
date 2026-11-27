@@ -7,6 +7,7 @@ import {
 import { BACKEND_URL } from '#lib/server/api.js';
 import { SENTRY_DSN, SENTRY_ENVIRONMENT, SENTRY_TRACES_SAMPLE_RATE } from '$app/env/private';
 import * as Sentry from '@sentry/sveltekit';
+import { SENTRY_DATA_COLLECTION } from '#lib/sentry.js';
 import { getTextDirection } from '#lib/paraglide/runtime.js';
 import { paraglideMiddleware } from '#lib/paraglide/server.js';
 import { createInitialModeExpression } from 'mode-watcher';
@@ -17,7 +18,9 @@ if (SENTRY_DSN) {
 	Sentry.init({
 		dsn: SENTRY_DSN,
 		environment: SENTRY_ENVIRONMENT ?? 'production',
-		tracesSampleRate: Number(SENTRY_TRACES_SAMPLE_RATE ?? '0.1')
+		tracesSampleRate: Number(SENTRY_TRACES_SAMPLE_RATE ?? '0.1'),
+		// Privacy page: nothing about the person in reports.
+		dataCollection: SENTRY_DATA_COLLECTION
 	});
 }
 
