@@ -22,6 +22,23 @@ const USER = {
 	last_login: null
 };
 
+// The library list: 12 scores, so the table has two pages of 10.
+const LIBRARY = Array.from({ length: 12 }, (_, i) => ({
+	id: 100 + i,
+	title: `Etude No. ${String(i + 1).padStart(2, '0')}`,
+	composer: i % 2 ? 'Chopin' : 'Liszt',
+	year: 1830 + i,
+	period: 'Romantic',
+	genre: 'Solo keyboard',
+	form: 'Étude',
+	key: '',
+	instrumentation: 'Piano',
+	pdf_path: '',
+	pdf_size: 0,
+	number_of_plays: i,
+	user_id: 1
+}));
+
 function json(res, status, body) {
 	const payload = JSON.stringify(body);
 	res.writeHead(status, {
@@ -62,7 +79,7 @@ const server = createServer((req, res) => {
 		return json(res, 200, false);
 	}
 	if (url.pathname === '/scores' && req.method === 'GET') {
-		return json(res, 200, []);
+		return json(res, 200, LIBRARY);
 	}
 	const scoreMatch = url.pathname.match(/^\/scores\/(\d+)$/);
 	if (scoreMatch && req.method === 'GET') {

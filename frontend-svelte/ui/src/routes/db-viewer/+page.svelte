@@ -13,19 +13,14 @@
 	import { Input } from '#lib/components/ui/input/index.js';
 	import {
 		type ColumnDef,
+		type ColumnFiltersState,
 		type PaginationState,
 		type SortingState,
-		type ColumnFiltersState,
-		getCoreRowModel,
-		getPaginationRowModel,
-		getSortedRowModel,
-		getFilteredRowModel
-	} from '@tanstack/table-core';
-	import {
 		FlexRender,
-		createSvelteTable,
+		createTable,
 		renderComponent
-	} from '#lib/components/ui/data-table/index.js';
+	} from '@tanstack/svelte-table';
+	import { listFeatures, type ListFeatures } from '#lib/tables.js';
 	import type { Score, IMSLPScore, ImslpResult } from '#lib/types.js';
 	import ImslpSearch from '#lib/components/ImslpSearch.svelte';
 	import ImslpAddDialog from '#lib/components/ImslpAddDialog.svelte';
@@ -55,7 +50,7 @@
 	let sorting = $state<SortingState>([]);
 	let columnFilters = $state<ColumnFiltersState>([]);
 
-	const columns: ColumnDef<Score>[] = [
+	const columns: ColumnDef<ListFeatures, Score>[] = [
 		{
 			accessorKey: 'title',
 			header: ({ column }) =>
@@ -122,7 +117,9 @@
 		}
 	];
 
-	const table = createSvelteTable({
+	const table = createTable({
+		features: listFeatures,
+		autoResetPageIndex: false,
 		get data() {
 			return data.scores;
 		},
@@ -151,6 +148,7 @@
 			} else {
 				sorting = updater;
 			}
+			pagination = { ...pagination, pageIndex: 0 };
 		},
 		onColumnFiltersChange: (updater) => {
 			if (typeof updater === 'function') {
@@ -158,18 +156,22 @@
 			} else {
 				columnFilters = updater;
 			}
-		},
-		getCoreRowModel: getCoreRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getFilteredRowModel: getFilteredRowModel()
+			pagination = { ...pagination, pageIndex: 0 };
+		}
+	});
+
+	// v9's automatic page reset is off: keep the page valid when rows go away.
+	$effect(() => {
+		const pages = table.getPageCount();
+		if (pages > 0 && pagination.pageIndex >= pages)
+			pagination = { ...pagination, pageIndex: pages - 1 };
 	});
 
 	let imslpPagination = $state<PaginationState>({ pageIndex: 0, pageSize: 5 });
 	let imslpSorting = $state<SortingState>([]);
 	let imslpColumnFilters = $state<ColumnFiltersState>([]);
 
-	const imslpColumns: ColumnDef<IMSLPScore>[] = [
+	const imslpColumns: ColumnDef<ListFeatures, IMSLPScore>[] = [
 		{
 			accessorKey: 'composer',
 			header: ({ column }) =>
@@ -221,7 +223,9 @@
 		};
 	}
 
-	const imslpTable = createSvelteTable({
+	const imslpTable = createTable({
+		features: listFeatures,
+		autoResetPageIndex: false,
 		get data() {
 			return imslpScores;
 		},
@@ -250,6 +254,7 @@
 			} else {
 				imslpSorting = updater;
 			}
+			imslpPagination = { ...imslpPagination, pageIndex: 0 };
 		},
 		onColumnFiltersChange: (updater) => {
 			if (typeof updater === 'function') {
@@ -257,11 +262,15 @@
 			} else {
 				imslpColumnFilters = updater;
 			}
-		},
-		getCoreRowModel: getCoreRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getFilteredRowModel: getFilteredRowModel()
+			imslpPagination = { ...imslpPagination, pageIndex: 0 };
+		}
+	});
+
+	// v9's automatic page reset is off: keep the page valid when rows go away.
+	$effect(() => {
+		const pages = imslpTable.getPageCount();
+		if (pages > 0 && imslpPagination.pageIndex >= pages)
+			imslpPagination = { ...imslpPagination, pageIndex: pages - 1 };
 	});
 </script>
 
@@ -382,10 +391,7 @@
 																{#each headerGroup.headers as header (header.id)}
 																	<Table.Head>
 																		{#if !header.isPlaceholder}
-																			<FlexRender
-																				content={header.column.columnDef.header}
-																				context={header.getContext()}
-																			/>
+																			<FlexRender {header} />
 																		{/if}
 																	</Table.Head>
 																{/each}
@@ -406,14 +412,11 @@
 																	}
 																}}
 															>
-																{#each row.getVisibleCells() as cell (cell.id)}
+																{#each row.getAllCells() as cell (cell.id)}
 																	<Table.Cell
 																		class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]"
 																	>
-																		<FlexRender
-																			content={cell.column.columnDef.cell}
-																			context={cell.getContext()}
-																		/>
+																		<FlexRender {cell} />
 																	</Table.Cell>
 																{/each}
 															</Table.Row>
@@ -424,7 +427,7 @@
 												<div class="flex items-center justify-end space-x-2 border-t px-4 py-4">
 													<div class="text-muted-foreground flex-1 text-sm">
 														{m.page_of({
-															page: imslpTable.getState().pagination.pageIndex + 1,
+															page: imslpTable.atoms.pagination.get().pageIndex + 1,
 															total: Math.max(1, imslpTable.getPageCount())
 														})}
 													</div>
@@ -565,10 +568,7 @@
 						{#each headerGroup.headers as header (header.id)}
 							<Table.Head>
 								{#if !header.isPlaceholder}
-									<FlexRender
-										content={header.column.columnDef.header}
-										context={header.getContext()}
-									/>
+									<FlexRender {header} />
 								{/if}
 							</Table.Head>
 						{/each}
@@ -585,9 +585,9 @@
 							: ''}"
 						onclick={() => goto(resolve('/reader/[id]', { id: String(row.original.id) }))}
 					>
-						{#each row.getVisibleCells() as cell (cell.id)}
+						{#each row.getAllCells() as cell (cell.id)}
 							<Table.Cell class="max-w-[120px] truncate sm:max-w-[150px] md:max-w-[200px]">
-								<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
+								<FlexRender {cell} />
 							</Table.Cell>
 						{/each}
 						<Table.Cell class="w-0 py-1 text-right">
@@ -620,7 +620,7 @@
 	<div class="flex items-center justify-end space-x-2 py-4">
 		<div class="text-muted-foreground flex-1 text-sm">
 			{m.page_of({
-				page: table.getState().pagination.pageIndex + 1,
+				page: table.atoms.pagination.get().pageIndex + 1,
 				total: Math.max(1, table.getPageCount())
 			})}
 		</div>
