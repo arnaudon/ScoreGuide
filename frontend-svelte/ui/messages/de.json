@@ -492,5 +492,7 @@
 	"form_other": "Andere",
 	"key_mixed": "Mehrere Tonarten",
 	"option_none": "—",
-	"completion_already_running": "Die KI arbeitet bereits an dieser Partitur: Das Ergebnis erscheint hier."
+	"completion_already_running": "Die KI arbeitet bereits an dieser Partitur: Das Ergebnis erscheint hier.",
+	"contact_code_title": "Quellcode",
+	"contact_code_desc": "ScoreGuide ist freie Software (GPL-3.0). Um einen Fehler zu melden, eine Idee vorzuschlagen oder beizutragen, besuchen Sie GitHub:"
 }
