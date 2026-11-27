@@ -29,17 +29,11 @@ jobs:
         run: npm run build
 
       - name: Unit tests (node project)
-        # Fast, no browser. Playwright/browser project is intentionally skipped
-        # until there's a real e2e suite to run.
+        # Fast, no browser; test.yml runs the browser project and the e2e suite.
         run: npx vitest run --project server
 
       - name: svelte-check
-        # Informational until the pre-existing type/i18n errors are cleaned up.
-        # Flip to strict (remove continue-on-error) in a follow-up.
-        continue-on-error: true
         run: npm run check
 
       - name: Lint
-        # Informational until prettier/eslint issues are cleaned up.
-        continue-on-error: true
         run: npm run lint
