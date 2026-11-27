@@ -4,6 +4,7 @@ import { load, actions } from './+page.server.js';
 import { makeCookies, makeFetch, fakeRequest, jsonResponse, event } from '../../test-helpers.js';
 
 const SCORE = { id: 7, title: 'Sonata', composer: 'Beethoven' };
+const USER = { id: 1, username: 'alice', detailed_descriptions: false };
 const TOC = {
 	status: 'ready',
 	sections: [
@@ -30,7 +31,11 @@ const EMPTY_TOC = {
 /** Backend stub: score at /scores/{id}, table of contents at /scores/{id}/sections. */
 function scoreAndToc(toc: () => Promise<Response> = async () => jsonResponse(TOC)) {
 	return makeFetch(async (url: string) =>
-		url.endsWith('/sections') ? toc() : jsonResponse(SCORE)
+		url.endsWith('/sections')
+			? toc()
+			: url.endsWith('/user')
+				? jsonResponse(USER)
+				: jsonResponse(SCORE)
 	);
 }
 
@@ -67,12 +72,13 @@ describe('reader/[id] load', () => {
 	it('still opens the score when recording the play fails', async () => {
 		const fetch = makeFetch(async (url: string) => {
 			if (url.endsWith('/play')) throw new Error('down');
+			if (url.endsWith('/user')) return jsonResponse(USER);
 			return url.endsWith('/sections') ? jsonResponse(TOC) : jsonResponse(SCORE);
 		});
 		const result = await load(
 			event({ cookies: makeCookies({ access_token: 'tok' }), fetch, params: { id: '7' } })
 		);
-		expect(result).toEqual({ score: SCORE, toc: TOC });
+		expect(result).toEqual({ score: SCORE, toc: TOC, user: USER });
 		await new Promise((r) => setTimeout(r, 0));
 		expect(errSpy).toHaveBeenCalledWith('Failed to record play:', expect.any(Error));
 	});
@@ -90,7 +96,7 @@ describe('reader/[id] load', () => {
 		const fetch = scoreAndToc();
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: SCORE, toc: TOC });
+		expect(result).toEqual({ score: SCORE, toc: TOC, user: USER });
 		expect(fetch.mock.calls[0][0]).toContain('/scores/7');
 		expect(cookies.set).toHaveBeenCalledWith(
 			'last_score_id',
@@ -104,7 +110,8 @@ describe('reader/[id] load', () => {
 		const cookies = makeCookies({ access_token: 'tok' });
 		expect(await load(event({ cookies, fetch, params: { id: '../admin/usage' } }))).toEqual({
 			score: null,
-			toc: EMPTY_TOC
+			toc: EMPTY_TOC,
+			user: null
 		});
 		const toc = await actions.generate_toc(
 			event({ cookies, fetch, params: { id: '../admin' }, request: fakeRequest() })
@@ -121,19 +128,44 @@ describe('reader/[id] load', () => {
 		expect(fetch).not.toHaveBeenCalled();
 	});
 
+	it('still shows the score when the account fails to load', async () => {
+		const cookies = makeCookies({ access_token: 'tok' });
+		for (const user of [
+			async () => new Response(null, { status: 500 }),
+			async () => {
+				throw new Error('down');
+			}
+		]) {
+			const fetch = makeFetch(async (url: string) =>
+				url.endsWith('/user')
+					? user()
+					: url.endsWith('/sections')
+						? jsonResponse(TOC)
+						: jsonResponse(SCORE)
+			);
+			expect(await load(event({ cookies, fetch, params: { id: '7' } }))).toEqual({
+				score: SCORE,
+				toc: TOC,
+				user: null
+			});
+		}
+	});
+
 	it('still shows the score when the table of contents fails to load', async () => {
 		const cookies = makeCookies({ access_token: 'tok' });
 		const notOk = scoreAndToc(async () => new Response(null, { status: 500 }));
 		expect(await load(event({ cookies, fetch: notOk, params: { id: '7' } }))).toEqual({
 			score: SCORE,
-			toc: EMPTY_TOC
+			toc: EMPTY_TOC,
+			user: USER
 		});
 		const thrown = scoreAndToc(async () => {
 			throw new Error('down');
 		});
 		expect(await load(event({ cookies, fetch: thrown, params: { id: '7' } }))).toEqual({
 			score: SCORE,
-			toc: EMPTY_TOC
+			toc: EMPTY_TOC,
+			user: USER
 		});
 		expect(errSpy).toHaveBeenCalled();
 	});
@@ -152,7 +184,7 @@ describe('reader/[id] load', () => {
 		const fetch = vi.fn(async () => new Response(null, { status: 404 }));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: null, toc: EMPTY_TOC });
+		expect(result).toEqual({ score: null, toc: EMPTY_TOC, user: null });
 		expect(cookies.set).not.toHaveBeenCalled();
 	});
 
@@ -160,7 +192,7 @@ describe('reader/[id] load', () => {
 		const fetch = vi.fn(async () => new Response(null, { status: 500 }));
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: null, toc: EMPTY_TOC });
+		expect(result).toEqual({ score: null, toc: EMPTY_TOC, user: null });
 	});
 
 	it('returns score: null and logs when fetch throws', async () => {
@@ -169,7 +201,7 @@ describe('reader/[id] load', () => {
 		});
 		const cookies = makeCookies({ access_token: 'tok' });
 		const result = await load(event({ cookies, fetch, params: { id: '7' } }));
-		expect(result).toEqual({ score: null, toc: EMPTY_TOC });
+		expect(result).toEqual({ score: null, toc: EMPTY_TOC, user: null });
 		expect(errSpy).toHaveBeenCalled();
 	});
 });

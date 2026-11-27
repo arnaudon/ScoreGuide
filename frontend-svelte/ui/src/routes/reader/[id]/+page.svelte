@@ -287,6 +287,7 @@
 <ScoreDetailsDialog
 	score={data.score}
 	bind:open={sheetOpen}
+	user={data.user}
 	showOpen={false}
 	onEdit={() => (editOpen = true)}
 	onDeleted={() => goto(resolve('/db-viewer'))}
