@@ -17,7 +17,9 @@ if (SENTRY_DSN) {
 	Sentry.init({
 		dsn: SENTRY_DSN,
 		environment: SENTRY_ENVIRONMENT ?? 'production',
-		tracesSampleRate: Number(SENTRY_TRACES_SAMPLE_RATE ?? '0.1')
+		tracesSampleRate: Number(SENTRY_TRACES_SAMPLE_RATE ?? '0.1'),
+		// Privacy page: no IP address or cookies in reports.
+		sendDefaultPii: false
 	});
 }
 

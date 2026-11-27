@@ -12,7 +12,9 @@ if (PUBLIC_SENTRY_DSN) {
 	Sentry.init({
 		dsn: PUBLIC_SENTRY_DSN,
 		environment: PUBLIC_SENTRY_ENVIRONMENT ?? 'production',
-		tracesSampleRate: Number(PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? '0.1')
+		tracesSampleRate: Number(PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? '0.1'),
+		// Privacy page: no IP address or cookies in reports.
+		sendDefaultPii: false
 	});
 }
 

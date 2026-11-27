@@ -49,6 +49,9 @@ def _init_sentry() -> None:
             dsn=config.SENTRY_DSN,
             environment=config.SENTRY_ENVIRONMENT,
             traces_sample_rate=config.SENTRY_TRACES_SAMPLE_RATE,
+            # Privacy page: no IP, no request bodies (PDF uploads, prompts).
+            send_default_pii=False,
+            max_request_body_size="never",
         )
 
 
@@ -144,6 +147,7 @@ app.include_router(users.router, tags=["users"])
 app.include_router(imslp.router, tags=["imslp"])
 app.include_router(sections.router, tags=["sections"])
 app.include_router(llm.router)
+app.include_router(llm.public_router)
 app.include_router(plans.router)
 app.include_router(annotations.router, tags=["annotations"])
 app.include_router(export.router, tags=["users"])

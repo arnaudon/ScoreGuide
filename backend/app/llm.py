@@ -154,3 +154,46 @@ def set_credentials(
             session.delete(row)
     session.commit()
     return credential_status(session)
+
+
+# --- Public: which models answer (privacy page) -------------------------------
+
+public_router = APIRouter(tags=["ai"])
+
+AGENT_SETTINGS = ("model_main", "model_imslp", "model_complete")
+# Who runs the model, by provider prefix (None: a test or unknown model).
+HOSTS = {"infomaniak": "infomaniak", "google": "google", "google-gla": "google"}
+
+
+class AIModel(BaseModel):
+    """A model in use: ``Kimi-K2.6`` by ``moonshotai``, run by ``infomaniak``."""
+
+    name: str
+    vendor: str
+    host: str
+
+
+class AIModels(BaseModel):
+    models: list[AIModel]
+
+
+def describe(name: str) -> AIModel | None:
+    """The public description of a model string; None when it isn't a real model."""
+    provider, _, model = name.partition(":")
+    host = HOSTS.get(provider)
+    if not host or not model:
+        return None
+    vendor, _, short = model.rpartition("/")
+    return AIModel(name=short, vendor=vendor or provider.split("-")[0], host=host)
+
+
+@public_router.get("/ai-models")
+def ai_models(session: Session = Depends(get_session)) -> AIModels:
+    """The models the assistants use now, without duplicates. Names only: no keys."""
+    models: list[AIModel] = []
+    for key in AGENT_SETTINGS:
+        setting = session.get(Setting, key)
+        model = describe(setting.value if setting else os.getenv("MODEL", "test"))
+        if model and model not in models:
+            models.append(model)
+    return AIModels(models=models)

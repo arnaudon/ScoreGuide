@@ -115,3 +115,30 @@ def test_agent_uses_admin_credentials(admin: TestClient, session: Session):
     resp = admin.post("/complete_score", json={"title": "t", "composer": "c"})
     # The model was built (no 503); the blocked request then fails inside the agent.
     assert resp.status_code != 503
+
+
+def test_describe_models():
+    assert llm.describe("infomaniak:moonshotai/Kimi-K2.6") == llm.AIModel(
+        name="Kimi-K2.6", vendor="moonshotai", host="infomaniak"
+    )
+    assert llm.describe("google-gla:gemini-2.5-flash") == llm.AIModel(
+        name="gemini-2.5-flash", vendor="google", host="google"
+    )
+    assert llm.describe("test") is None
+    assert llm.describe("infomaniak:") is None
+
+
+def test_ai_models_is_public_and_deduplicated(client: TestClient, session: Session, monkeypatch):
+    monkeypatch.setenv("MODEL", "infomaniak:moonshotai/Kimi-K2.6")
+    session.add(Setting(key="model_complete", value="infomaniak:mistralai/Mistral-Small-4"))
+    session.add(Setting(key="model_imslp", value="test"))
+    session.commit()
+    res = client.get("/ai-models")
+    assert res.status_code == 200
+    assert res.json() == {
+        "models": [
+            {"name": "Kimi-K2.6", "vendor": "moonshotai", "host": "infomaniak"},
+            {"name": "Mistral-Small-4", "vendor": "mistralai", "host": "infomaniak"},
+        ]
+    }
+    assert "key" not in res.text.lower()
