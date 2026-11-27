@@ -504,5 +504,6 @@
 	"form_collection": "Raccolta",
 	"form_other": "Altro",
 	"key_mixed": "Più tonalità",
-	"option_none": "—"
+	"option_none": "—",
+	"completion_already_running": "L'IA sta già lavorando su questa partitura: il risultato apparirà qui."
 }

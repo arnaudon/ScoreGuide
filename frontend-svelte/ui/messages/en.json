@@ -504,5 +504,6 @@
 	"form_collection": "Collection",
 	"form_other": "Other",
 	"key_mixed": "Mixed keys",
-	"option_none": "—"
+	"option_none": "—",
+	"completion_already_running": "The AI is already working on this score: the result will appear here."
 }

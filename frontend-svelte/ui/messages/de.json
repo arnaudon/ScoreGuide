@@ -504,5 +504,6 @@
 	"form_collection": "Sammlung",
 	"form_other": "Andere",
 	"key_mixed": "Mehrere Tonarten",
-	"option_none": "—"
+	"option_none": "—",
+	"completion_already_running": "Die KI arbeitet bereits an dieser Partitur: Das Ergebnis erscheint hier."
 }

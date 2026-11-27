@@ -47,6 +47,38 @@
 		recompleteError = null;
 		deleteError = null;
 	});
+
+	// A run started before a reload (or in another tab) is still going on the
+	// server: show it, and refresh the card when it ends.
+	const POLL_MS = 4000;
+	let remoteRunning = $state(false);
+	let busy = $derived(recompleting || remoteRunning);
+	$effect(() => {
+		const id = score?.id;
+		remoteRunning = false;
+		if (!open || !id || page.data.isDemo) return;
+		let stopped = false;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const check = async () => {
+			let running: boolean;
+			try {
+				const res = await fetch(`/api/scores/${id}/completion`);
+				running = ((await res.json()) as { running?: boolean }).running === true;
+			} catch {
+				running = false;
+			}
+			if (stopped) return;
+			const finished = remoteRunning && !running;
+			remoteRunning = running;
+			if (finished) await invalidateAll();
+			else if (running) timer = setTimeout(check, POLL_MS);
+		};
+		check();
+		return () => {
+			stopped = true;
+			clearTimeout(timer);
+		};
+	});
 </script>
 
 <Dialog.Root bind:open>
@@ -135,10 +167,10 @@
 							type="submit"
 							form="recomplete-form"
 							variant="outline"
-							disabled={recompleting}
+							disabled={busy}
 							title={aiLeft}
 						>
-							<SparklesIcon />{recompleting ? m.running_agent() : m.rerun_complete_agent()}
+							<SparklesIcon />{busy ? m.running_agent() : m.rerun_complete_agent()}
 						</Button>
 						<Button
 							variant="outline"

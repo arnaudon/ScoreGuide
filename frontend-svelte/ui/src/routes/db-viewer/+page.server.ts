@@ -273,6 +273,9 @@ export const actions: Actions = {
 				body: JSON.stringify({ score_id: Number(id), detailed: formBool(data, 'detailed') })
 			});
 
+			if (completeRes.status === 409) {
+				return fail(409, { error: m.completion_already_running() });
+			}
 			if (!completeRes.ok) {
 				return fail(completeRes.status, {
 					error: (await errorDetail(completeRes)) || m.err_complete_score()
