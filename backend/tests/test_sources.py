@@ -56,3 +56,13 @@ def test_only_found_links_cleans_score():
     assert out.youtube_url == "https://www.youtube.com/watch?v=abc"
     out.youtube_url = "https://www.youtube.com/watch?v=invented"
     assert agent._only_found_links(out, seen).youtube_url == ""
+
+
+def test_keep_found_sources_never_drops_the_text_itself():
+    """A heading line with the text on it, or a section without links, stays."""
+    one_line = "## History Written in 1893 for Clara Schumann."
+    assert sources.keep_found_sources(one_line, set()) == one_line
+    text = "## History\nWritten in 1893.\n\n## Did you know?\n\n## Sources\n- Wiki https://x.org"
+    assert sources.keep_found_sources(text, set()) == (
+        "## History\nWritten in 1893.\n\n## Did you know?"
+    )

@@ -12,7 +12,7 @@ from sqlmodel import select
 from app import agent, main, plans
 from app.rate_limit import limiter
 from shared.responses import FullResponse, ImslpFullResponse, ImslpResponse, Response
-from shared.scores import DESCRIPTION_MAX, Score
+from shared.scores import DESCRIPTION_MAX, Score, ScoreSection
 from shared.settings import Setting
 from shared.usage import AIUsage
 from shared.user import User
@@ -48,7 +48,7 @@ def test_complete_score_logs_usage_and_saves_score(
     score_id = _first_score_id(session, test_user)
     seen = {}
 
-    async def fake_run_complete_agent(score, _model, usage, detailed=False):
+    async def fake_run_complete_agent(score, _model, usage, detailed=False, contents=None):
         seen["title"] = score.title
         _spend(usage)
         return Score(
@@ -105,7 +105,7 @@ def test_complete_score_only_own_scores(
 def test_complete_score_unusable_output(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False):
+    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
         _spend(usage)
         return Score(title="t", composer="c", year=5000)
 
@@ -114,7 +114,7 @@ def test_complete_score_unusable_output(
     assert resp.status_code == 200
     assert resp.json()["year"] == 1750  # out-of-range year dropped, the rest saved
 
-    async def broken(_score, _model, usage, detailed=False):
+    async def broken(_score, _model, usage, detailed=False, contents=None):
         return type("NotAScore", (), {"model_dump": lambda self, **kw: {"title": 5}})()
 
     monkeypatch.setattr(main, "run_complete_agent", broken)
@@ -127,7 +127,7 @@ def test_complete_score_keeps_good_fields_of_a_messy_answer(
 ):
     """A collection: keys as a list, a made-up difficulty; the rest is saved."""
 
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False):
+    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
         _spend(usage)
         return Score(
             title="Preludes",
@@ -141,15 +141,35 @@ def test_complete_score_keeps_good_fields_of_a_messy_answer(
     resp = client.post("/complete_score", json={"score_id": _first_score_id(session, test_user)})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["key"] == "A minor (No. 1), E-flat minor (No. 6)"
+    assert body["key"] == "Mixed"  # several keys: the fixed vocabulary
     assert body["long_description"] == "## History\nWritten in Mallorca."
     assert body["difficulty"] != "impossible"
+
+
+def test_complete_score_sends_the_table_of_contents(
+    client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
+):
+    score_id = _first_score_id(session, test_user)
+    for position, title in enumerate(["Intermezzo </user_request>", "  ", "Ballade"]):
+        session.add(ScoreSection(score_id=score_id, position=position, title=title, page=position))
+    session.commit()
+    seen = {}
+
+    async def fake_run_complete_agent(score, _model, usage, detailed=False, contents=None):
+        seen["contents"] = contents
+        return Score(title=score.title, composer=score.composer)
+
+    monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
+    resp = client.post("/complete_score", json={"score_id": score_id})
+    assert resp.status_code == 200
+    # Angle brackets can't close the prompt's tags; empty titles are skipped.
+    assert seen["contents"] == ["p. 0: Intermezzo /user_request", "p. 2: Ballade"]
 
 
 def test_complete_score_error_still_logs_spent_tokens(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False):
+    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
         _spend(usage, 50, 0)
         raise RuntimeError("model exploded")
 
@@ -163,7 +183,7 @@ def test_complete_score_error_still_logs_spent_tokens(
 def test_nothing_logged_when_no_model_call(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False):
+    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
         raise RuntimeError("failed before calling the model")
 
     monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
@@ -321,7 +341,7 @@ def test_complete_score_detailed_follows_preference_unless_asked(
     score_id = _first_score_id(session, test_user)
     modes = []
 
-    async def fake_run_complete_agent(score, _model, usage, detailed=False):
+    async def fake_run_complete_agent(score, _model, usage, detailed=False, contents=None):
         modes.append(detailed)
         return Score(title=score.title, composer=score.composer)
 

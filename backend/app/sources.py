@@ -50,20 +50,26 @@ def is_found(url: str, seen: set[str]) -> bool:
 def keep_found_sources(text: str, seen: set[str]) -> str:
     """Remove links from ``text`` that the searches never returned."""
     lines: list[str] = []
+    removed: set[int] = set()  # positions in ``lines`` where a source line was dropped
     for line in text.splitlines():
         urls = [_clean(u) for u in URL_RE.findall(line)]
         unknown = [u for u in urls if not is_found(u, seen)]
         if unknown and line.lstrip().startswith("- "):
+            removed.add(len(lines))
             continue
         for url in unknown:
             line = line.replace(url, "").rstrip(" :—-")
         lines.append(line)
-    # Drop headings whose section ended up empty.
+    # Drop the headings of sections emptied by the removal (and only those: a
+    # heading line with the text on it is kept).
     kept: list[str] = []
     for i, line in enumerate(lines):
         if line.startswith("## "):
-            rest = next((n for n in lines[i + 1 :] if n.strip()), "")
-            if not rest or rest.startswith("## "):
+            end = next(
+                (j for j in range(i + 1, len(lines)) if lines[j].startswith("## ")), len(lines)
+            )
+            empty = not any(n.strip() for n in lines[i + 1 : end])
+            if empty and any(i < r <= end for r in removed):
                 continue
         kept.append(line)
     return "\n".join(kept).strip()

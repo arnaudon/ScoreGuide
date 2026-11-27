@@ -23,7 +23,7 @@ from sqlmodel import Session, col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import annotations, config, db, export, imslp, llm, plans, sections, uploads, users
-from app.agent import Deps, run_agent, run_complete_agent, run_imslp_agent
+from app.agent import CONTENTS_MAX_ENTRIES, Deps, run_agent, run_complete_agent, run_imslp_agent
 from app.db import get_async_session, get_session
 from app.file_helper import file_helper
 from app.rate_limit import limiter
@@ -34,7 +34,15 @@ from app.users import (
     get_verified_user,
 )
 from shared.annotations import Annotation
-from shared.scores import TEXT_LIMITS, Score, ScoreCreate, Scores, ScoreUpdate, TocReport
+from shared.scores import (
+    TEXT_LIMITS,
+    Score,
+    ScoreCreate,
+    Scores,
+    ScoreSection,
+    ScoreUpdate,
+    TocReport,
+)
 from shared.settings import Setting
 from shared.usage import AIUsage
 from shared.user import User
@@ -261,6 +269,8 @@ def _clip_completion(completed: Score) -> dict:
     """The completed score's details, cut to what a client may store; a video
     link that isn't a web address is dropped."""
     fields = completed.model_dump(include=set(ScoreUpdate.model_fields) - {"pdf_path", "source"})
+    # Never erase stored text with an empty answer (e.g. every source dropped).
+    fields = {k: v for k, v in fields.items() if v not in (None, "", [])}
     fields["notable_interpreters"] = _interpreters(fields.get("notable_interpreters"))
     for name, limit in TEXT_LIMITS.items():
         value = fields.get(name)
@@ -284,6 +294,24 @@ def _clip_completion(completed: Score) -> dict:
         if not kept:
             raise
         return ScoreUpdate.model_validate(kept).model_dump(exclude_none=True)
+
+
+_TAG_CHARS = re.compile(r"[<>\s]+")
+
+
+async def _contents(session: AsyncSession, score_id: int) -> list[str]:
+    """The score's table of contents for the agent ("p. 3: Intermezzo"); OCR'd
+    titles are data, so no angle brackets that could close the prompt's tags."""
+    sections = (
+        await session.exec(
+            select(ScoreSection)
+            .where(ScoreSection.score_id == score_id)
+            .order_by(col(ScoreSection.position))
+            .limit(CONTENTS_MAX_ENTRIES)
+        )
+    ).all()
+    titles = ((s.page, _TAG_CHARS.sub(" ", s.title).strip()[:120]) for s in sections)
+    return [f"p. {page}: {title}" for page, title in titles if title]
 
 
 @app.post("/complete_score")
@@ -310,7 +338,13 @@ async def complete_score(
             detailed = (
                 current_user.detailed_descriptions if body.detailed is None else body.detailed
             )
-            completed = await run_complete_agent(score, model, usage=usage, detailed=detailed)
+            completed = await run_complete_agent(
+                score,
+                model,
+                usage=usage,
+                detailed=detailed,
+                contents=await _contents(session, score.id),  # type: ignore[arg-type]
+            )
         except Exception as e:
             logger.exception("complete_score failed")
             raise HTTPException(status_code=500, detail="Agent execution failed") from e

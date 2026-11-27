@@ -6,6 +6,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import * as m from '#lib/paraglide/messages.js';
 	import type { Score, Period, Difficulty } from '#lib/types.js';
+	import { FORMS, GENRES, formLabel, genreLabel } from '#lib/metadata.js';
 
 	const CURRENT_YEAR = new Date().getFullYear();
 
@@ -70,6 +71,10 @@
 
 	const textareaClass =
 		'border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-24 w-full rounded-md border px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50';
+	/** The list, plus a stored value from before the fixed vocabulary. */
+	const withCurrent = (list: string[], current: string) =>
+		current && !list.includes(current) ? [current, ...list] : list;
+
 	const selectClass =
 		'border-input bg-background ring-offset-background focus:ring-ring flex h-9 w-full items-center rounded-md border px-3 py-1 text-sm shadow-xs focus:ring-2 focus:ring-offset-2 focus:outline-none';
 </script>
@@ -132,11 +137,21 @@
 				</div>
 				<div class="space-y-2">
 					<label for="edit-genre" class="text-sm font-medium">{m.label_genre()}</label>
-					<Input id="edit-genre" name="genre" bind:value={fields.genre} />
+					<select id="edit-genre" name="genre" bind:value={fields.genre} class={selectClass}>
+						<option value="">{m.option_none()}</option>
+						{#each withCurrent(GENRES, fields.genre) as g (g)}
+							<option value={g}>{genreLabel(g)}</option>
+						{/each}
+					</select>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-form" class="text-sm font-medium">{m.label_form()}</label>
-					<Input id="edit-form" name="form" bind:value={fields.form} />
+					<select id="edit-form" name="form" bind:value={fields.form} class={selectClass}>
+						<option value="">{m.option_none()}</option>
+						{#each withCurrent(FORMS, fields.form) as f (f)}
+							<option value={f}>{formLabel(f)}</option>
+						{/each}
+					</select>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-style" class="text-sm font-medium">{m.label_style()}</label>
