@@ -6,15 +6,15 @@ and Italian). Built with `@sveltejs/adapter-node`.
 
 ## Layout
 
-| Path | What it is |
-|---|---|
-| `src/routes/` | Pages. `+page.server.ts` loads data and runs form actions against the backend |
-| `src/routes/api/` | Same-origin proxies the browser calls (PDFs, incipits, annotations, completion status, data export); they forward the session cookie as a Bearer token |
-| `src/lib/components/` | App components (`ScoreViewer`, `ScoreDetailsDialog`, `AgentChat`, …) and shadcn primitives in `ui/` |
-| `src/lib/server/` | Server-only helpers: `apiFetch`, `callBackend` (never throws), JWT role reading |
-| `src/lib/` | Shared helpers: description rendering, metadata labels, URLs, YouTube, i18n |
-| `messages/*.json` | Paraglide catalogs; every key in all four languages with the same placeholders |
-| `e2e/` | Playwright tests against a stub backend (`e2e/stub-backend.mjs`) |
+| Path                  | What it is                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/routes/`         | Pages. `+page.server.ts` loads data and runs form actions against the backend                                                                          |
+| `src/routes/api/`     | Same-origin proxies the browser calls (PDFs, incipits, annotations, completion status, data export); they forward the session cookie as a Bearer token |
+| `src/lib/components/` | App components (`ScoreViewer`, `ScoreDetailsDialog`, `AgentChat`, …) and shadcn primitives in `ui/`                                                    |
+| `src/lib/server/`     | Server-only helpers: `apiFetch`, `callBackend` (never throws), JWT role reading                                                                        |
+| `src/lib/`            | Shared helpers: description rendering, metadata labels, URLs, YouTube, i18n                                                                            |
+| `messages/*.json`     | Paraglide catalogs; every key in all four languages with the same placeholders                                                                         |
+| `e2e/`                | Playwright tests against a stub backend (`e2e/stub-backend.mjs`)                                                                                       |
 
 ## Backend and auth
 
