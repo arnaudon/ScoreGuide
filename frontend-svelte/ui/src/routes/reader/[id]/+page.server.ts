@@ -4,7 +4,7 @@ import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import { buildScoreUpdatePayload } from '#lib/server/scoreUpdate.js';
 import { tokenRole } from '#lib/server/token.js';
-import type { Score, SectionsResponse } from '#lib/types.js';
+import type { Score, SectionsResponse, User } from '#lib/types.js';
 
 /** Score ids are numbers: a decoded `..%2F…` must not become another backend path. */
 const ID = /^\d+$/;
@@ -15,11 +15,12 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 		redirect(303, '/login');
 	}
 
-	if (!ID.test(params.id)) return { score: null, toc: EMPTY_TOC };
+	if (!ID.test(params.id)) return { score: null, toc: EMPTY_TOC, user: null };
 
 	const api = apiFetch(fetch, token);
 	try {
-		const response = await api(`/scores/${params.id}`);
+		// The score card shows the AI tokens left and the detailed-mode default.
+		const [response, user] = await Promise.all([api(`/scores/${params.id}`), loadUser(api)]);
 
 		if (response.ok) {
 			const score = (await response.json()) as Score;
@@ -40,14 +41,24 @@ export const load: PageServerLoad = async ({ cookies, params, fetch }) => {
 				);
 			}
 
-			return { score, toc: await loadSections(api, params.id) };
+			return { score, toc: await loadSections(api, params.id), user };
 		}
 	} catch (error) {
 		console.error('Failed to fetch score:', error);
 	}
 
-	return { score: null, toc: EMPTY_TOC };
+	return { score: null, toc: EMPTY_TOC, user: null };
 };
+
+/** Optional too: without it the card just hides the token count. */
+async function loadUser(api: ReturnType<typeof apiFetch>): Promise<User | null> {
+	try {
+		const res = await api('/user');
+		return res.ok ? ((await res.json()) as User) : null;
+	} catch {
+		return null;
+	}
+}
 
 const EMPTY_TOC: SectionsResponse = {
 	status: 'none',
