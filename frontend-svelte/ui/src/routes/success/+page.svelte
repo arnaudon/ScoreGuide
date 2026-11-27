@@ -135,9 +135,9 @@
 		>
 			{m.empty_db_p1()}
 
-			<a href={resolve('db-viewer')} class="text-primary font-medium hover:underline"
-				>{m.empty_db_link()}</a
-			>
+			<a href={resolve('db-viewer')} class="text-primary font-medium hover:underline">
+				{m.empty_db_link()}
+			</a>
 
 			{m.empty_db_p2()}
 		</div>
@@ -244,12 +244,12 @@
 <Dialog.Root bind:open={sheetOpen}>
 	<Dialog.Content>
 		<Dialog.Header>
-			<Dialog.Title class="text-fancy-title text-2xl"
-				>{selectedScoreDetails?.title || m.score_details()}</Dialog.Title
-			>
-			<Dialog.Description
-				>{selectedScoreDetails?.composer || m.score_details_desc()}</Dialog.Description
-			>
+			<Dialog.Title class="text-fancy-title text-2xl">
+				{selectedScoreDetails?.title || m.score_details()}
+			</Dialog.Title>
+			<Dialog.Description>
+				{selectedScoreDetails?.composer || m.score_details_desc()}
+			</Dialog.Description>
 		</Dialog.Header>
 		{#if selectedScoreDetails}
 			<ScoreDetails score={selectedScoreDetails} />
@@ -257,8 +257,10 @@
 			<div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
 				<Button
 					href={resolve('/reader/[id]', { id: String(selectedScoreDetails.id) })}
-					class="w-full">{m.view_pdf()}</Button
+					class="w-full"
 				>
+					{m.view_pdf()}
+				</Button>
 			</div>
 		{/if}
 	</Dialog.Content>

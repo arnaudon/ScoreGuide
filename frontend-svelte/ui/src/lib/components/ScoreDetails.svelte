@@ -145,12 +145,13 @@
 								class="text-primary ml-1 text-xs font-medium hover:underline"
 								aria-expanded={allInterpreters}
 								onclick={() => (allInterpreters = !allInterpreters)}
-								>{allInterpreters
+							>
+								{allInterpreters
 									? m.interpreters_less()
 									: m.interpreters_more({
 											count: interpreters.length - INTERPRETERS_SHOWN
-										})}</button
-							>
+										})}
+							</button>
 						{/if}
 					</dd>
 				</div>
@@ -166,10 +167,13 @@
 					title={part.href}
 					target="_blank"
 					rel="external noopener noreferrer"
-					class="text-primary break-all hover:underline">{linkLabel(part.href)}</a
+					class="text-primary break-all hover:underline"
 				>
-			{:else if part.strong}<strong class="text-foreground font-semibold">{part.text}</strong
-				>{:else if part.em}<em>{part.text}</em>{:else}{part.text}{/if}
+					{linkLabel(part.href)}
+				</a>
+			{:else if part.strong}<strong class="text-foreground font-semibold">
+					{part.text}
+				</strong>{:else if part.em}<em>{part.text}</em>{:else}{part.text}{/if}
 		{/each}
 	{/snippet}
 

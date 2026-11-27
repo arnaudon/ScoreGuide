@@ -79,9 +79,9 @@
 <Dialog.Root bind:open>
 	<Dialog.Content>
 		<Dialog.Header>
-			<Dialog.Title class="text-fancy-title text-2xl"
-				>{work?.title || m.imslp_score_details()}</Dialog.Title
-			>
+			<Dialog.Title class="text-fancy-title text-2xl">
+				{work?.title || m.imslp_score_details()}
+			</Dialog.Title>
 			<Dialog.Description>{work?.composer || m.imslp_score_details_desc()}</Dialog.Description>
 		</Dialog.Header>
 		{#if work}
@@ -102,8 +102,10 @@
 									href={httpUrl(work.permlink)}
 									target="_blank"
 									rel="external noopener noreferrer"
-									class="text-primary break-all hover:underline">{work.permlink}</a
+									class="text-primary break-all hover:underline"
 								>
+									{work.permlink}
+								</a>
 							{/if}
 						</p>
 					{:else}
@@ -126,8 +128,10 @@
 											href={httpUrl(file.url)}
 											target="_blank"
 											rel="external noopener noreferrer"
-											class="text-primary shrink-0 hover:underline">{m.imslp_files_open()}</a
+											class="text-primary shrink-0 hover:underline"
 										>
+											{m.imslp_files_open()}
+										</a>
 									{/if}
 								</li>
 							{/each}
@@ -137,8 +141,9 @@
 								type="button"
 								class="text-primary self-start text-sm hover:underline"
 								onclick={() => (showAll = true)}
-								>{m.imslp_files_more({ count: imslpFiles.length })}</button
 							>
+								{m.imslp_files_more({ count: imslpFiles.length })}
+							</button>
 						{/if}
 					{/if}
 				</div>
@@ -170,9 +175,9 @@
 				>
 					<input type="hidden" name="imslp_id" value={work.id} />
 					<div class="space-y-2">
-						<label for="imslp_file_sheet" class="text-sm leading-none font-medium"
-							>{m.imslp_drop_title()}</label
-						>
+						<label for="imslp_file_sheet" class="text-sm leading-none font-medium">
+							{m.imslp_drop_title()}
+						</label>
 						<p class="text-muted-foreground text-xs">{m.imslp_drop_hint()}</p>
 						<div class="relative">
 							<Input

@@ -62,36 +62,36 @@
 							name="instrument"
 							class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full max-w-md items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
 						>
-							<option value="" disabled selected={!data.user?.instrument}
-								>{m.select_instrument()}</option
-							>
-							<option value="piano" selected={data.user?.instrument === 'piano'}
-								>{m.inst_piano()}</option
-							>
-							<option value="violin" selected={data.user?.instrument === 'violin'}
-								>{m.inst_violin()}</option
-							>
-							<option value="viola" selected={data.user?.instrument === 'viola'}
-								>{m.inst_viola()}</option
-							>
-							<option value="cello" selected={data.user?.instrument === 'cello'}
-								>{m.inst_cello()}</option
-							>
-							<option value="guitar" selected={data.user?.instrument === 'guitar'}
-								>{m.inst_guitar()}</option
-							>
-							<option value="flute" selected={data.user?.instrument === 'flute'}
-								>{m.inst_flute()}</option
-							>
-							<option value="clarinet" selected={data.user?.instrument === 'clarinet'}
-								>{m.inst_clarinet()}</option
-							>
-							<option value="trumpet" selected={data.user?.instrument === 'trumpet'}
-								>{m.inst_trumpet()}</option
-							>
-							<option value="other" selected={data.user?.instrument === 'other'}
-								>{m.inst_other()}</option
-							>
+							<option value="" disabled selected={!data.user?.instrument}>
+								{m.select_instrument()}
+							</option>
+							<option value="piano" selected={data.user?.instrument === 'piano'}>
+								{m.inst_piano()}
+							</option>
+							<option value="violin" selected={data.user?.instrument === 'violin'}>
+								{m.inst_violin()}
+							</option>
+							<option value="viola" selected={data.user?.instrument === 'viola'}>
+								{m.inst_viola()}
+							</option>
+							<option value="cello" selected={data.user?.instrument === 'cello'}>
+								{m.inst_cello()}
+							</option>
+							<option value="guitar" selected={data.user?.instrument === 'guitar'}>
+								{m.inst_guitar()}
+							</option>
+							<option value="flute" selected={data.user?.instrument === 'flute'}>
+								{m.inst_flute()}
+							</option>
+							<option value="clarinet" selected={data.user?.instrument === 'clarinet'}>
+								{m.inst_clarinet()}
+							</option>
+							<option value="trumpet" selected={data.user?.instrument === 'trumpet'}>
+								{m.inst_trumpet()}
+							</option>
+							<option value="other" selected={data.user?.instrument === 'other'}>
+								{m.inst_other()}
+							</option>
 						</select>
 					</div>
 					<div class="max-w-md space-y-2">
@@ -225,9 +225,9 @@
 		<section class="bg-card text-card-foreground shadow-card rounded-md border p-6">
 			<h2 class="text-fancy-title mb-4 text-xl font-semibold">{m.download_data()}</h2>
 			<p class="text-muted-foreground mb-6 text-sm">{m.download_data_desc()}</p>
-			<Button href={resolve('/api/user/export')} variant="outline" data-sveltekit-reload
-				>{m.download_data()}</Button
-			>
+			<Button href={resolve('/api/user/export')} variant="outline" data-sveltekit-reload>
+				{m.download_data()}
+			</Button>
 		</section>
 
 		{#if !data.isDemo}

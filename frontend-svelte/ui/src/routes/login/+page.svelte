@@ -75,9 +75,9 @@
 				<div class="flex items-center justify-between">
 					<label for="password" class="text-sm leading-none font-medium">{m.password()}</label>
 					{#if !isRegister}
-						<a href={resolve('forgot-password')} class="text-primary text-sm hover:underline"
-							>{m.forgot_password_link()}</a
-						>
+						<a href={resolve('forgot-password')} class="text-primary text-sm hover:underline">
+							{m.forgot_password_link()}
+						</a>
 					{/if}
 				</div>
 				<Input
@@ -92,9 +92,9 @@
 
 			{#if isRegister}
 				<div class="space-y-2">
-					<label for="instrument" class="text-sm leading-none font-medium"
-						>{m.preferred_instrument()}</label
-					>
+					<label for="instrument" class="text-sm leading-none font-medium">
+						{m.preferred_instrument()}
+					</label>
 					<select
 						id="instrument"
 						name="instrument"
@@ -102,28 +102,28 @@
 					>
 						<option value="" disabled selected={!form?.instrument}>{m.select_instrument()}</option>
 						<option value="piano" selected={form?.instrument === 'piano'}>{m.inst_piano()}</option>
-						<option value="violin" selected={form?.instrument === 'violin'}
-							>{m.inst_violin()}</option
-						>
+						<option value="violin" selected={form?.instrument === 'violin'}>
+							{m.inst_violin()}
+						</option>
 						<option value="viola" selected={form?.instrument === 'viola'}>{m.inst_viola()}</option>
 						<option value="cello" selected={form?.instrument === 'cello'}>{m.inst_cello()}</option>
-						<option value="guitar" selected={form?.instrument === 'guitar'}
-							>{m.inst_guitar()}</option
-						>
+						<option value="guitar" selected={form?.instrument === 'guitar'}>
+							{m.inst_guitar()}
+						</option>
 						<option value="flute" selected={form?.instrument === 'flute'}>{m.inst_flute()}</option>
-						<option value="clarinet" selected={form?.instrument === 'clarinet'}
-							>{m.inst_clarinet()}</option
-						>
-						<option value="trumpet" selected={form?.instrument === 'trumpet'}
-							>{m.inst_trumpet()}</option
-						>
+						<option value="clarinet" selected={form?.instrument === 'clarinet'}>
+							{m.inst_clarinet()}
+						</option>
+						<option value="trumpet" selected={form?.instrument === 'trumpet'}>
+							{m.inst_trumpet()}
+						</option>
 						<option value="other" selected={form?.instrument === 'other'}>{m.inst_other()}</option>
 					</select>
 				</div>
 				<div class="space-y-2">
-					<label for="music_profile" class="text-sm leading-none font-medium"
-						>{m.profile_music_label()}</label
-					>
+					<label for="music_profile" class="text-sm leading-none font-medium">
+						{m.profile_music_label()}
+					</label>
 					<p class="text-muted-foreground text-xs">{m.profile_music_hint()}</p>
 					<textarea
 						id="music_profile"
@@ -174,8 +174,10 @@
 					<button
 						type="button"
 						class="text-primary hover:underline"
-						onclick={() => (isRegister = false)}>{m.login()}</button
+						onclick={() => (isRegister = false)}
 					>
+						{m.login()}
+					</button>
 				</p>
 			{:else}
 				<p class="text-muted-foreground">
@@ -183,8 +185,10 @@
 					<button
 						type="button"
 						class="text-primary hover:underline"
-						onclick={() => (isRegister = true)}>{m.sign_up()}</button
+						onclick={() => (isRegister = true)}
 					>
+						{m.sign_up()}
+					</button>
 				</p>
 			{/if}
 		</div>

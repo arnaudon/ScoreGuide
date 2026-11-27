@@ -182,8 +182,10 @@
 						<div class="flex items-start gap-2.5">
 							<span
 								class="bg-primary/10 text-primary mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full"
-								aria-hidden="true"><SparklesIcon class="size-4" /></span
+								aria-hidden="true"
 							>
+								<SparklesIcon class="size-4" />
+							</span>
 							<div
 								class="bg-muted text-foreground max-w-[90%] min-w-0 rounded-2xl rounded-tl-sm px-4 py-3 text-sm"
 							>
@@ -206,8 +208,10 @@
 						<div class="flex items-center gap-2.5">
 							<span
 								class="bg-primary/10 text-primary flex size-7 shrink-0 items-center justify-center rounded-full"
-								aria-hidden="true"><SparklesIcon class="size-4" /></span
+								aria-hidden="true"
 							>
+								<SparklesIcon class="size-4" />
+							</span>
 							<div
 								class="bg-muted flex items-center gap-1 rounded-2xl rounded-tl-sm px-4 py-3"
 								role="status"

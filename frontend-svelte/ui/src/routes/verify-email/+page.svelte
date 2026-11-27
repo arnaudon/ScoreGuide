@@ -22,8 +22,9 @@
 			<a
 				href={data.loggedIn ? resolve('home') : resolve('login')}
 				class="text-primary hover:underline"
-				>{data.loggedIn ? m.verify_continue() : m.back_to_login()}</a
 			>
+				{data.loggedIn ? m.verify_continue() : m.back_to_login()}
+			</a>
 		</div>
 	</div>
 </div>

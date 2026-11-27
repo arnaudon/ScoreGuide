@@ -85,8 +85,9 @@
 			<span class="flex items-baseline justify-between gap-2">
 				<span
 					class={['text-foreground', movement ? 'text-xs font-medium' : 'text-sm font-semibold']}
-					>{section.title}</span
 				>
+					{section.title}
+				</span>
 				<span class="text-muted-foreground shrink-0 text-xs">
 					{m.toc_page({ page: section.page })}
 				</span>
@@ -179,8 +180,10 @@
 			<button
 				type="button"
 				class="text-muted-foreground hover:text-foreground self-start text-xs underline-offset-2 hover:underline"
-				onclick={() => (reportOpen = true)}>{m.toc_report()}</button
+				onclick={() => (reportOpen = true)}
 			>
+				{m.toc_report()}
+			</button>
 		{:else}
 			<form
 				method="POST"
@@ -210,9 +213,9 @@
 				{/if}
 				<div class="flex gap-2">
 					<Button type="submit" size="sm" disabled={reporting}>{m.toc_report_send()}</Button>
-					<Button type="button" variant="ghost" size="sm" onclick={() => (reportOpen = false)}
-						>{m.toc_report_cancel()}</Button
-					>
+					<Button type="button" variant="ghost" size="sm" onclick={() => (reportOpen = false)}>
+						{m.toc_report_cancel()}
+					</Button>
 				</div>
 			</form>
 		{/if}

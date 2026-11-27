@@ -9,9 +9,9 @@
 		<h1 class="text-fancy-title mb-4 text-center text-xl font-semibold">{m.logout_confirm()}</h1>
 		<form method="POST" class="flex items-center justify-center gap-4">
 			<Button type="submit">{m.nav_logout()}</Button>
-			<a href={resolve('home')} class="text-primary text-sm hover:underline"
-				>{m.error_back_home()}</a
-			>
+			<a href={resolve('home')} class="text-primary text-sm hover:underline">
+				{m.error_back_home()}
+			</a>
 		</form>
 	</div>
 </div>

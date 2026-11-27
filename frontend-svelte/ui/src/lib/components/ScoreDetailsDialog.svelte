@@ -84,9 +84,9 @@
 <Dialog.Root bind:open>
 	<Dialog.Content>
 		<Dialog.Header>
-			<Dialog.Title class="text-fancy-title text-2xl"
-				>{score?.title || m.score_details()}</Dialog.Title
-			>
+			<Dialog.Title class="text-fancy-title text-2xl">
+				{score?.title || m.score_details()}
+			</Dialog.Title>
 			<Dialog.Description>{score?.composer || m.score_details_desc()}</Dialog.Description>
 		</Dialog.Header>
 		{#if score}

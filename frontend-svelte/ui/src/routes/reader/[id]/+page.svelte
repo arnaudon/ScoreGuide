@@ -135,8 +135,9 @@
 					{#if data.toc.sections.length}
 						<span
 							class="bg-muted text-muted-foreground rounded-full px-1.5 text-xs leading-5 tabular-nums"
-							>{data.toc.sections.length}</span
 						>
+							{data.toc.sections.length}
+						</span>
 					{/if}
 				</button>
 				<button
@@ -252,9 +253,9 @@
 										{notes.error === 'load'
 											? m.annotations_load_error()
 											: m.annotations_save_error()}
-										<button type="button" class="underline" onclick={() => notes?.dismissError()}
-											>{m.dismiss()}</button
-										>
+										<button type="button" class="underline" onclick={() => notes?.dismissError()}>
+											{m.dismiss()}
+										</button>
 									</div>
 								{/if}
 							{/snippet}

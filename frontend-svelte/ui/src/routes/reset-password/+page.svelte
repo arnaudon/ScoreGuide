@@ -30,17 +30,17 @@
 		{:else if !data.token}
 			<p role="alert" class="text-destructive text-sm font-medium">{m.invalid_reset_link()}</p>
 			<div class="mt-4 text-center text-sm">
-				<a href={resolve('forgot-password')} class="text-primary hover:underline"
-					>{m.request_new_reset_link()}</a
-				>
+				<a href={resolve('forgot-password')} class="text-primary hover:underline">
+					{m.request_new_reset_link()}
+				</a>
 			</div>
 		{:else}
 			<form method="POST" class="space-y-4" use:enhance>
 				<input type="hidden" name="token" value={form?.token ?? data.token} />
 				<div class="space-y-2">
-					<label for="new_password" class="text-sm leading-none font-medium"
-						>{m.new_password()}</label
-					>
+					<label for="new_password" class="text-sm leading-none font-medium">
+						{m.new_password()}
+					</label>
 					<Input
 						id="new_password"
 						name="new_password"
@@ -52,9 +52,9 @@
 					/>
 				</div>
 				<div class="space-y-2">
-					<label for="confirm_password" class="text-sm leading-none font-medium"
-						>{m.confirm_password()}</label
-					>
+					<label for="confirm_password" class="text-sm leading-none font-medium">
+						{m.confirm_password()}
+					</label>
 					<Input id="confirm_password" name="confirm_password" type="password" required />
 				</div>
 

@@ -65,13 +65,15 @@
 								name="next"
 								value="signup"
 								class="text-primary font-medium whitespace-nowrap hover:underline"
-								>{m.demo_signup()}</button
 							>
+								{m.demo_signup()}
+							</button>
 							<button
 								type="submit"
 								class="text-primary font-medium whitespace-nowrap hover:underline"
-								>{m.demo_login()}</button
 							>
+								{m.demo_login()}
+							</button>
 						</form>
 					</div>
 				{/if}
@@ -97,8 +99,9 @@
 								<button
 									type="submit"
 									class="text-primary font-medium whitespace-nowrap hover:underline"
-									>{m.verify_resend()}</button
 								>
+									{m.verify_resend()}
+								</button>
 							</form>
 						{/if}
 					</div>
