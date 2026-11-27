@@ -365,3 +365,23 @@ def test_interpreters_are_deduplicated_and_capped():
     assert _interpreters(many) == ", ".join(many[:INTERPRETERS_KEPT])
     assert _interpreters(None) is None
     assert _interpreters("") == ""
+
+
+def test_completion_status_and_no_second_run(
+    client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
+):
+    """While a completion runs the card can see it, and a second click is refused."""
+    score_id = _first_score_id(session, test_user)
+    seen = {}
+
+    async def fake_run_complete_agent(score, _model, usage, detailed=False, contents=None):
+        seen["status"] = client.get(f"/scores/{score_id}/completion").json()
+        seen["second"] = client.post("/complete_score", json={"score_id": score_id}).status_code
+        return Score(title=score.title, composer=score.composer)
+
+    monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
+    assert client.get(f"/scores/{score_id}/completion").json() == {"running": False}
+    assert client.post("/complete_score", json={"score_id": score_id}).status_code == 200
+    assert seen == {"status": {"running": True}, "second": 409}
+    assert client.get(f"/scores/{score_id}/completion").json() == {"running": False}
+    assert client.get("/scores/999999/completion").status_code == 404

@@ -314,6 +314,34 @@ async def _contents(session: AsyncSession, score_id: int) -> list[str]:
     return [f"p. {page}: {title}" for page, title in titles if title]
 
 
+# Scores whose completion is running. In memory: the backend runs one worker
+# (Dockerfile.backend), and a restart ends the runs anyway.
+_completing: set[int] = set()
+
+
+class CompletionStatus(BaseModel):
+    """Whether the AI is completing a score right now."""
+
+    running: bool
+
+
+@app.get("/scores/{score_id}/completion")
+async def completion_status(
+    score_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: AsyncSession = Depends(get_async_session),
+) -> CompletionStatus:
+    """Lets the score card show "working…" again after a reload."""
+    owned = (
+        await session.exec(
+            select(Score.id).where(Score.id == score_id, Score.user_id == current_user.id)
+        )
+    ).first()
+    if owned is None:
+        raise HTTPException(status_code=404, detail="Score not found")
+    return CompletionStatus(running=score_id in _completing)
+
+
 @app.post("/complete_score")
 @limiter.limit(config.AGENT_RATE_LIMIT)
 async def complete_score(
@@ -331,6 +359,19 @@ async def complete_score(
     ).first()
     if score is None:
         raise HTTPException(status_code=404, detail="Score not found")
+    if body.score_id in _completing:
+        raise HTTPException(status_code=409, detail="This score is already being completed.")
+    _completing.add(body.score_id)
+    try:
+        return await _complete(score, body, current_user, session)
+    finally:
+        _completing.discard(body.score_id)
+
+
+async def _complete(
+    score: Score, body: CompleteRequest, current_user: User, session: AsyncSession
+) -> Score:
+    """Run the completion agent on ``score`` (metered) and save what it found."""
     name, model = await _agent_model(session, "model_complete")
 
     async with plans.metered(current_user, session, "complete_score", name) as usage:

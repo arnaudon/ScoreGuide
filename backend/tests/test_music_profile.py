@@ -71,11 +71,11 @@ async def test_both_assistants_get_the_profile(monkeypatch):
     result = MagicMock(output=ImslpResponse(response="ok", score_ids=[]))
     result.all_messages.return_value = []
     fake = MagicMock(run=AsyncMock(return_value=result))
-    monkeypatch.setattr("app.agent.Agent", MagicMock(return_value=fake))
+    monkeypatch.setattr(agent, "imslp_agent", fake)
     await agent.run_imslp_agent("sonatas", user=user)
     assert "<user_profile>" in fake.run.call_args.args[0]
 
-    monkeypatch.setattr("app.agent.get_main_agent", lambda *a, **k: fake)
+    monkeypatch.setattr(agent, "main_agent", fake)
     await agent.run_agent("sonatas", agent.Deps(user=user, scores=Scores(scores=[])))
     assert ABOUT in fake.run.call_args.args[0]
 

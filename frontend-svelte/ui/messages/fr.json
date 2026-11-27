@@ -504,5 +504,6 @@
 	"form_collection": "Recueil",
 	"form_other": "Autre",
 	"key_mixed": "Plusieurs tonalités",
-	"option_none": "—"
+	"option_none": "—",
+	"completion_already_running": "L'IA travaille déjà sur cette partition : le résultat s'affichera ici."
 }

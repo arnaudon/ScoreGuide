@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { isRedirect, isActionFailure } from '@sveltejs/kit';
 import { load, actions } from './+page.server.js';
 import { makeCookies, makeFetch, fakeRequest, jsonResponse, event } from '../test-helpers.js';
+import * as m from '#lib/paraglide/messages.js';
 
 const USER = { id: 1, username: 'alice' };
 const SCORE = { id: 11, title: 'Sonata', composer: 'Beethoven' };
@@ -438,6 +439,21 @@ describe('recomplete action', () => {
 			})
 		);
 		expect(result).toMatchObject({ status: 402, data: { error: 'Not enough credits' } });
+	});
+
+	it('says when the AI is already working on the score (409)', async () => {
+		const fetch = makeFetch(async () => jsonResponse({ detail: 'already' }, 409));
+		const result = await actions.recomplete(
+			event({
+				request: fakeRequest({ id: '7' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toMatchObject({
+			status: 409,
+			data: { error: m.completion_already_running() }
+		});
 	});
 
 	it('falls back to a generic message when /complete_score sends no detail', async () => {
