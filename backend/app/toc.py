@@ -362,11 +362,6 @@ def barline_kind(ink: np.ndarray, system: System) -> str:
     return "final" if thick else "double"
 
 
-def ends_with_double_bar(ink: np.ndarray, system: System) -> bool:
-    """Does the system end with a double, final or repeat barline?"""
-    return barline_kind(ink, system) != "single"
-
-
 def crop_incipit(gray: np.ndarray, system: System) -> bytes:
     """Crop one system (with room for ledger lines / tempo marks) as PNG."""
     h, w = gray.shape

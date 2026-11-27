@@ -43,7 +43,6 @@ catalogue.
 | [`frontend-svelte/ui/`](frontend-svelte/ui/) | The SvelteKit app served at scoreguide.ch |
 | `infrastructure/` | Terraform and setup script for the VPS, the read-only SQL role |
 | `caddy/`, `postgres-init/` | Reverse proxy config, database bootstrap |
-| `script/` | One-off experiments (IMSLP scraping, PDF reading); not part of the app |
 
 Architecture notes (agents, SQL safety, auth, metering, storage, deployment) are in
 [`CLAUDE.md`](CLAUDE.md).

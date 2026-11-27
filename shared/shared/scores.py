@@ -269,12 +269,3 @@ class IMSLP(ScoreBase, table=True):
     # Lower-case, accent-free title, composer, catalogue, key, instrumentation, genre.
     search_text: str = Field(default="")
     synced_at: datetime | None = Field(default=None)
-
-
-class IMSLPScores(BaseModel):
-    """IMLSP scores table"""
-
-    scores: list[IMSLP]
-
-    def __len__(self):
-        return len(self.scores)  # pragma: no cover

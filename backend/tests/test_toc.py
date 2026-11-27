@@ -251,12 +251,12 @@ def test_extract_sections_engraved_text_layer():
     assert "Movement" in sections[0].title
 
 
-def test_ends_with_double_bar():
+def test_final_barline_is_detected():
     gray = _page(systems=2, final=(1,))
     ink = gray < toc.INK
     first, second = toc.page_systems(gray)
-    assert not toc.ends_with_double_bar(ink, first)
-    assert toc.ends_with_double_bar(ink, second)
+    assert toc.barline_kind(ink, first) == "single"
+    assert toc.barline_kind(ink, second) != "single"
 
 
 @pytest.mark.parametrize(
@@ -323,7 +323,6 @@ def test_barline_kinds():
     ink = gray < toc.INK
     kinds = [toc.barline_kind(ink, s) for s in toc.page_systems(gray)]
     assert kinds == ["single", "final", "double", "repeat"]
-    assert toc.ends_with_double_bar(ink, toc.page_systems(gray)[1])
 
 
 def test_staff_with_stray_line_is_still_found():

@@ -27,10 +27,6 @@ class User(SQLModel, table=True):
     detailed_descriptions: bool = Field(default=False)
     password: str | None = None
     role: str = Field(default="user")
-    # Legacy per-request counters, replaced by the token allowance of `plan`
-    # (backend app.plans); kept until a later migration drops them.
-    credits: int = Field(default=50)
-    max_credits: int = Field(default=50)
     # Billing plan ("free" or "pro") and optional per-user overrides of its
     # included AI tokens (weighted, once) and storage limit (MB).
     plan: str = Field(default="free")

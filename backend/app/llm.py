@@ -78,11 +78,6 @@ async def _stored(session: AsyncSession) -> dict[str, str]:
     return {r.key.removeprefix(PREFIX): r.value for r in rows}
 
 
-async def agent_model(session: AsyncSession, setting_key: str) -> Model | str:
-    """The model configured for an agent (``model_main``...), ready to run."""
-    return (await named_agent_model(session, setting_key))[1]
-
-
 async def named_agent_model(session: AsyncSession, setting_key: str) -> tuple[str, Model | str]:
     """The configured model's name (for the usage log) and the model, ready to run."""
     setting = await session.get(Setting, setting_key)

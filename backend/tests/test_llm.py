@@ -96,12 +96,9 @@ def test_agent_without_provider_key_is_503_and_free(
 ):
     session.add(Setting(key="model_main", value="infomaniak:Qwen/Qwen3.5"))
     session.commit()
-    credits = test_user.credits
     resp = client.post("/agent", json={"prompt": "p", "deps": '{"scores": []}'})
     assert resp.status_code == 503
     assert resp.json()["detail"] == "AI provider not configured"
-    session.refresh(test_user)
-    assert test_user.credits == credits
 
 
 def test_agent_uses_admin_credentials(admin: TestClient, session: Session):

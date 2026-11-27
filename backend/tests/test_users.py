@@ -198,19 +198,19 @@ def test_secret_key_required_in_production(monkeypatch):
 
 
 def test_add_user_cannot_self_grant_admin(client: TestClient, session: Session):
-    """POST /users ignores client-supplied role/credits fields."""
+    """POST /users ignores client-supplied role/plan fields."""
     payload = {
         "username": "mallory",
         "password": "long-enough-pw",
         "email": "mallory@example.com",
         "role": "admin",
-        "credits": 9999,
+        "plan": "pro",
     }
     resp = client.post("/users", json=payload)
     assert resp.status_code == 200
     created = users.get_user("mallory", session)
     assert created.role == "user"
-    assert created.credits == 50
+    assert created.plan == "free"
 
 
 def test_get_users_requires_admin(client: TestClient):
