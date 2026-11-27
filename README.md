@@ -1,68 +1,104 @@
-# 🎵 ScoreGuide
+# ScoreGuide
 
-**ScoreGuide** is your personal, AI‑powered music score library and practice companion. 
+A personal library for your sheet music, with an AI that knows the pieces.
 
-🌐 **Live App**: [scoreguide.ch](https://scoreguide.ch)
+**Live:** [scoreguide.ch](https://scoreguide.ch) (there is a read-only demo on the login page)
 
-Build a digital database of your PDF scores, track your practice sessions, and chat with a smart AI assistant that helps you choose what to play, auto-completes missing score info, and even searches the massive IMSLP database for you!
+Upload your PDF scores and ScoreGuide reads them like a music stand: page turns, a table of
+contents of the pieces and movements it finds, pencil marks and notes. An AI fills in what you
+would like to know before playing a piece (history, playing tips, anecdotes, with the sources it
+found), and an assistant helps you choose what to play from your library or from the IMSLP
+catalogue.
 
----
+## Features
 
-## ✨ Features
+- **Library**: PDF upload, details per score (composer, year, period, genre, form, key,
+  difficulty…), search and sort.
+- **AI completion**: a sectioned description in English and French (History, Playing it, Did you
+  know?, Sources). Every link is checked against what the AI's web searches really returned.
+- **Reader**: music-stand PDF viewer with an automatic table of contents, annotations and notes.
+- **Assistant**: chat about your own library, or search the IMSLP catalogue in plain language.
+- **Accounts**: plans with AI tokens and storage, email verification, data export (ZIP) and
+  account deletion.
+- **Four languages**: French, English, German and Italian.
+- **Privacy**: everything is hosted in Switzerland by Infomaniak, including the AI models; see
+  [the privacy page](https://scoreguide.ch/privacy).
 
-- 📚 **Smart Library**: Upload PDFs, let AI auto-complete missing metadata, and keep your repertoire organized.
-- 🤖 **AI Assistant**: Chat with an LLM to discover pieces in your library, or search the massive public domain IMSLP database using natural language.
-- 🎹 **Practice Reader**: Built-in distraction-free PDF viewer tailored for your practice sessions.
-- 🌍 **Bilingual**: Fully available in both English and French.
+## Stack
 
----
+| Part | Technology |
+|---|---|
+| Frontend | SvelteKit (Svelte 5), Tailwind CSS 4, shadcn-svelte, Paraglide i18n |
+| Backend | Python, FastAPI, SQLModel, Alembic |
+| AI | pydantic-ai agents on Infomaniak AI Services (open models), DuckDuckGo search, MCP for SQL |
+| Data | PostgreSQL behind pgbouncer, S3-compatible storage for PDFs |
+| Ops | Docker Compose on an Infomaniak VPS, Caddy, GitHub Actions, Sentry |
 
-## 🛠️ Stack
+## Repository layout
 
-- **Frontend**: SvelteKit 5, Tailwind CSS v4, shadcn-svelte
-- **Backend**: Python 3.12, FastAPI, SQLModel (PostgreSQL/SQLite)
-- **AI**: `pydantic-ai` (with DuckDuckGo tools and MCP integration)
-- **Tooling**: `uv` (fast Python package manager)
-- **Infrastructure**: Docker Compose, Caddy (Reverse Proxy), PostgreSQL
+| Path | What it is |
+|---|---|
+| [`backend/`](backend/) | FastAPI service: API, agents, auth, plans, table-of-contents jobs |
+| [`shared/`](shared/) | SQLModel tables and response models used by the backend |
+| [`frontend-svelte/ui/`](frontend-svelte/ui/) | The SvelteKit app served at scoreguide.ch |
+| `infrastructure/` | Terraform and setup script for the VPS, the read-only SQL role |
+| `caddy/`, `postgres-init/` | Reverse proxy config, database bootstrap |
+| `script/` | One-off experiments (IMSLP scraping, PDF reading); not part of the app |
 
----
+Architecture notes (agents, SQL safety, auth, metering, storage, deployment) are in
+[`CLAUDE.md`](CLAUDE.md).
 
-## 🧑‍💻 Development
+## Development
 
-Prerequisites: [`uv`](https://docs.astral.sh/uv/), `docker` + `docker compose`, `node 22+`.
+Prerequisites: [`uv`](https://docs.astral.sh/uv/), Docker with Compose, Node 22 or newer.
 
 ```bash
-# Bring up the full stack (backend on :8000, Svelte on :3000, Postgres, MCP server)
+# Full stack: backend on :8000, Svelte on :3000, Postgres, MCP sidecar
 docker compose up --build
 
-# Backend-only (FastAPI with reload against local SQLite)
+# Backend only (uvicorn --reload, local SQLite)
 ./backend/scripts/run.sh
 
-# Frontend-only (Svelte dev server)
+# Frontend only
 cd frontend-svelte/ui && npm ci && npm run dev
 ```
 
-Per-package test + lint (mirrors CI in `.github/workflows/test.yml`):
+Without AI credentials the agents use pydantic-ai's test model. Real models are set on the admin
+page (`infomaniak:<model>` or `google:<model>`), with their API keys.
+
+## Tests and checks
+
+CI runs all of these on every pull request (`.github/workflows/`):
 
 ```bash
+# Python, per workspace member (backend, shared); backend coverage gate: 99%
 uv sync --frozen
 uv run --frozen --directory backend pytest
 uv run --frozen ruff format --check backend
 uv run --frozen ruff check backend
 uv run --frozen --directory backend mypy .
+
+# Svelte
+cd frontend-svelte/ui
+npm run build && npm run check && npm run lint
+npx vitest --run          # node and browser (Chromium) projects
+npx playwright test       # end-to-end, against a stub backend
 ```
 
-Alembic migrations (run from `backend/`):
+Migrations:
 
 ```bash
-uv run --directory backend alembic revision --autogenerate -m "msg"
+uv run --directory backend alembic revision --autogenerate -m "message"
 uv run --directory backend alembic upgrade head
 ```
 
-API docs are auto-generated by FastAPI at `http://localhost:8000/docs` (Swagger) and `/redoc`.
+API docs: `http://localhost:8000/docs` when the backend runs.
 
----
+## Deployment
 
-## 📄 License
+Every push to `main` deploys: GitHub Actions connects to the VPS, writes the secrets into `.env`,
+rebuilds the containers and runs the migrations. See [`CLAUDE.md`](CLAUDE.md#deployment).
 
-See `LICENSE` for full details.
+## License
+
+[GPL-3.0](LICENSE).

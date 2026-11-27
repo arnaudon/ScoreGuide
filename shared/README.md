@@ -1,17 +1,24 @@
-# `shared`
+# shared
 
-SQLModel tables and pydantic response models shared between `backend/` and anything else in the workspace. Importable as `shared.<module>`.
+SQLModel tables and pydantic models used by the backend (and its migrations). Importable as
+`shared.<module>`.
 
 ## Modules
 
-- `shared.user` — `User` table (JWT subject, role, credits).
-- `shared.scores` — `ScoreBase` (mixin), `Score` (table), `IMSLP` (IMSLP cache table), `ScoreCreate` / `ScoreUpdate` (API request models), `Scores` / `IMSLPScores` (list wrappers).
-- `shared.settings` — `Setting` key/value table (runtime-tunable LLM model IDs etc.).
-- `shared.responses` — `Response`, `ImslpResponse`, `FullResponse`, `ImslpFullResponse` returned by the agent endpoints.
+| Module | Contents |
+|---|---|
+| `shared.user` | `User` table: account, role (`user`, `admin`, `demo`), plan, music profile, preferences |
+| `shared.scores` | `Score` (library), `IMSLP` (catalogue copy), `ScoreSection` and `TocReport` (table of contents), `ScoreCreate` / `ScoreUpdate` request models and their text limits |
+| `shared.metadata` | The fixed vocabulary for genre and form, `Mixed` keys, and the normalizers every write goes through |
+| `shared.annotations` | Pencil marks and notes on score pages |
+| `shared.uploads` | Who uploaded each stored PDF, and its size |
+| `shared.usage` | `AIUsage`: one row per agent run or token grant, the source of truth for allowances |
+| `shared.settings` | `Setting` key/value table (models, model weights, plan limits, credentials) |
+| `shared.responses` | What the agent endpoints return |
 
-## Developing
+## Checks
 
-Scoped to this workspace member (mirrors `.github/workflows/test.yml`):
+From the repository root, as CI runs them:
 
 ```bash
 uv run --frozen --directory shared pytest

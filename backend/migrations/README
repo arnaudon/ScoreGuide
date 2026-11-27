@@ -1,1 +1,10 @@
-Generic single-database configuration.
+Alembic migrations for the ScoreGuide database (schema changes and a few one-off data fixes).
+
+From the repository root:
+
+    uv run --directory backend alembic revision --autogenerate -m "message"
+    uv run --directory backend alembic upgrade head
+
+env.py reads DATABASE_URL and rewrites the db:5432 host to localhost:5432 outside Docker, so the
+same URL works from the host and inside Compose. The deploy runs `alembic upgrade head` after
+every push to main.

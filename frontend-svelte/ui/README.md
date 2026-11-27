@@ -1,32 +1,40 @@
-# Svelte frontend
+# Svelte app
 
-SvelteKit 5 app using Tailwind 4, shadcn-svelte, and Paraglide i18n (en/fr). Adapter: `@sveltejs/adapter-node`. This is the production UI served at [scoreguide.ch](https://scoreguide.ch).
+The ScoreGuide UI served at [scoreguide.ch](https://scoreguide.ch): SvelteKit with Svelte 5,
+Tailwind CSS 4, shadcn-svelte and Paraglide i18n (French, the base locale, plus English, German
+and Italian). Built with `@sveltejs/adapter-node`.
 
 ## Layout
 
-- `src/routes/` — pages and `+page.server.ts` loaders that proxy to the FastAPI backend.
-- `src/lib/server/api.ts` — shared `BACKEND_URL`; import this instead of redeclaring the env var.
-- `src/lib/components/` — shadcn primitives plus app-specific components (`AgentChat`, `Sidebar`).
-- `messages/en.json`, `messages/fr.json` — Paraglide catalogs. The generated `src/lib/paraglide/` is produced by `vite build` / `vite dev` via the paraglide plugin.
-- `e2e/` — reserved for future Playwright suites (not in CI yet).
+| Path                  | What it is                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/routes/`         | Pages. `+page.server.ts` loads data and runs form actions against the backend                                                                          |
+| `src/routes/api/`     | Same-origin proxies the browser calls (PDFs, incipits, annotations, completion status, data export); they forward the session cookie as a Bearer token |
+| `src/lib/components/` | App components (`ScoreViewer`, `ScoreDetailsDialog`, `AgentChat`, …) and shadcn primitives in `ui/`                                                    |
+| `src/lib/server/`     | Server-only helpers: `apiFetch`, `callBackend` (never throws), JWT role reading                                                                        |
+| `src/lib/`            | Shared helpers: description rendering, metadata labels, URLs, YouTube, i18n                                                                            |
+| `messages/*.json`     | Paraglide catalogs; every key in all four languages with the same placeholders                                                                         |
+| `e2e/`                | Playwright tests against a stub backend (`e2e/stub-backend.mjs`)                                                                                       |
 
-## Auth / backend wiring
+## Backend and auth
 
-Cookies hold the JWT (`access_token`, httpOnly + secure + sameSite=lax). The root `+layout.server.ts` asks the backend `/is_admin` on each SSR instead of decoding the JWT client-side — the backend re-verifies on every call, so this is the single source of truth.
-
-Server-side fetches use `BACKEND_URL`; browser fetches use `PUBLIC_BACKEND_URL` (only `reader/[id]` currently exposes the latter).
+The session JWT lives in an httpOnly `access_token` cookie. Server code calls the backend at
+`BACKEND_URL` with that token as a Bearer header; the layout reads the role from the token only
+as a UI hint, and the backend checks every request. A Content-Security-Policy is generated with
+nonces (`vite.config.ts`); fonts are self-hosted.
 
 ## Commands
 
 ```bash
 npm ci
-npm run dev              # vite dev on :3000
-npm run build            # production SSR bundle + paraglide codegen
-node build               # run the production bundle locally
-npm run check            # svelte-check (pre-existing paraglide/any-typed noise)
-npm run lint             # prettier + eslint (pre-existing formatting noise)
-npm run test:unit        # vitest (node + chromium projects)
-npm run test:e2e         # playwright
+npm run dev          # dev server on :3000
+npm run build        # production build (also generates src/lib/paraglide/)
+node build           # run the production build
+npm run check        # svelte-check
+npm run lint         # prettier + eslint
+npx vitest --run     # unit tests: node and browser (Chromium) projects
+npx playwright test  # end-to-end tests
 ```
 
-CI (`.github/workflows/frontend.yml`) gates on `npm run build` + `vitest --project server`. `check` and `lint` run with `continue-on-error` until the pre-existing backlog is cleaned up.
+CI runs all of them (`.github/workflows/test.yml`); `frontend.yml` is a faster build and
+node-test check.
