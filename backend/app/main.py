@@ -125,10 +125,9 @@ def configure_logging() -> None:
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:  # pragma: no cover
     """Startup / shutdown events.
 
-    Schema is owned by alembic (deploy.yaml and test_docker.yaml both run
-    ``alembic upgrade head`` against the container), so the lifespan no
-    longer calls ``init_db`` — doing so would race with the ALTER-based
-    migrations on a fresh volume.
+    Schema is owned by alembic (deploy.yaml, test_docker.yaml and
+    scripts/run.sh run ``alembic upgrade head``), never the lifespan: that
+    would race with the migrations on a fresh volume.
     """
     configure_logging()
     # A deploy restarts the backend: pick up an IMSLP sync where it stopped.

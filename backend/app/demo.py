@@ -151,7 +151,7 @@ def get_or_create_demo_user(session: Session) -> User:
         raise ValueError("DEMO_USERNAME is empty: the demo is disabled")
     user = get_user(config.DEMO_USERNAME, session)
     if user is None:
-        user = User(username=config.DEMO_USERNAME, role=DEMO_ROLE, credits=0, max_credits=0)
+        user = User(username=config.DEMO_USERNAME, role=DEMO_ROLE)
     elif user.role != DEMO_ROLE:
         raise ValueError(f"User {user.username!r} exists and is not a demo account")
     # The demo library is piano music; the IMSLP filter and the agents follow it.

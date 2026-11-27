@@ -79,7 +79,7 @@ MUSIC_PROFILE_MAX_LENGTH = 1000
 class UserCreate(BaseModel):
     """Public registration body.
 
-    Server-owned fields (``role``, ``credits``, ``max_credits``) are
+    Server-owned fields (``role``, ``plan``, allowances) are
     deliberately absent so clients cannot self-grant privileges.
     """
 

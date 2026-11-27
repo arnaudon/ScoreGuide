@@ -56,7 +56,7 @@ def test_export_holds_the_account_data_and_pdfs(
     account = data["account"]
     assert account["username"] == "testuser"
     assert account["email"] == "test@example.com"
-    assert "password" not in account and "credits" not in account
+    assert "password" not in account
 
     titles = {s["title"] for s in data["scores"]}
     assert titles == {"title_1", "title_2", "title_3", "title_4"}

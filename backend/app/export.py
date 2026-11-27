@@ -43,7 +43,7 @@ router = APIRouter()
 SPOOL_MAX = 8 * 1024 * 1024
 CHUNK = 64 * 1024
 # The password hash and legacy counters are not the user's data.
-USER_EXCLUDE = {"password", "credits", "max_credits"}
+USER_EXCLUDE = {"password"}
 
 
 def _safe(text: str, limit: int = 60) -> str:
