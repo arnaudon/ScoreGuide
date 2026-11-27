@@ -7,19 +7,14 @@
 	import { Input } from '#lib/components/ui/input/index.js';
 	import {
 		type ColumnDef,
+		type ColumnFiltersState,
 		type PaginationState,
 		type SortingState,
-		type ColumnFiltersState,
-		getCoreRowModel,
-		getPaginationRowModel,
-		getSortedRowModel,
-		getFilteredRowModel
-	} from '@tanstack/table-core';
-	import {
 		FlexRender,
-		createSvelteTable,
+		createTable,
 		renderComponent
-	} from '#lib/components/ui/data-table/index.js';
+	} from '@tanstack/svelte-table';
+	import { listFeatures, type ListFeatures } from '#lib/tables.js';
 	import DataTableSortButton from '../db-viewer/data-table-sort-button.svelte';
 	import EditPlanDialog from './EditPlanDialog.svelte';
 	import type { AdminUser, UsageRow } from '#lib/types.js';
@@ -110,7 +105,7 @@
 	let sorting = $state<SortingState>([]);
 	let columnFilters = $state<ColumnFiltersState>([]);
 
-	const columns: ColumnDef<AdminUser>[] = [
+	const columns: ColumnDef<ListFeatures, AdminUser>[] = [
 		{
 			accessorKey: 'id',
 			header: ({ column }) =>
@@ -204,7 +199,9 @@
 		}
 	];
 
-	const table = createSvelteTable({
+	const table = createTable({
+		features: listFeatures,
+		autoResetPageIndex: false,
 		get data() {
 			return data.users;
 		},
@@ -227,15 +224,20 @@
 		onSortingChange: (updater) => {
 			if (typeof updater === 'function') sorting = updater(sorting);
 			else sorting = updater;
+			pagination = { ...pagination, pageIndex: 0 };
 		},
 		onColumnFiltersChange: (updater) => {
 			if (typeof updater === 'function') columnFilters = updater(columnFilters);
 			else columnFilters = updater;
-		},
-		getCoreRowModel: getCoreRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getFilteredRowModel: getFilteredRowModel()
+			pagination = { ...pagination, pageIndex: 0 };
+		}
+	});
+
+	// v9's automatic page reset is off: keep the page valid when rows go away.
+	$effect(() => {
+		const pages = table.getPageCount();
+		if (pages > 0 && pagination.pageIndex >= pages)
+			pagination = { ...pagination, pageIndex: pages - 1 };
 	});
 
 	// The sync runs for hours: refresh its progress while it runs here.
@@ -629,10 +631,7 @@
 					{#each headerGroup.headers as header (header.id)}
 						<Table.Head>
 							{#if !header.isPlaceholder}
-								<FlexRender
-									content={header.column.columnDef.header}
-									context={header.getContext()}
-								/>
+								<FlexRender {header} />
 							{/if}
 						</Table.Head>
 					{/each}
@@ -643,9 +642,9 @@
 		<Table.Body>
 			{#each table.getRowModel().rows as row (row.id)}
 				<Table.Row class="hover:bg-muted/50 transition-colors">
-					{#each row.getVisibleCells() as cell (cell.id)}
+					{#each row.getAllCells() as cell (cell.id)}
 						<Table.Cell>
-							<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
+							<FlexRender {cell} />
 						</Table.Cell>
 					{/each}
 					<Table.Cell class="text-right">
@@ -670,7 +669,7 @@
 <div class="flex items-center justify-end space-x-2 py-4">
 	<div class="text-muted-foreground flex-1 text-sm">
 		{m.page_of({
-			page: table.getState().pagination.pageIndex + 1,
+			page: table.atoms.pagination.get().pageIndex + 1,
 			total: Math.max(1, table.getPageCount())
 		})}
 	</div>

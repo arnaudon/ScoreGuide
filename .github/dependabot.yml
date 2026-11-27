@@ -30,13 +30,6 @@ updates:
       # 6.x until svelte-check widens the range, then drop this entry.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
-      # @tanstack/table-core v9 removed the row-model factory exports
-      # (getCoreRowModel, getSortedRowModel, getFilteredRowModel,
-      # getPaginationRowModel), so upgrading fails the production build with 17
-      # MISSING_EXPORT errors. That needs a code migration — tracked in #155.
-      # Remove this entry as part of that work.
-      - dependency-name: "@tanstack/table-core"
-        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/"
