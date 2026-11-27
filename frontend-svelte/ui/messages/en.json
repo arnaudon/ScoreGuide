@@ -492,5 +492,7 @@
 	"form_other": "Other",
 	"key_mixed": "Mixed keys",
 	"option_none": "—",
-	"completion_already_running": "The AI is already working on this score: the result will appear here."
+	"completion_already_running": "The AI is already working on this score: the result will appear here.",
+	"contact_code_title": "Source code",
+	"contact_code_desc": "ScoreGuide is free software (GPL-3.0). To report a bug, suggest an idea or contribute, head to GitHub:"
 }
