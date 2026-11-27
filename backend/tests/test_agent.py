@@ -296,3 +296,23 @@ def test_agents_cap_output_tokens(monkeypatch):
     monkeypatch.setattr("app.agent.config.AI_MAX_OUTPUT_TOKENS", 123)
     main = agent.get_main_agent("test")
     assert main.model_settings == {"max_tokens": 123}
+
+
+@pytest.mark.asyncio
+async def test_run_complete_agent_requires_descriptions():
+    """The output schema makes the descriptions required, and the score keeps its owner."""
+    from pydantic_ai.models.test import TestModel
+
+    schema = agent.ScoreCompletion.model_json_schema()
+    assert {
+        "short_description",
+        "short_description_fr",
+        "long_description",
+        "long_description_fr",
+    } <= set(schema["required"])
+    assert "user_id" not in schema["properties"] and "pdf_path" not in schema["properties"]
+
+    score = Score(id=3, title="Op. 118", composer="Brahms", user_id=7, pdf_path="x.pdf")
+    result = await agent.run_complete_agent(score, model=TestModel(call_tools=[]))
+    assert result.long_description and result.short_description_fr
+    assert (result.id, result.user_id, result.pdf_path) == (None, None, "x.pdf")

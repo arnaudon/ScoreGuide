@@ -334,3 +334,14 @@ def test_complete_score_detailed_follows_preference_unless_asked(
     body = {"score_id": score_id, "detailed": False}
     assert client.post("/complete_score", json=body).status_code == 200
     assert modes == [False, True, False]
+
+
+def test_interpreters_are_deduplicated_and_capped():
+    from app.main import INTERPRETERS_KEPT, _interpreters
+
+    looped = "Radu Lupu, Glenn Gould, radu lupu; Hélène Grimaud., , Glenn Gould"
+    assert _interpreters(looped) == "Radu Lupu, Glenn Gould, Hélène Grimaud"
+    many = [f"Pianist {i}" for i in range(20)]
+    assert _interpreters(many) == ", ".join(many[:INTERPRETERS_KEPT])
+    assert _interpreters(None) is None
+    assert _interpreters("") == ""

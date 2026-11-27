@@ -148,6 +148,8 @@
 	"label_long_description": "Long Description",
 	"label_difficulty": "Difficulty",
 	"label_notable_interpreters": "Notable Interpreters",
+	"interpreters_more": "+{count} more",
+	"interpreters_less": "Less",
 	"label_youtube_url": "YouTube URL",
 	"label_permlink": "Permlink",
 	"page_of": "Page {page} of {total}",

@@ -77,3 +77,21 @@ describe('ScoreDetails.svelte description and plays', () => {
 		await expect.element(page.getByText('Not opened yet')).toBeInTheDocument();
 	});
 });
+
+describe('ScoreDetails.svelte interpreters', () => {
+	it('shows five names once, the rest behind a toggle', async () => {
+		const names = ['A One', 'B Two', 'C Three', 'D Four', 'E Five', 'F Six', 'G Seven'];
+		render(ScoreDetails, {
+			score: {
+				...score(),
+				notable_interpreters: [...names, 'A One', 'b two'].join(', ')
+			} as unknown as Score
+		});
+		const text = () => document.querySelector('dd')?.textContent?.replace(/\s+/g, ' ').trim();
+		await expect.poll(text).toBe('A One, B Two, C Three, D Four, E Five +2 more');
+		await page.getByRole('button', { name: '+2 more' }).click();
+		await expect.poll(text).toBe(`${names.join(', ')} Less`);
+		await page.getByRole('button', { name: 'Less' }).click();
+		await expect.poll(text).toBe('A One, B Two, C Three, D Four, E Five +2 more');
+	});
+});
