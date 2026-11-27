@@ -8,6 +8,7 @@
 	import { localizedField } from '#lib/i18n/score.js';
 	import { httpUrl } from '#lib/url.js';
 	import { parseDescription, type Inline } from '#lib/description.js';
+	import { splitNames } from '#lib/names.js';
 	import * as m from '#lib/paraglide/messages.js';
 
 	/**
@@ -57,9 +58,15 @@
 		[
 			{ label: m.label_genre(), value: str('genre') },
 			{ label: m.label_form(), value: str('form') },
-			{ label: m.label_style(), value: str('style') },
-			{ label: m.label_notable_interpreters(), value: str('notable_interpreters') }
+			{ label: m.label_style(), value: str('style') }
 		].filter((f) => f.value)
+	);
+	// A few names, the rest behind a toggle.
+	const INTERPRETERS_SHOWN = 5;
+	let interpreters = $derived(splitNames(str('notable_interpreters')));
+	let allInterpreters = $state(false);
+	let shownInterpreters = $derived(
+		allInterpreters ? interpreters : interpreters.slice(0, INTERPRETERS_SHOWN)
 	);
 	let youtube = $derived(httpUrl(str('youtube_url')));
 	let videoId = $derived(youtubeVideoId(youtube));
@@ -70,6 +77,7 @@
 	$effect(() => {
 		void videoId;
 		playing = false;
+		allInterpreters = false;
 	});
 </script>
 
@@ -112,7 +120,7 @@
 		<p class="text-foreground text-base leading-relaxed">{summary}</p>
 	{/if}
 
-	{#if facts.length}
+	{#if facts.length || interpreters.length}
 		<dl class="grid grid-cols-1 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-2">
 			{#each facts as fact (fact.label)}
 				<div class="min-w-0">
@@ -122,6 +130,29 @@
 					<dd class="text-foreground mt-0.5 text-sm break-words">{fact.value}</dd>
 				</div>
 			{/each}
+			{#if interpreters.length}
+				<div class="min-w-0 sm:col-span-2">
+					<dt class="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+						{m.label_notable_interpreters()}
+					</dt>
+					<dd class="text-foreground mt-0.5 text-sm break-words">
+						{shownInterpreters.join(', ')}
+						{#if interpreters.length > INTERPRETERS_SHOWN}
+							<button
+								type="button"
+								class="text-primary ml-1 text-xs font-medium hover:underline"
+								aria-expanded={allInterpreters}
+								onclick={() => (allInterpreters = !allInterpreters)}
+								>{allInterpreters
+									? m.interpreters_less()
+									: m.interpreters_more({
+											count: interpreters.length - INTERPRETERS_SHOWN
+										})}</button
+							>
+						{/if}
+					</dd>
+				</div>
+			{/if}
 		</dl>
 	{/if}
 

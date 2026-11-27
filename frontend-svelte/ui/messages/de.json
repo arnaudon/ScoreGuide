@@ -148,6 +148,8 @@
 	"label_long_description": "Ausführliche Beschreibung",
 	"label_difficulty": "Schwierigkeit",
 	"label_notable_interpreters": "Bekannte Interpreten",
+	"interpreters_more": "+{count} weitere",
+	"interpreters_less": "Weniger",
 	"label_youtube_url": "YouTube-Link",
 	"label_permlink": "Permalink",
 	"page_of": "Seite {page} von {total}",

@@ -237,10 +237,27 @@ async def _agent_model(session: AsyncSession, setting_key: str):
         raise HTTPException(status_code=503, detail="AI provider not configured") from e
 
 
+INTERPRETERS_KEPT = 8
+
+
+def _interpreters(value: object) -> str | None:
+    """At most ``INTERPRETERS_KEPT`` distinct names: models sometimes loop over the list."""
+    if value is None:
+        return None
+    raw = value if isinstance(value, list | tuple) else str(value).replace(";", ",").split(",")
+    names: list[str] = []
+    for item in raw:
+        name = str(item).strip().rstrip(".")
+        if name and name.casefold() not in {n.casefold() for n in names}:
+            names.append(name)
+    return ", ".join(names[:INTERPRETERS_KEPT])
+
+
 def _clip_completion(completed: Score) -> dict:
     """The completed score's details, cut to what a client may store; a video
     link that isn't a web address is dropped."""
     fields = completed.model_dump(include=set(ScoreUpdate.model_fields) - {"pdf_path", "source"})
+    fields["notable_interpreters"] = _interpreters(fields.get("notable_interpreters"))
     for name, limit in TEXT_LIMITS.items():
         value = fields.get(name)
         # A collection's details can come back as lists (one key per piece).

@@ -6,7 +6,7 @@ import random
 
 import httpx
 from dotenv import load_dotenv
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
@@ -317,7 +317,8 @@ async def run_agent(
 
 COMPLETE_SYSTEM_PROMPT = """You are a music expert helping musicians who are about to play a piece.
 Fill in accurate information about the piece. Search the web for anything you are not sure of;
-never guess dates, names or anecdotes. Ignore pdf_path, user_id, id and number_of_plays.
+never guess dates, names or anecdotes. short_description, long_description and their French
+versions are required: always write them.
 Every field is a single line of plain text: for a collection of pieces, list the keys
 in one line ("A minor, A major, G minor"), never as a list.
 
@@ -341,6 +342,9 @@ Paragraphs are separated by a blank line. No other markdown (no bold, no tables)
 
 long_description_fr and short_description_fr: the same texts in French, with the headings
 "## Histoire", "## Conseils de jeu", "## Le saviez-vous ?" and "## Sources".
+
+notable_interpreters: up to 8 well-known performers who recorded this piece, comma-separated,
+each named once; only performers your search results connect to this piece, never a guess.
 
 youtube_url: a YouTube link to a good performance only if one appeared in your search
 results (prefer the performer's, label's or a concert hall's channel); otherwise leave it empty.
@@ -383,6 +387,33 @@ def _page_reader(max_pages: int, max_chars: int):
     return read_page
 
 
+class ScoreCompletion(BaseModel):
+    """What the completion agent answers: the details it fills in, descriptions required.
+
+    Not the ``Score`` table: that one isn't validated and lets the model skip the
+    descriptions (or see ids and paths). Enums stay strings here, so a near miss
+    ("Late Romantic") doesn't cost a paid retry; ``main._clip_completion`` drops it.
+    """
+
+    title: str
+    composer: str
+    year: int | None = None
+    period: str = ""
+    genre: str = ""
+    form: str = ""
+    style: str = ""
+    # A collection may come back as a list (one key per piece): joined on save.
+    key: str | list[str] = ""
+    instrumentation: str = ""
+    difficulty: str = ""
+    short_description: str = Field(min_length=1)
+    short_description_fr: str = Field(min_length=1)
+    long_description: str = Field(min_length=1)
+    long_description_fr: str = Field(min_length=1)
+    youtube_url: str = ""
+    notable_interpreters: str | list[str] = ""
+
+
 async def run_complete_agent(
     score: Score,
     model: Model | str | None = None,
@@ -403,7 +434,7 @@ async def run_complete_agent(
     """
     agent = Agent(
         model or os.getenv("MODEL", "test"),
-        output_type=Score,
+        output_type=ScoreCompletion,
         system_prompt=COMPLETE_SYSTEM_PROMPT + (DETAILED_PROMPT if detailed else ""),
         retries=5,
         model_settings=_model_settings(),
@@ -416,7 +447,9 @@ async def run_complete_agent(
     )
     prompt = f"Find the information about music piece {score.title} composed by {score.composer}."
     res = await agent.run(_wrap_user_prompt(prompt), usage_limits=_usage_limits(usage), usage=usage)
-    return _only_found_links(res.output, sources.found_urls(res.all_messages()))
+    found = res.output.model_dump(exclude_none=True)
+    completed = Score(**{**score.model_dump(exclude={"id", "user_id"}), **found})
+    return _only_found_links(completed, sources.found_urls(res.all_messages()))
 
 
 def _only_found_links(score: Score, seen: set[str]) -> Score:
