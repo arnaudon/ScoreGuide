@@ -79,3 +79,24 @@
 		letter-spacing: 0.01em;
 	}
 }
+
+/* Unlayered, so it wins over the typography plugin's own colours.
+   Long-form pages (privacy, terms, legal, contact) in the site's colours;
+   the theme variables also switch them to dark mode. */
+.prose {
+	--tw-prose-body: hsl(var(--foreground));
+	--tw-prose-headings: hsl(var(--foreground));
+	--tw-prose-lead: hsl(var(--muted-foreground));
+	--tw-prose-links: hsl(var(--primary));
+	--tw-prose-bold: hsl(var(--foreground));
+	--tw-prose-bullets: hsl(var(--primary));
+	--tw-prose-counters: hsl(var(--muted-foreground));
+	--tw-prose-hr: hsl(var(--border));
+	--tw-prose-quotes: hsl(var(--foreground));
+	--tw-prose-captions: hsl(var(--muted-foreground));
+}
+.prose :where(h2) {
+	font-family: 'EB Garamond', ui-serif, Georgia, serif;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+}

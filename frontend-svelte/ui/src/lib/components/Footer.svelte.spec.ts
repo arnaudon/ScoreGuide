@@ -11,6 +11,8 @@ describe('Footer.svelte', () => {
 		await expect.element(page.getByRole('link', { name: /legal notice/i })).toBeInTheDocument();
 		await expect.element(page.getByRole('link', { name: /^contact$/i })).toBeInTheDocument();
 		await expect.element(page.getByText(/Alexis Arnaudon/)).toBeInTheDocument();
+		// No beta notice or e-mail address: the contact page covers that.
+		await expect.element(page.getByText(/beta/i)).not.toBeInTheDocument();
 	});
 
 	it('hides the language picker by default', async () => {

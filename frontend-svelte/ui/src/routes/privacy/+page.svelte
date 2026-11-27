@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegalPage from '#lib/components/LegalPage.svelte';
 	import { resolve } from '$app/paths';
 	import * as m from '#lib/paraglide/messages.js';
 
@@ -8,13 +9,7 @@
 		h === 'infomaniak' ? m.privacy_host_infomaniak() : h === 'google' ? m.privacy_host_google() : h;
 </script>
 
-<svelte:head>
-	<title>{m.privacy_policy()} · ScoreGuide</title>
-</svelte:head>
-
-<div class="mx-auto prose max-w-3xl px-4 py-12 sm:px-6 lg:px-8 dark:prose-invert">
-	<h1>{m.privacy_policy()}</h1>
-	<p class="text-muted-foreground text-sm">{m.privacy_updated()}</p>
+<LegalPage title={m.privacy_policy()} updated={m.privacy_updated()}>
 	<p>{m.privacy_intro()}</p>
 
 	<h2>{m.privacy_h_store()}</h2>
@@ -53,4 +48,4 @@
 	<h2>{m.privacy_h_rights()}</h2>
 	<p>{m.privacy_rights()}</p>
 	<p><a href={resolve('contact')}>{m.privacy_contact_link()}</a></p>
-</div>
+</LegalPage>
