@@ -418,8 +418,8 @@ SEARCH_RESULTS = 5
 
 QUICK_PROMPT = """
 QUICK MODE: you can search once (up to three searches together in that step), then write from
-what you found. Keep it short: History in one paragraph, 3 lines of playing advice, one anecdote
-at most.
+what you found. Keep it short: History in one paragraph and 3 lines of playing advice. Leave out
+the "Did you know?" section: one search is too little to check an anecdote.
 """
 
 DETAILED_PROMPT = """
@@ -452,7 +452,13 @@ _ddg = DuckDuckGoSearchTool(client=DDGS(), max_results=SEARCH_RESULTS)
 async def duckduckgo_search(ctx: RunContext[CompleteDeps], query: str) -> list[DuckDuckGoResult]:
     """Searches DuckDuckGo for the given query and returns the results."""
     ctx.deps.search_steps.add(ctx.run_step)
-    return await _ddg(query)
+    try:
+        return await _ddg(query)
+    except Exception as e:
+        # ddgs raises when a search finds nothing (or is throttled): an empty
+        # result lets the agent go on instead of failing the whole paid run.
+        logger.warning("search failed (%s): %s", type(e).__name__, query[:100])
+        return []
 
 
 async def _searches_left(

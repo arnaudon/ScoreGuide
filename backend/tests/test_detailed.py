@@ -1,7 +1,7 @@
 """Detailed descriptions: the preference, the page reader and its safety checks."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -196,3 +196,17 @@ async def test_search_is_withdrawn_after_its_rounds(monkeypatch, effort, rounds)
     )
     assert offered == [True] * rounds + [False]
     assert len(queries) == 2 * rounds
+
+
+@pytest.mark.asyncio
+async def test_a_failed_search_returns_nothing_instead_of_failing_the_run(monkeypatch):
+    """ddgs raises 'No results found': the agent gets an empty list and goes on."""
+    from ddgs.exceptions import DDGSException
+
+    async def no_results(_query):
+        raise DDGSException("No results found.")
+
+    monkeypatch.setattr(agent, "_ddg", no_results)
+    ctx = MagicMock(deps=agent.CompleteDeps(), run_step=1)
+    assert await agent.duckduckgo_search(ctx, "obscure piece") == []
+    assert ctx.deps.search_steps == {1}
