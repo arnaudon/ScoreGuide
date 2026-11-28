@@ -43,7 +43,10 @@ test.describe('library', () => {
 		await expect(search).toHaveValue('');
 
 		// The composer list on the left; grouped under the composer's name.
-		await page.getByRole('complementary').getByRole('button', { name: /^Liszt/ }).click();
+		await page
+			.getByRole('complementary')
+			.getByRole('button', { name: /^Liszt/ })
+			.click();
 		await expect(page.getByText('20 of 20 scores')).toBeVisible();
 		await expect(page.getByRole('heading', { name: /^Liszt/ })).toBeVisible();
 		await page.getByRole('button', { name: 'Remove filter Liszt' }).click();
