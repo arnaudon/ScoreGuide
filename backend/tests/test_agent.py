@@ -175,7 +175,7 @@ async def test_run_complete_agent_success():
         "composer": "Tester",
         "style": "",
         "short_description": "s",
-        "short_description_fr": "s",
+        "short_description_fr": "## Not a heading on one line",
         "long_description": "## History\\nWritten in 1893.",
         "long_description_fr": "## Histoire<br>Écrit en 1893.<BR/>- Clara",
     }
@@ -186,6 +186,25 @@ async def test_run_complete_agent_success():
     # Escaped line breaks are undone by the output validator.
     assert result.long_description == "## History\nWritten in 1893."
     assert result.long_description_fr == "## Histoire\nÉcrit en 1893.\n- Clara"
+
+
+@pytest.mark.asyncio
+async def test_complete_agent_restores_lines_of_a_one_line_description():
+    """Kimi wrote the sections on one line ("every field is a single line")."""
+    from pydantic_ai.models.test import TestModel
+
+    one_line = "## History Written in 1893. ## Playing it - Voice it. - Little pedal."
+    answer = {"title": "T", "composer": "C", "short_description": "s"} | {
+        "short_description_fr": "s",
+        "long_description": one_line,
+        "long_description_fr": "## Histoire Écrit en 1893.",
+    }
+    model = TestModel(call_tools=[], custom_output_args=answer)
+    result = await agent.run_complete_agent(Score(title="t", composer="c"), model=model)
+    assert result.long_description == (
+        "## History\nWritten in 1893.\n\n## Playing it\n- Voice it.\n- Little pedal."
+    )
+    assert result.long_description_fr == "## Histoire\nÉcrit en 1893."
 
 
 @pytest.mark.asyncio
