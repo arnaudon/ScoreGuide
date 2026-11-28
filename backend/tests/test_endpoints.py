@@ -7,6 +7,7 @@ tokens are used up is refused before the agent runs.
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic_ai.exceptions import IncompleteToolCall, UsageLimitExceeded
 from sqlmodel import select
 
 from app import agent, main, plans
@@ -190,6 +191,26 @@ def test_nothing_logged_when_no_model_call(
     score_id = _first_score_id(session, test_user)
     assert client.post("/complete_score", json={"score_id": score_id}).status_code == 500
     assert _logged(session, test_user.id) == []
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "detail"),
+    [
+        (IncompleteToolCall("cut off"), 502, main.COMPLETE_CUT_OFF),
+        (UsageLimitExceeded("too many tokens"), 413, main.COMPLETE_TOO_LARGE),
+    ],
+)
+def test_complete_score_cap_errors_explain(
+    client: TestClient, session, test_user: User, monkeypatch, error, status, detail
+):
+    """A run stopped by a cap says why instead of "Agent execution failed"."""
+
+    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
+        raise error
+
+    monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
+    res = client.post("/complete_score", json={"score_id": _first_score_id(session, test_user)})
+    assert (res.status_code, res.json()["detail"]) == (status, detail)
 
 
 def test_run_token_limit_is_what_the_account_has_left(

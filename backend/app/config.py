@@ -41,7 +41,10 @@ PRO_STORAGE_MB = int(os.getenv("PRO_STORAGE_MB", "10000"))
 # Cost caps for one AI request (one credit): the length of each model answer,
 # the number of model calls in one run (tool round-trips, retries) and the
 # total tokens spent. A run that hits a cap stops instead of running up the bill.
-AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "8192"))
+# The answer cap must leave room for a thinking model's reasoning (Kimi counts
+# it as output) plus the completion agent's two sectioned descriptions: 8192 cut
+# answers off mid-way. The run's real cost cap is AI_TOTAL_TOKENS_LIMIT.
+AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "32768"))
 AI_REQUEST_LIMIT = int(os.getenv("AI_REQUEST_LIMIT", "15"))
 AI_TOTAL_TOKENS_LIMIT = int(os.getenv("AI_TOTAL_TOKENS_LIMIT", "300000"))
 # Detailed score descriptions: how many web pages the completion agent may read

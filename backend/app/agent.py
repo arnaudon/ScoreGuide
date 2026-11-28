@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, WithJsonSchema
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
-from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.exceptions import ModelHTTPError, OutputTokenLimitExceeded, UsageLimitExceeded
 from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.messages import ModelMessage, ModelRequest, SystemPromptPart
 from pydantic_ai.models import Model
@@ -165,6 +165,7 @@ def _usage_limits(usage: RunUsage | None = None) -> UsageLimits:
 
 
 TOO_LARGE_MSG = "This request was too large. Please ask a more specific question."
+CUT_OFF_MSG = "The answer was too long and got cut off. Please ask a more specific question."
 
 
 def _response_for_http_error(err: ModelHTTPError, factory):
@@ -281,6 +282,9 @@ async def run_imslp_agent(
     except UsageLimitExceeded:
         logger.warning("imslp agent run hit a usage limit")
         response = make_response(TOO_LARGE_MSG)
+    except OutputTokenLimitExceeded:
+        logger.warning("imslp agent answer cut off at the output-token cap")
+        response = make_response(CUT_OFF_MSG)
     except Exception:
         logger.exception("imslp agent run failed")
         response = make_response("An unexpected error occurred")
@@ -328,6 +332,9 @@ async def run_agent(
     except UsageLimitExceeded:
         logger.warning("main agent run hit a usage limit")
         response = make_response(TOO_LARGE_MSG)
+    except OutputTokenLimitExceeded:
+        logger.warning("main agent answer cut off at the output-token cap")
+        response = make_response(CUT_OFF_MSG)
     except Exception:
         logger.exception("main agent run failed")
         response = make_response("An unexpected error occurred")
