@@ -79,6 +79,8 @@ jobs:
               printf 'PUBLIC_SENTRY_DSN=%s\n' "${PUBLIC_SENTRY_DSN-}"
               echo "SENTRY_ENVIRONMENT=production"
               echo "PUBLIC_SENTRY_ENVIRONMENT=production"
+              # Sentry release: the deployed commit, so errors name the deploy they came with.
+              printf 'SENTRY_RELEASE=%s\n' "$(git rev-parse --short=12 HEAD)"
               printf 'MCP_READONLY_PASSWORD=%s\n' "${MCP_READONLY_PASSWORD-}"
               printf 'PGADMIN_DEFAULT_PASSWORD=%s\n' "${PGADMIN_DEFAULT_PASSWORD-}"
               echo "FRONTEND_URL=https://scoreguide.ch"

@@ -389,6 +389,17 @@ def test_complete_score_effort_asked_else_preference_else_plan(
         )
 
     run()  # free plan: quick
+    # Detailed is a Pro feature: refused when asked, lowered from the preference.
+    res = client.post("/complete_score", json={"score_id": score_id, "effort": "detailed"})
+    assert (res.status_code, res.json()["detail"]) == (403, main.EFFORT_NOT_IN_PLAN)
+    test_user.detailed_descriptions = True
+    session.add(test_user)
+    session.commit()
+    run()  # free + detailed preference: quick
+    test_user.detailed_descriptions = False
+    test_user.plan = "pro"
+    session.add(test_user)
+    session.commit()
     run(effort="detailed")
     test_user.plan = "pro"
     session.add(test_user)
@@ -400,7 +411,7 @@ def test_complete_score_effort_asked_else_preference_else_plan(
     run()  # preference
     run(detailed=False)
     run(effort="quick", detailed=True)
-    assert modes == ["quick", "detailed", "standard", "detailed", "standard", "quick"]
+    assert modes == ["quick", "quick", "detailed", "standard", "detailed", "standard", "quick"]
     assert (
         client.post("/complete_score", json={"score_id": score_id, "effort": "max"}).status_code
         == 422

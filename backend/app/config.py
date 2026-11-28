@@ -85,4 +85,6 @@ DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo")
 # Sentry is opt-in: if SENTRY_DSN isn't set, sentry_sdk.init() is skipped entirely.
 SENTRY_DSN = os.getenv("SENTRY_DSN")
 SENTRY_ENVIRONMENT = os.getenv("SENTRY_ENVIRONMENT", "production")
+# The deployed commit (set by the deploy): errors are grouped by release in Sentry.
+SENTRY_RELEASE = os.getenv("SENTRY_RELEASE") or None
 SENTRY_TRACES_SAMPLE_RATE = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))

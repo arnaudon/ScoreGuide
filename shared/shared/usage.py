@@ -43,3 +43,5 @@ class UsageSummary(BaseModel):
     # Weighted tokens one AI completion of a score costs at each effort
     # (quick / standard / detailed) with the current model.
     ai_run_estimates: dict[str, int] = {}
+    # The efforts the plan includes (detailed is a Pro feature).
+    ai_efforts: list[str] = []

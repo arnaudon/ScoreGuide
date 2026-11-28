@@ -1,8 +1,18 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import * as m from '#lib/paraglide/messages.js';
-	import { EFFORTS, type Effort, canAfford, defaultEffort, effortPercent } from '#lib/usage.js';
-	import type { User } from '#lib/types.js';
+	import {
+		EFFORTS,
+		type Effort,
+		canAfford,
+		defaultEffort,
+		effortAllowed,
+		effortMultiple,
+		effortPercent
+	} from '#lib/usage.js';
+	import type { Score, User } from '#lib/types.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import ScoreDetails from '#lib/components/ScoreDetails.svelte';
 	import AiBadge from '#lib/components/ai/AiBadge.svelte';
 	import NoAiTokens from '#lib/components/ai/NoAiTokens.svelte';
 
@@ -10,6 +20,8 @@
 	 * How much the AI may do (and spend) to fill in a score, with what one run
 	 * typically takes of the account's tokens. Submits `effort`
 	 * (`none` = no AI, only when `allowNone`). `form` ties it to a form elsewhere.
+	 * Efforts the plan doesn't include (detailed on the free plan) are shown but
+	 * disabled, with "See an example" opening a demo description.
 	 */
 	let {
 		user,
@@ -42,11 +54,32 @@
 	// The first choice only: later token changes don't override the user's pick.
 	if (value === undefined) value = untrack(() => fallback ?? (allowNone ? 'none' : 'quick'));
 
+	const usable = (effort: Effort) => effortAllowed(user, effort) && canAfford(user, effort);
+	const locked = $derived(EFFORTS.filter((effort) => !effortAllowed(user, effort)));
+
 	function cost(effort: Effort): string {
+		if (!effortAllowed(user, effort)) return m.effort_pro_only();
 		if (!canAfford(user, effort)) return m.effort_too_costly();
+		const notes: string[] = [];
+		const times = effortMultiple(user, effort);
+		if (times !== undefined) notes.push(m.effort_times({ times: String(times) }));
 		const percent = effortPercent(user, effort);
-		if (percent === undefined) return '';
-		return m.effort_cost({ percent: percent < 1 ? '<1' : String(Math.round(percent)) });
+		if (percent !== undefined)
+			notes.push(m.effort_cost({ percent: percent < 1 ? '<1' : String(Math.round(percent)) }));
+		return notes.join(' · ');
+	}
+
+	let exampleOpen = $state(false);
+	let example = $state<Score | null | undefined>(undefined);
+	async function showExample() {
+		exampleOpen = true;
+		if (example) return;
+		try {
+			const res = await fetch('/api/demo-example');
+			example = res.ok ? ((await res.json()) as Score) : null;
+		} catch {
+			example = null;
+		}
 	}
 </script>
 
@@ -68,7 +101,7 @@
 			{/if}
 			{#each EFFORTS as effort (effort)}
 				{@const note = cost(effort)}
-				<option value={effort} disabled={!canAfford(user, effort)}>
+				<option value={effort} disabled={!usable(effort)}>
 					{LABELS[effort]()}{note ? ` · ${note}` : ''}
 				</option>
 			{/each}
@@ -79,4 +112,32 @@
 	{:else}
 		<p class="text-muted-foreground text-xs">{DESCRIPTIONS[value ?? 'none']()}</p>
 	{/if}
+	{#if locked.length}
+		<p class="text-muted-foreground text-xs">
+			{LABELS[locked[0]]()}: {m.effort_pro_only()} ·
+			<button
+				type="button"
+				class="text-primary underline-offset-2 hover:underline"
+				onclick={showExample}
+			>
+				{m.effort_example()}
+			</button>
+		</p>
+	{/if}
 </div>
+
+<Dialog.Root bind:open={exampleOpen}>
+	<Dialog.Content class="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+		<Dialog.Header>
+			<Dialog.Title>{m.effort_example_title()}</Dialog.Title>
+			<Dialog.Description>{m.effort_example_intro()}</Dialog.Description>
+		</Dialog.Header>
+		{#if example}
+			<ScoreDetails score={example} />
+		{:else if example === null}
+			<p class="text-muted-foreground text-sm">{m.effort_example_missing()}</p>
+		{:else}
+			<p class="text-muted-foreground text-sm">…</p>
+		{/if}
+	</Dialog.Content>
+</Dialog.Root>
