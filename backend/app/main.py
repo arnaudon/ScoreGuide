@@ -23,7 +23,19 @@ from sqlalchemy import text
 from sqlmodel import Session, col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import annotations, config, db, export, imslp, llm, plans, sections, uploads, users
+from app import (
+    annotations,
+    config,
+    db,
+    export,
+    imslp,
+    llm,
+    plans,
+    sections,
+    thumbnails,
+    uploads,
+    users,
+)
 from app.agent import (
     CONTENTS_MAX_ENTRIES,
     Deps,
@@ -44,6 +56,7 @@ from app.users import (
 from shared.annotations import Annotation
 from shared.scores import (
     TEXT_LIMITS,
+    FavoriteIn,
     Score,
     ScoreCreate,
     Scores,
@@ -183,6 +196,7 @@ app.include_router(llm.public_router)
 app.include_router(plans.router)
 app.include_router(annotations.router, tags=["annotations"])
 app.include_router(export.router, tags=["users"])
+app.include_router(thumbnails.router, tags=["scores"])
 
 
 @app.get("/health")
@@ -548,6 +562,25 @@ def add_play(
         score.last_played_at = now
         session.commit()
         session.refresh(score)
+    return score
+
+
+@app.put("/scores/{score_id}/favorite")
+def set_favorite(
+    score_id: int,
+    body: FavoriteIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Session = Depends(get_session),
+):
+    """Star or unstar one of the caller's scores."""
+    score = session.exec(
+        select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
+    ).first()
+    if score is None:
+        raise HTTPException(status_code=404, detail="Score not found")
+    score.favorite = body.favorite
+    session.commit()
+    session.refresh(score)
     return score
 
 

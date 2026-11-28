@@ -130,3 +130,8 @@ jobs:
             # against the quota until then).
             docker exec --workdir /app/backend backend python -m app.plans sweep-orphans \
               || echo "orphan sweep skipped (see error above)"
+            # First-page images for the library cards, for PDFs stored before
+            # they existed. Detached and niced: it renders every PDF once, so the
+            # deploy doesn't wait for it; later runs skip PDFs that have one.
+            docker exec -d --workdir /app/backend backend nice -n 19 python -m app.thumbnails backfill \
+              || echo "thumbnail backfill skipped (see error above)"

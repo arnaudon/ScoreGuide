@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from sqlmodel import Session, col, func, select
 
 from app.file_helper import file_helper
+from app.thumbnails import thumbnail_name
 from shared.scores import Score
 from shared.uploads import Upload
 from shared.usage import utcnow
@@ -82,6 +83,7 @@ def referenced(filename: str, session: Session) -> bool:
 def _delete_file(filename: str) -> None:
     try:
         file_helper.delete_pdf(filename)
+        file_helper.delete_pdf(thumbnail_name(filename))
     except Exception:  # pragma: no cover - storage hiccup; the rows are gone
         logger.exception("could not delete %s", filename)
 
