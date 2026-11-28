@@ -23,6 +23,7 @@
 			<p class="text-muted-foreground mt-2">
 				{m.login_description()}
 			</p>
+			<p class="text-muted-foreground mt-1 text-sm">{m.login_ai_optional()}</p>
 		</div>
 
 		{#if !isRegister}

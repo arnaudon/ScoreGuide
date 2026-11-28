@@ -97,3 +97,36 @@ def test_favorite(client: TestClient, session: Session, test_scores: Scores):
     )
     assert client.put("/scores/999999/favorite", json={"favorite": True}).status_code == 404
     assert client.put(f"/scores/{score_id}/favorite", json={}).status_code == 422
+
+
+def test_toc_job_skips_the_thumbnail_of_a_deleted_score(
+    client: TestClient, session: Session, data_path, monkeypatch
+):
+    monkeypatch.setattr(sections, "extract_sections", lambda data: [])
+    engine = session.get_bind()
+    assert isinstance(engine, Engine)
+    (data_path / "gone.pdf").write_bytes(PDF)
+    REAL_GENERATE(999999, "gone.pdf", engine)
+    assert not (data_path / "thumbnails" / "gone.png").exists()
+
+
+def test_new_pdf_gets_its_contents_and_thumbnail_rebuilt(
+    client: TestClient, session: Session, test_scores: Scores, uploaded, monkeypatch
+):
+    scheduled = []
+    monkeypatch.setattr(sections, "schedule_generation", lambda s, _session: scheduled.append(s.id))
+    score_id = test_scores.scores[0].id
+    assert client.put(f"/scores/{score_id}", json={"title": "same pdf"}).status_code == 200
+    assert scheduled == []
+    name = uploaded()
+    assert client.put(f"/scores/{score_id}", json={"pdf_path": name}).status_code == 200
+    assert scheduled == [score_id]
+
+
+def test_collection_is_editable(client: TestClient, session: Session, test_scores: Scores):
+    score_id = test_scores.scores[0].id
+    assert client.put(f"/scores/{score_id}", json={"collection": True}).json()["collection"] is True
+    assert client.put(f"/scores/{score_id}", json={"title": "t"}).json()["collection"] is True
+    assert (
+        client.put(f"/scores/{score_id}", json={"collection": False}).json()["collection"] is False
+    )

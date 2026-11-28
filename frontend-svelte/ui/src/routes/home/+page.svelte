@@ -7,7 +7,12 @@
 	import ImslpSearch from '#lib/components/ImslpSearch.svelte';
 	import ImslpAddDialog from '#lib/components/ImslpAddDialog.svelte';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
-	import { composerName, summarizeLibrary } from '#lib/library.js';
+	import { composerName, matchesQuery, summarizeLibrary } from '#lib/library.js';
+	import { aiRemaining } from '#lib/usage.js';
+	import AiSwitch from '#lib/components/ai/AiSwitch.svelte';
+	import NoAiTokens from '#lib/components/ai/NoAiTokens.svelte';
+	import SearchIcon from '@lucide/svelte/icons/search';
+	import { Input } from '#lib/components/ui/input/index.js';
 	import { periodLabel } from '#lib/imslp.js';
 	import { mainAgentHistoryStore } from '#lib/stores/chat.svelte.js';
 	import type { ImslpResult, Score } from '#lib/types.js';
@@ -26,6 +31,33 @@
 			selectedScoreDetails
 	);
 	let summary = $derived(summarizeLibrary(data.scores ?? []));
+
+	// The assistant is an extra: off (by choice, in the demo, or with no AI
+	// tokens left) the card searches the library instead, for free.
+	const AI_KEY = 'scoreguide.home.ai';
+	const aiUsable = $derived(!data.isDemo && aiRemaining(data.user) > 0);
+	let aiWanted = $state(true);
+	$effect(() => {
+		try {
+			if (localStorage.getItem(AI_KEY) === 'off') aiWanted = false;
+		} catch {
+			// storage blocked: on
+		}
+	});
+	function setAi(value: boolean) {
+		aiWanted = value;
+		try {
+			localStorage.setItem(AI_KEY, value ? 'on' : 'off');
+		} catch {
+			// storage blocked: not remembered
+		}
+	}
+	const aiOn = $derived(aiWanted && aiUsable);
+	const SEARCH_SHOWN = 20;
+	let query = $state('');
+	const found = $derived(
+		query.trim() ? (data.scores ?? []).filter((s: Score) => matchesQuery(s, query)) : []
+	);
 	let composerMax = $derived(Math.max(1, ...summary.topComposers.map((c) => c.count)));
 	let periodMax = $derived(Math.max(1, ...summary.periods.map((p) => p.count)));
 
@@ -79,32 +111,85 @@
 				? 'lg:col-span-5'
 				: 'lg:col-span-3'}"
 		>
-			<AgentChat
-				{form}
-				action="?/ask"
-				title={m.hello_user({ name: data.user.username })}
-				titleClass="text-fancy-title text-3xl leading-tight font-semibold sm:text-4xl"
-				emptyMessage={m.what_to_play()}
-				placeholder={m.agent_placeholder_main()}
-				suggestions={[m.chat_suggest_easy(), m.chat_suggest_bach(), m.chat_suggest_surprise()]}
-				{onResult}
-				user={data.user}
-				store={mainAgentHistoryStore}
-			>
-				{#snippet resultSnippet({ msg })}
-					<p class="whitespace-pre-wrap">{msg.answer}</p>
-					{@const found = chatScores(msg)}
-					{#if found.length}
-						<ChatScores
-							scores={found}
-							onSelect={(score) => {
-								selectedScoreDetails = score;
-								sheetOpen = true;
-							}}
+			<div class="mb-2 flex flex-col items-end gap-1">
+				<AiSwitch checked={aiOn} disabled={!aiUsable} onChange={setAi} />
+				{#if data.isDemo}
+					<p class="text-muted-foreground text-xs">{m.ai_demo_off()}</p>
+				{:else if !aiUsable}
+					<NoAiTokens />
+				{/if}
+			</div>
+			{#if aiOn}
+				<AgentChat
+					{form}
+					action="?/ask"
+					title={m.hello_user({ name: data.user.username })}
+					titleClass="text-fancy-title text-3xl leading-tight font-semibold sm:text-4xl"
+					emptyMessage={m.what_to_play()}
+					placeholder={m.agent_placeholder_main()}
+					suggestions={[m.chat_suggest_easy(), m.chat_suggest_bach(), m.chat_suggest_surprise()]}
+					{onResult}
+					user={data.user}
+					store={mainAgentHistoryStore}
+				>
+					{#snippet resultSnippet({ msg })}
+						<p class="whitespace-pre-wrap">{msg.answer}</p>
+						{@const found = chatScores(msg)}
+						{#if found.length}
+							<ChatScores
+								scores={found}
+								onSelect={(score) => {
+									selectedScoreDetails = score;
+									sheetOpen = true;
+								}}
+							/>
+						{/if}
+					{/snippet}
+				</AgentChat>
+			{:else}
+				<div class="flex min-h-0 flex-1 flex-col gap-3">
+					<h1
+						class="text-fancy-title text-foreground text-3xl leading-tight font-semibold sm:text-4xl"
+					>
+						{m.hello_user({ name: data.user.username })}
+						<span class="text-muted-foreground block">{m.what_to_play()}</span>
+					</h1>
+					<div class="relative">
+						<SearchIcon
+							class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+							aria-hidden="true"
 						/>
-					{/if}
-				{/snippet}
-			</AgentChat>
+						<Input
+							type="search"
+							bind:value={query}
+							aria-label={m.home_search_hint()}
+							placeholder={m.home_search_hint()}
+							class="h-10 pl-9"
+						/>
+					</div>
+					<div class="min-h-0 flex-1 overflow-y-auto">
+						{#if query.trim() && found.length === 0}
+							<p class="text-muted-foreground text-sm">{m.home_search_none()}</p>
+						{:else if found.length}
+							<ChatScores
+								scores={found.slice(0, SEARCH_SHOWN)}
+								onSelect={(score) => {
+									selectedScoreDetails = score;
+									sheetOpen = true;
+								}}
+							/>
+							{#if found.length > SEARCH_SHOWN}
+								<a
+									href={resolve('/db-viewer')}
+									class="text-primary mt-2 inline-block text-sm font-medium hover:underline"
+								>
+									{m.home_search_more({ count: found.length - SEARCH_SHOWN })}
+								</a>
+							{/if}
+						{/if}
+					</div>
+				</div>
+			{/if}
 		</section>
 		{#if !data.isDemo}
 			<section

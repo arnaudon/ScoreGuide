@@ -47,7 +47,8 @@
 			longDescription: s?.long_description ?? '',
 			youtubeUrl: s?.youtube_url ?? '',
 			difficulty: (s?.difficulty ?? 'moderate') as Difficulty,
-			notableInterpreters: s?.notable_interpreters ?? ''
+			notableInterpreters: s?.notable_interpreters ?? '',
+			collection: s?.collection ?? false
 		};
 	}
 
@@ -240,6 +241,24 @@
 						autocomplete="off"
 						bind:value={fields.youtubeUrl}
 					/>
+				</div>
+				<div class="flex flex-col gap-1">
+					<input type="hidden" name="collection" value="false" />
+					<label
+						for="edit-collection"
+						class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium"
+					>
+						<input
+							id="edit-collection"
+							type="checkbox"
+							name="collection"
+							value="true"
+							bind:checked={fields.collection}
+							class="accent-primary size-4"
+						/>
+						{m.label_collection()}
+					</label>
+					<p class="text-muted-foreground pl-6 text-xs">{m.label_collection_hint()}</p>
 				</div>
 
 				{#if saveError}

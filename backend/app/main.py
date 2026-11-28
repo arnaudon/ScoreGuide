@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from pydantic_ai.exceptions import OutputTokenLimitExceeded, UsageLimitExceeded
+from pydantic_ai.exceptions import ModelHTTPError, OutputTokenLimitExceeded, UsageLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
@@ -40,6 +40,7 @@ from app.agent import (
     CONTENTS_MAX_ENTRIES,
     Deps,
     Effort,
+    _response_for_http_error,
     run_agent,
     run_complete_agent,
     run_imslp_agent,
@@ -432,6 +433,13 @@ async def _complete(
         except UsageLimitExceeded as e:
             logger.warning("complete_score hit a usage limit: %s", e)
             raise HTTPException(status_code=413, detail=COMPLETE_TOO_LARGE) from e
+        except ModelHTTPError as e:
+            # The AI provider is busy or out of quota: say so, like the chat agents.
+            logger.warning("complete_score: provider answered %s", e.status_code)
+            status = e.status_code if e.status_code in (429, 503) else 502
+            raise HTTPException(
+                status_code=status, detail=_response_for_http_error(e, lambda msg: msg)
+            ) from e
         except Exception as e:
             logger.exception("complete_score failed")
             raise HTTPException(status_code=500, detail="Agent execution failed") from e
@@ -486,6 +494,9 @@ def update_score(
     if old_pdf and db_score.pdf_path != old_pdf:
         uploads.release(old_pdf, session)
         session.refresh(db_score)
+    if db_score.pdf_path and db_score.pdf_path != old_pdf:
+        # Another PDF: its own table of contents and first-page image.
+        sections.schedule_generation(db_score, session)
     return db_score
 
 

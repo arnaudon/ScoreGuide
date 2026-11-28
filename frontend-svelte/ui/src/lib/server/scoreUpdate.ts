@@ -36,5 +36,8 @@ export function buildScoreUpdatePayload(data: FormData): Record<string, unknown>
 			payload.year = yearNum;
 		}
 	}
+	// A checkbox paired with a hidden "false" field before it: the last value wins.
+	const collection = data.getAll('collection');
+	if (collection.length) payload.collection = collection.at(-1) === 'true';
 	return payload;
 }

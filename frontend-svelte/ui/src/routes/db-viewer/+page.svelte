@@ -9,6 +9,7 @@
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import ScoreDetailsDialog from '#lib/components/ScoreDetailsDialog.svelte';
 	import AiEffortSelect from '#lib/components/AiEffortSelect.svelte';
+	import AiBadge from '#lib/components/ai/AiBadge.svelte';
 	import LibraryCard from '#lib/components/library/LibraryCard.svelte';
 	import FilterChip from '#lib/components/library/FilterChip.svelte';
 	import FavoriteButton from '#lib/components/library/FavoriteButton.svelte';
@@ -16,6 +17,7 @@
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import StarIcon from '@lucide/svelte/icons/star';
+	import LibraryIcon from '@lucide/svelte/icons/library-big';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
 	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
@@ -70,7 +72,6 @@
 	let sheetOpen = $state(false);
 	let editOpen = $state(false);
 	let manualFiles = $state<FileList | undefined>();
-	let selectedScore = $derived(data.scores.find((s: Score) => s.id === selectedScoreId));
 
 	const isDemo = $derived(!!page.data.isDemo);
 	// An empty library opens on "Add a score".
@@ -90,20 +91,35 @@
 			favorites.has(s.id) ? { ...s, favorite: favorites.get(s.id) } : s
 		)
 	);
+	let selectedScore = $derived(scores.find((s: Score) => s.id === selectedScoreId));
 
+	// Per score, the latest request: an older answer arriving late is ignored.
+	// Not reactive on purpose: only compared after a request.
+	const favoriteRequests: Record<number, number> = {};
 	async function setFavorite(id: number, value: boolean) {
+		const previous = favorites.get(id) ?? !!data.scores.find((s: Score) => s.id === id)?.favorite;
+		const request = (favoriteRequests[id] ?? 0) + 1;
+		favoriteRequests[id] = request;
 		favorites.set(id, value);
+		let ok: boolean;
 		try {
 			const res = await fetch(`/api/scores/${id}/favorite`, {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ favorite: value })
 			});
-			if (!res.ok) throw new Error(String(res.status));
+			ok = res.ok;
 		} catch {
-			favorites.set(id, !value);
+			ok = false;
 		}
+		if (!ok && favoriteRequests[id] === request) favorites.set(id, previous);
 	}
+	// Once the page data agrees (after a reload of it), the overlay can go.
+	$effect(() => {
+		for (const s of data.scores as Score[]) {
+			if (favorites.has(s.id) && favorites.get(s.id) === !!s.favorite) favorites.delete(s.id);
+		}
+	});
 
 	// --- Browsing: search, filters, sort, then an ever longer list ----------------
 	const STEP = 30;
@@ -141,6 +157,7 @@
 		) as Record<Facet, ReturnType<typeof facetCounts>>
 	);
 	const anyFavorite = $derived(scores.some((s: Score) => s.favorite));
+	const anyCollection = $derived(scores.some((s: Score) => s.collection));
 
 	const FACET_UI: {
 		facet: Exclude<Facet, 'composer'>;
@@ -514,6 +531,19 @@
 								{m.filter_favorites()}
 							</button>
 						{/if}
+						{#if anyCollection || filters.collections}
+							<button
+								type="button"
+								aria-pressed={filters.collections}
+								class="hover:bg-accent focus-visible:ring-ring inline-flex h-8 items-center gap-1 rounded-full border px-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none {filters.collections
+									? 'border-primary bg-primary/10 text-primary'
+									: ''}"
+								onclick={() => setFilters({ collections: !filters.collections })}
+							>
+								<LibraryIcon class="size-3.5" aria-hidden="true" />
+								{m.filter_collections()}
+							</button>
+						{/if}
 						{#if filtering}
 							<Button variant="ghost" size="sm" class="h-8" onclick={clearFilters}>
 								{m.filter_clear()}
@@ -845,6 +875,7 @@
 									class="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium"
 								>
 									{m.imslp_ask_assistant()}
+									<AiBadge class="ml-1" />
 								</summary>
 								<div
 									class="mt-3 flex flex-col {imslpAgentHistoryStore.history.length > 0

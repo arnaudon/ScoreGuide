@@ -167,7 +167,11 @@ def generate_sections(score_id: int, pdf_path: str, engine: Engine) -> None:
     """The job: detect sections in the score's PDF and store them."""
     try:
         data = file_helper.download_pdf(pdf_path)["Body"].read()
-        thumbnails.store_safely(pdf_path, data)
+        with Session(engine) as session:
+            score = session.get(Score, score_id)
+            current = score is not None and score.pdf_path == pdf_path
+        if current:
+            thumbnails.store_safely(pdf_path, data)
         detected = extract_sections(data)
         with Session(engine) as session:
             score = session.get(Score, score_id)

@@ -143,6 +143,17 @@ describe('browsing the library', () => {
 		expect(ids({ period: ['Romantic', 'Baroque'], key: ['C major'] })).toEqual([1, 2]);
 		expect(ids({ yearMin: 1800, yearMax: 1831 })).toEqual([1, 4]);
 		expect(ids({ favorites: true })).toEqual([2]);
+		expect(ids({ collections: true })).toEqual([]);
+		expect(
+			filterScores([...lib, score(5, { year: 0, collection: true })], {
+				...f,
+				collections: true
+			}).map((s) => s.id)
+		).toEqual([5]);
+		// An unknown year (0) is outside any year range.
+		expect(filterScores([score(6, { year: 0 })], { ...f, yearMax: 1900 }).map((s) => s.id)).toEqual(
+			[]
+		);
 		expect(hasFilters({ ...f, favorites: true })).toBe(true);
 	});
 

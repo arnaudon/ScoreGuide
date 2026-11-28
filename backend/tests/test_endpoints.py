@@ -213,6 +213,21 @@ def test_complete_score_cap_errors_explain(
     assert (res.status_code, res.json()["detail"]) == (status, detail)
 
 
+@pytest.mark.parametrize(("provider_status", "status"), [(429, 429), (503, 503), (500, 502)])
+def test_complete_score_provider_errors_are_explained(
+    client: TestClient, session, test_user: User, monkeypatch, provider_status, status
+):
+    from pydantic_ai.exceptions import ModelHTTPError
+
+    async def fake_run_complete_agent(_score, _model, usage, effort="standard", contents=None):
+        raise ModelHTTPError(status_code=provider_status, model_name="m")
+
+    monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
+    res = client.post("/complete_score", json={"score_id": _first_score_id(session, test_user)})
+    assert res.status_code == status
+    assert res.json()["detail"] != "Agent execution failed"
+
+
 def test_run_token_limit_is_what_the_account_has_left(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
