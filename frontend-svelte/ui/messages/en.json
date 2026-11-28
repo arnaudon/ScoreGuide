@@ -518,8 +518,5 @@
 	"library_no_match": "No score matches these filters.",
 	"library_load_more": "Show more",
 	"favorite_add": "Add to favourites",
-	"favorite_remove": "Remove from favourites",
-	"upload_with_ai": "Fill in the details with AI",
-	"upload_no_ai_left": "No AI tokens left: the score is added as is, and you can fill in its details with Edit.",
-	"score_added_no_ai": "You can fill in its details from its card (Edit)."
+	"favorite_remove": "Remove from favourites"
 }

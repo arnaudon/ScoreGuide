@@ -92,12 +92,8 @@ export const actions: Actions = {
 			}
 			const saved = (await scoreRes.json().catch(() => null)) as { id?: unknown } | null;
 
-			// 3. Complete it with the agent (unless the user turned it off, e.g.
-			// with no AI tokens left): the backend fills in the stored score's
-			// details and saves them. It can be re-completed later.
-			if (formBool(data, 'ai') === false) {
-				return { success: true, scoreAdded: true, aiSkipped: true };
-			}
+			// 3. Complete it with the agent: the backend fills in the stored
+			// score's details and saves them. It can be re-completed later.
 			const completeRes = await api('/complete_score', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },

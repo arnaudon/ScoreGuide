@@ -518,8 +518,5 @@
 	"library_no_match": "Nessuno spartito corrisponde a questi filtri.",
 	"library_load_more": "Mostra altri",
 	"favorite_add": "Aggiungi ai preferiti",
-	"favorite_remove": "Rimuovi dai preferiti",
-	"upload_with_ai": "Completa i dettagli con l'IA",
-	"upload_no_ai_left": "Token IA esauriti: lo spartito viene aggiunto così com'è e puoi completarne i dettagli con Modifica.",
-	"score_added_no_ai": "Puoi completarne i dettagli dalla sua scheda (Modifica)."
+	"favorite_remove": "Rimuovi dai preferiti"
 }

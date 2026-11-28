@@ -106,21 +106,6 @@ describe('upload action', () => {
 		expect(JSON.parse(fetch.mock.calls[2][1]!.body as string)).toEqual({ score_id: 1 });
 	});
 
-	it('skips the agent when the user turned the AI off', async () => {
-		const fetch = makeFetch()
-			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' })) // POST /pdf
-			.mockResolvedValueOnce(jsonResponse({ id: 1 })); // POST /scores
-		const result = await actions.upload(
-			event({
-				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile(), ai: 'false' }),
-				cookies: makeCookies({ access_token: 'tok' }),
-				fetch
-			})
-		);
-		expect(result).toEqual({ success: true, scoreAdded: true, aiSkipped: true });
-		expect(fetch).toHaveBeenCalledTimes(2);
-	});
-
 	it('still saves the score with user data when the agent fails', async () => {
 		const fetch = makeFetch()
 			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' })) // POST /pdf

@@ -518,8 +518,5 @@
 	"library_no_match": "Aucune partition ne correspond à ces filtres.",
 	"library_load_more": "Afficher plus",
 	"favorite_add": "Ajouter aux favoris",
-	"favorite_remove": "Retirer des favoris",
-	"upload_with_ai": "Compléter les détails avec l'IA",
-	"upload_no_ai_left": "Plus de jetons IA : la partition est ajoutée telle quelle, et vous pouvez compléter ses détails avec Modifier.",
-	"score_added_no_ai": "Vous pouvez compléter ses détails depuis sa fiche (Modifier)."
+	"favorite_remove": "Retirer des favoris"
 }

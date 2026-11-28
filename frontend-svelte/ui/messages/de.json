@@ -518,8 +518,5 @@
 	"library_no_match": "Keine Noten passen zu diesen Filtern.",
 	"library_load_more": "Mehr anzeigen",
 	"favorite_add": "Zu Favoriten hinzufügen",
-	"favorite_remove": "Aus Favoriten entfernen",
-	"upload_with_ai": "Details mit KI ergänzen",
-	"upload_no_ai_left": "Keine KI-Token mehr: Die Noten werden so hinzugefügt, und Sie können die Details über Bearbeiten ergänzen.",
-	"score_added_no_ai": "Sie können die Details über die Karte ergänzen (Bearbeiten)."
+	"favorite_remove": "Aus Favoriten entfernen"
 }
