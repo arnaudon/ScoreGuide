@@ -64,6 +64,9 @@ class Score(ScoreBase, table=True):
     last_played_at: datetime | None = Field(default=None)
     # Starred by its owner (the library's "Favourites" filter).
     favorite: bool = Field(default=False)
+    # Several works in one score (a book of sonatas, a set of preludes): set by
+    # the AI completion or by hand, shown as a "Collection" badge.
+    collection: bool = Field(default=False)
     source: str = Field(default="IMSLP")
     imslp_id: int | None = Field(default=None, index=True)
     user_id: int | None = Field(foreign_key="user.id", index=True)
@@ -247,6 +250,7 @@ class ScoreUpdate(BaseModel):
     youtube_url: str | None = PydanticField(default=None, max_length=URL_MAX)
     difficulty: Difficulty | None = None
     notable_interpreters: str | None = PydanticField(default=None, max_length=INTERPRETERS_MAX)
+    collection: bool | None = None
 
     _youtube = field_validator("youtube_url")(check_youtube_url)
     # The fixed vocabulary of shared.metadata: unknown genres/forms become "".

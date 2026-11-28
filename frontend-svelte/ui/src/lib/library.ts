@@ -94,6 +94,7 @@ export interface LibraryFilters {
 	yearMin: number | null;
 	yearMax: number | null;
 	favorites: boolean;
+	collections: boolean;
 }
 
 export const emptyFilters = (): LibraryFilters => ({
@@ -105,7 +106,8 @@ export const emptyFilters = (): LibraryFilters => ({
 	key: [],
 	yearMin: null,
 	yearMax: null,
-	favorites: false
+	favorites: false,
+	collections: false
 });
 
 export function hasFilters(f: LibraryFilters): boolean {
@@ -114,7 +116,8 @@ export function hasFilters(f: LibraryFilters): boolean {
 		FACETS.some((k) => f[k].length > 0) ||
 		f.yearMin !== null ||
 		f.yearMax !== null ||
-		f.favorites
+		f.favorites ||
+		f.collections
 	);
 }
 
@@ -177,8 +180,13 @@ export function matchesQuery(score: Score, query: string): boolean {
 
 function matches(score: Score, f: LibraryFilters, skip?: Facet): boolean {
 	if (f.favorites && !score.favorite) return false;
-	if (f.yearMin !== null && !(score.year >= f.yearMin)) return false;
-	if (f.yearMax !== null && !(score.year <= f.yearMax)) return false;
+	if (f.collections && !score.collection) return false;
+	if (f.yearMin !== null || f.yearMax !== null) {
+		// 0 / missing: year unknown, so outside any range.
+		if (!score.year) return false;
+		if (f.yearMin !== null && score.year < f.yearMin) return false;
+		if (f.yearMax !== null && score.year > f.yearMax) return false;
+	}
 	for (const facet of FACETS) {
 		if (facet !== skip && f[facet].length && !f[facet].includes(facetValue(score, facet)))
 			return false;

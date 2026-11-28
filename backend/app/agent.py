@@ -515,6 +515,10 @@ class ScoreCompletion(BaseModel):
     same_work: bool = Field(
         default=True, description="False if your results are about another piece than the user's"
     )
+    collection: bool = Field(
+        default=False,
+        description="True if the score holds several works (a book of sonatas, a set of preludes)",
+    )
     year: int | None = None
     period: str = ""
     genre: _Genre = ""

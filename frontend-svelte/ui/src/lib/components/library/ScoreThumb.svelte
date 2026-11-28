@@ -15,7 +15,24 @@
 		hasPdf?: boolean;
 		class?: string;
 	} = $props();
+	// A new score's image is made a few seconds after its upload (with the
+	// table of contents): on a miss, try once more a little later.
+	const RETRY_MS = 20_000;
 	let failed = $state(false);
+	let attempt = $state(0);
+	$effect(() => {
+		void scoreId;
+		failed = false;
+		attempt = 0;
+	});
+	$effect(() => {
+		if (!failed || attempt > 0) return;
+		const timer = setTimeout(() => {
+			attempt = 1;
+			failed = false;
+		}, RETRY_MS);
+		return () => clearTimeout(timer);
+	});
 </script>
 
 <div
@@ -27,7 +44,7 @@
 >
 	{#if hasPdf && !failed}
 		<img
-			src="/api/scores/{scoreId}/thumbnail"
+			src="/api/scores/{scoreId}/thumbnail{attempt ? `?retry=${attempt}` : ''}"
 			alt=""
 			loading="lazy"
 			decoding="async"

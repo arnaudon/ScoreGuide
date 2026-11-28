@@ -29,6 +29,8 @@ export interface Score {
 	last_played_at?: string | null;
 	/** Starred by its owner (the library's "Favourites" filter). */
 	favorite?: boolean;
+	/** Several works in one score (a book of sonatas, a set of preludes). */
+	collection?: boolean;
 	source: string;
 	imslp_id: number | null;
 	user_id: number | null;

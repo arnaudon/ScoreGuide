@@ -25,6 +25,7 @@
 
 	const badges = $derived(
 		[
+			score.collection ? m.label_collection() : '',
 			score.period ? periodLabel(score.period) : '',
 			score.form ? formLabel(score.form) : score.genre ? genreLabel(score.genre) : '',
 			score.key ? keyLabel(score.key) : ''
