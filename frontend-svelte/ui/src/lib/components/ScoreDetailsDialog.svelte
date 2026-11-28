@@ -10,8 +10,8 @@
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
-	import { aiLeftLabel } from '#lib/usage.js';
-	import DetailedToggle from '#lib/components/DetailedToggle.svelte';
+	import { aiLeftLabel, defaultEffort } from '#lib/usage.js';
+	import AiEffortSelect from '#lib/components/AiEffortSelect.svelte';
 	import type { Score, User } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
 
@@ -30,7 +30,7 @@
 	}: {
 		score: Score | null | undefined;
 		open?: boolean;
-		user?: Pick<User, 'usage' | 'detailed_descriptions'> | null;
+		user?: Pick<User, 'usage' | 'role' | 'detailed_descriptions'> | null;
 		/** Show the "open the score" button (not needed inside the reader). */
 		showOpen?: boolean;
 		onEdit: () => void;
@@ -41,6 +41,8 @@
 	let recompleteError = $state<string | null>(null);
 	let deleteError = $state<string | null>(null);
 	let aiLeft = $derived(aiLeftLabel(user));
+	// Not even a quick run fits in the tokens left.
+	let aiPossible = $derived(defaultEffort(user) !== null);
 
 	$effect(() => {
 		void score?.id;
@@ -167,7 +169,7 @@
 							type="submit"
 							form="recomplete-form"
 							variant="outline"
-							disabled={busy}
+							disabled={busy || !aiPossible}
 							title={aiLeft}
 						>
 							<SparklesIcon />{busy ? m.running_agent() : m.rerun_complete_agent()}
@@ -192,11 +194,7 @@
 					<div
 						class="text-muted-foreground flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-xs"
 					>
-						<DetailedToggle
-							id="recomplete-detailed"
-							form="recomplete-form"
-							checked={user?.detailed_descriptions ?? false}
-						/>
+						<AiEffortSelect id="recomplete-effort" form="recomplete-form" {user} />
 						{#if aiLeft}<span>{aiLeft}</span>{/if}
 					</div>
 				{/if}
