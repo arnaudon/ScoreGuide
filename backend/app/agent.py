@@ -22,6 +22,7 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 
 from app import config, sources
 from app.score_links import link_scores
+from shared.description import reflow
 from shared.metadata import FORMS, GENRES, MIXED_KEY, normalize_form, normalize_genre, normalize_key
 from shared.responses import FullResponse, ImslpFullResponse, ImslpResponse, Response
 from shared.scores import Difficulty, Score, Scores
@@ -348,7 +349,8 @@ never guess dates, names or anecdotes. Search efficiently: every step resends al
 gathered, so run the searches you need together (several in one step), in at most two or three
 rounds, then answer. short_description, long_description and their French
 versions are required: always write them.
-Every field is a single line of plain text.
+Every field is plain text on a single line, except long_description and long_description_fr:
+those have one heading, paragraph or list item per line, separated by real line breaks.
 
 title and composer: the work's usual title, in English as on Wikipedia or IMSLP, with its key
 and catalogue number when it has them ("Piano Sonata No. 21 in B-flat major, D. 960"), and the
@@ -582,7 +584,8 @@ def _plain_line_breaks(output: ScoreCompletion) -> ScoreCompletion:
         text = _HTML_BREAK.sub("\n", getattr(output, name))
         if "\n" not in text and "\\n" in text:
             text = text.replace("\\n", "\n")
-        setattr(output, name, text)
+        # The sections written on one line, spaces for line breaks.
+        setattr(output, name, reflow(text))
     return output
 
 
