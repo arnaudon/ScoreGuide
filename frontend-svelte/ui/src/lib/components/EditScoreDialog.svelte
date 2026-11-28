@@ -2,6 +2,7 @@
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import * as m from '#lib/paraglide/messages.js';
@@ -52,21 +53,22 @@
 
 	// Single object instead of 14 separate $state vars, so adding a field to
 	// the form only means touching fieldsFromScore() — not two places that
-	// are easy to forget to keep in sync. Seeded with defaults (not `score`
-	// itself) so this stays a plain initial value rather than a reactive
-	// read — the $effect below is what actually syncs it to `score`.
+	// are easy to forget to keep in sync.
 	let fields = $state(fieldsFromScore(undefined));
 	let saving = $state(false);
 	let saveError = $state<string | null>(null);
 
+	// Filled from the score when the dialog opens (or shows another score),
+	// never while it is open: pages refresh their data in the background (the
+	// reader every few seconds while it builds a table of contents), and that
+	// must not overwrite what the user is typing.
+	const scoreId = $derived(score?.id);
 	$effect(() => {
-		if (score) {
+		if (!open || scoreId === undefined) return;
+		untrack(() => {
 			fields = fieldsFromScore(score);
-		}
-	});
-
-	$effect(() => {
-		if (open) saveError = null;
+			saveError = null;
+		});
 	});
 
 	const textareaClass =
@@ -109,17 +111,30 @@
 
 				<div class="space-y-2">
 					<label for="edit-title" class="text-sm font-medium">{m.label_title()}</label>
-					<Input id="edit-title" name="title" bind:value={fields.title} required />
+					<Input
+						id="edit-title"
+						name="title"
+						autocomplete="off"
+						bind:value={fields.title}
+						required
+					/>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-composer" class="text-sm font-medium">{m.label_composer()}</label>
-					<Input id="edit-composer" name="composer" bind:value={fields.composer} required />
+					<Input
+						id="edit-composer"
+						name="composer"
+						autocomplete="off"
+						bind:value={fields.composer}
+						required
+					/>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-year" class="text-sm font-medium">{m.label_year()}</label>
 					<Input
 						id="edit-year"
 						name="year"
+						autocomplete="off"
 						type="number"
 						step="1"
 						min={-999}
@@ -155,11 +170,11 @@
 				</div>
 				<div class="space-y-2">
 					<label for="edit-style" class="text-sm font-medium">{m.label_style()}</label>
-					<Input id="edit-style" name="style" bind:value={fields.style} />
+					<Input id="edit-style" name="style" autocomplete="off" bind:value={fields.style} />
 				</div>
 				<div class="space-y-2">
 					<label for="edit-key" class="text-sm font-medium">{m.label_key_signature()}</label>
-					<Input id="edit-key" name="key" bind:value={fields.scoreKey} />
+					<Input id="edit-key" name="key" autocomplete="off" bind:value={fields.scoreKey} />
 				</div>
 				<div class="space-y-2">
 					<label for="edit-instrumentation" class="text-sm font-medium">
@@ -168,6 +183,7 @@
 					<Input
 						id="edit-instrumentation"
 						name="instrumentation"
+						autocomplete="off"
 						bind:value={fields.instrumentation}
 					/>
 				</div>
@@ -212,12 +228,18 @@
 					<Input
 						id="edit-notable-interpreters"
 						name="notable_interpreters"
+						autocomplete="off"
 						bind:value={fields.notableInterpreters}
 					/>
 				</div>
 				<div class="space-y-2">
 					<label for="edit-youtube-url" class="text-sm font-medium">{m.label_youtube_url()}</label>
-					<Input id="edit-youtube-url" name="youtube_url" bind:value={fields.youtubeUrl} />
+					<Input
+						id="edit-youtube-url"
+						name="youtube_url"
+						autocomplete="off"
+						bind:value={fields.youtubeUrl}
+					/>
 				</div>
 
 				{#if saveError}

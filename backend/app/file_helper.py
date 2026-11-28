@@ -7,6 +7,7 @@ from pathlib import Path
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 
 class FileHelper:
@@ -87,7 +88,13 @@ class FileHelper:
             if byte_range is not None:
                 start, end = byte_range
                 kwargs["Range"] = f"bytes={start}-{end}"
-            return self.s3_client.get_object(**kwargs)
+            try:
+                return self.s3_client.get_object(**kwargs)
+            except ClientError as e:
+                # Same as local storage: callers answer 404 on FileNotFoundError.
+                if e.response.get("Error", {}).get("Code") in {"NoSuchKey", "404"}:
+                    raise FileNotFoundError(filename) from e
+                raise
 
         # Deliberately outlives this function — StreamingResponse reads and
         # closes it (or _bounded_reader does, below), not a `with` block here.
