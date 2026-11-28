@@ -94,13 +94,14 @@
 	let selectedScore = $derived(scores.find((s: Score) => s.id === selectedScoreId));
 
 	// Per score, the latest request: an older answer arriving late is ignored.
-	const favoriteRequests = new Map<number, number>();
+	// Not reactive on purpose: only compared after a request.
+	const favoriteRequests: Record<number, number> = {};
 	async function setFavorite(id: number, value: boolean) {
 		const previous = favorites.get(id) ?? !!data.scores.find((s: Score) => s.id === id)?.favorite;
-		const request = (favoriteRequests.get(id) ?? 0) + 1;
-		favoriteRequests.set(id, request);
+		const request = (favoriteRequests[id] ?? 0) + 1;
+		favoriteRequests[id] = request;
 		favorites.set(id, value);
-		let ok = false;
+		let ok: boolean;
 		try {
 			const res = await fetch(`/api/scores/${id}/favorite`, {
 				method: 'PUT',
@@ -111,7 +112,7 @@
 		} catch {
 			ok = false;
 		}
-		if (!ok && favoriteRequests.get(id) === request) favorites.set(id, previous);
+		if (!ok && favoriteRequests[id] === request) favorites.set(id, previous);
 	}
 	// Once the page data agrees (after a reload of it), the overlay can go.
 	$effect(() => {
