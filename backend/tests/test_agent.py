@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.exceptions import IncompleteToolCall, ModelHTTPError, UsageLimitExceeded
 
 from app import agent
 from shared.responses import FullResponse, ImslpResponse, Response
@@ -268,10 +268,17 @@ async def test_run_agent_history_parsing(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runner", ["imslp", "main"])
-async def test_run_agents_usage_limit(monkeypatch, runner):
-    """A run that hits a usage cap answers with a short message, not an error."""
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (UsageLimitExceeded("too many tokens"), agent.TOO_LARGE_MSG),
+        (IncompleteToolCall("cut off"), agent.CUT_OFF_MSG),
+    ],
+)
+async def test_run_agents_usage_limit(monkeypatch, runner, error, message):
+    """A run that hits a cap answers with a short message, not an error."""
     mock_agent = MagicMock()
-    mock_agent.run = AsyncMock(side_effect=UsageLimitExceeded("too many tokens"))
+    mock_agent.run = AsyncMock(side_effect=error)
     if runner == "imslp":
         monkeypatch.setattr(agent, "imslp_agent", mock_agent)
         result = await agent.run_imslp_agent("prompt")
@@ -279,7 +286,7 @@ async def test_run_agents_usage_limit(monkeypatch, runner):
         monkeypatch.setattr(agent, "main_agent", mock_agent)
         deps = agent.Deps(user=User(username="test"), scores=Scores(scores=[]))
         result = await agent.run_agent("prompt", deps)
-    assert result.response.response == agent.TOO_LARGE_MSG
+    assert result.response.response == message
     assert mock_agent.run.call_args.kwargs["usage_limits"].request_limit == 15
 
 
