@@ -49,7 +49,7 @@ def test_complete_score_logs_usage_and_saves_score(
     score_id = _first_score_id(session, test_user)
     seen = {}
 
-    async def fake_run_complete_agent(score, _model, usage, detailed=False, contents=None):
+    async def fake_run_complete_agent(score, _model, usage, effort="standard", contents=None):
         seen["title"] = score.title
         _spend(usage)
         return Score(
@@ -76,7 +76,7 @@ def test_complete_score_logs_usage_and_saves_score(
     session.expire_all()
     assert session.get(Score, score_id).title == "Nocturne Op. 9 No. 2"
     [row] = _logged(session, test_user.id)
-    assert (row.feature, row.model) == ("complete_score", "test")
+    assert (row.feature, row.model) == ("complete_score:quick", "test")
     assert (row.input_tokens, row.output_tokens, row.requests, row.cost) == (100, 20, 1, 120)
 
 
@@ -106,7 +106,7 @@ def test_complete_score_only_own_scores(
 def test_complete_score_unusable_output(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
+    async def fake_run_complete_agent(_score, _model, usage, effort="standard", contents=None):
         _spend(usage)
         return Score(title="t", composer="c", year=5000)
 
@@ -115,7 +115,7 @@ def test_complete_score_unusable_output(
     assert resp.status_code == 200
     assert resp.json()["year"] == 1750  # out-of-range year dropped, the rest saved
 
-    async def broken(_score, _model, usage, detailed=False, contents=None):
+    async def broken(_score, _model, usage, effort="standard", contents=None):
         return type("NotAScore", (), {"model_dump": lambda self, **kw: {"title": 5}})()
 
     monkeypatch.setattr(main, "run_complete_agent", broken)
@@ -128,7 +128,7 @@ def test_complete_score_keeps_good_fields_of_a_messy_answer(
 ):
     """A collection: keys as a list, a made-up difficulty; the rest is saved."""
 
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
+    async def fake_run_complete_agent(_score, _model, usage, effort="standard", contents=None):
         _spend(usage)
         return Score(
             title="Preludes",
@@ -156,7 +156,7 @@ def test_complete_score_sends_the_table_of_contents(
     session.commit()
     seen = {}
 
-    async def fake_run_complete_agent(score, _model, usage, detailed=False, contents=None):
+    async def fake_run_complete_agent(score, _model, usage, effort="standard", contents=None):
         seen["contents"] = contents
         return Score(title=score.title, composer=score.composer)
 
@@ -170,7 +170,7 @@ def test_complete_score_sends_the_table_of_contents(
 def test_complete_score_error_still_logs_spent_tokens(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
+    async def fake_run_complete_agent(_score, _model, usage, effort="standard", contents=None):
         _spend(usage, 50, 0)
         raise RuntimeError("model exploded")
 
@@ -184,7 +184,7 @@ def test_complete_score_error_still_logs_spent_tokens(
 def test_nothing_logged_when_no_model_call(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
+    async def fake_run_complete_agent(_score, _model, usage, effort="standard", contents=None):
         raise RuntimeError("failed before calling the model")
 
     monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
@@ -205,7 +205,7 @@ def test_complete_score_cap_errors_explain(
 ):
     """A run stopped by a cap says why instead of "Agent execution failed"."""
 
-    async def fake_run_complete_agent(_score, _model, usage, detailed=False, contents=None):
+    async def fake_run_complete_agent(_score, _model, usage, effort="standard", contents=None):
         raise error
 
     monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
@@ -356,25 +356,40 @@ def test_agent_endpoint_blocks_when_allowance_used(
     assert called is True
 
 
-def test_complete_score_detailed_follows_preference_unless_asked(
+def test_complete_score_effort_asked_else_preference_else_plan(
     client: TestClient, session, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
     score_id = _first_score_id(session, test_user)
     modes = []
 
-    async def fake_run_complete_agent(score, _model, usage, detailed=False, contents=None):
-        modes.append(detailed)
+    async def fake_run_complete_agent(score, _model, usage, effort="standard", contents=None):
+        modes.append(effort)
         return Score(title=score.title, composer=score.composer)
 
     monkeypatch.setattr(main, "run_complete_agent", fake_run_complete_agent)
-    assert client.post("/complete_score", json={"score_id": score_id}).status_code == 200
+
+    def run(**body):
+        assert (
+            client.post("/complete_score", json={"score_id": score_id, **body}).status_code == 200
+        )
+
+    run()  # free plan: quick
+    run(effort="detailed")
+    test_user.plan = "pro"
+    session.add(test_user)
+    session.commit()
+    run()  # pro: standard
     test_user.detailed_descriptions = True
     session.add(test_user)
     session.commit()
-    assert client.post("/complete_score", json={"score_id": score_id}).status_code == 200
-    body = {"score_id": score_id, "detailed": False}
-    assert client.post("/complete_score", json=body).status_code == 200
-    assert modes == [False, True, False]
+    run()  # preference
+    run(detailed=False)
+    run(effort="quick", detailed=True)
+    assert modes == ["quick", "detailed", "standard", "detailed", "standard", "quick"]
+    assert (
+        client.post("/complete_score", json={"score_id": score_id, "effort": "max"}).status_code
+        == 422
+    )
 
 
 def test_interpreters_are_deduplicated_and_capped():
@@ -395,7 +410,7 @@ def test_completion_status_and_no_second_run(
     score_id = _first_score_id(session, test_user)
     seen = {}
 
-    async def fake_run_complete_agent(score, _model, usage, detailed=False, contents=None):
+    async def fake_run_complete_agent(score, _model, usage, effort="standard", contents=None):
         seen["status"] = client.get(f"/scores/{score_id}/completion").json()
         seen["second"] = client.post("/complete_score", json={"score_id": score_id}).status_code
         return Score(title=score.title, composer=score.composer)

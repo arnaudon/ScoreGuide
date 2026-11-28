@@ -15,6 +15,7 @@ billing beyond the free plan will use.
 import argparse
 import json
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -27,6 +28,7 @@ from sqlmodel import Session, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import config, uploads
+from app.agent import EFFORTS
 from app.db import get_session
 from app.users import get_admin_user
 from shared.scores import Score
@@ -146,6 +148,50 @@ def storage_used(user_id: int, session: Session) -> int:
     return uploads.storage_used(user_id, session)
 
 
+COMPLETE_FEATURE = "complete_score"
+# Raw tokens of one completion per effort before enough runs exist to measure
+# (Kimi K2.6, Brahms Op. 118); the model's weight applies on top.
+COMPLETE_TOKENS_GUESS = {"quick": 15_000, "standard": 50_000, "detailed": 120_000}
+# How many recent runs an estimate looks at, and needs at least.
+ESTIMATE_RUNS = 20
+ESTIMATE_MIN_RUNS = 3
+
+
+def complete_feature(effort: str) -> str:
+    """The usage-log feature of a completion at ``effort`` ("complete_score:quick")."""
+    return f"{COMPLETE_FEATURE}:{effort}"
+
+
+def completion_estimates(session: Session) -> dict[str, int]:
+    """Weighted tokens one completion costs at each effort with the current model.
+
+    The median of its last ``ESTIMATE_RUNS`` runs (any user), else a guess,
+    so the UI can say what a run takes before the user starts one.
+    """
+    setting = session.get(Setting, "model_complete")
+    model = setting.value if setting else os.getenv("MODEL", "test")
+    weight = model_weights(session).get(model, 1.0)
+    estimates: dict[str, int] = {}
+    for effort in EFFORTS:
+        costs = sorted(
+            session.exec(
+                select(AIUsage.cost)
+                .where(
+                    AIUsage.feature == complete_feature(effort),
+                    AIUsage.model == model,
+                    AIUsage.cost > 0,
+                )
+                .order_by(col(AIUsage.created_at).desc())
+                .limit(ESTIMATE_RUNS)
+            ).all()
+        )
+        if len(costs) >= ESTIMATE_MIN_RUNS:
+            estimates[effort] = int(costs[len(costs) // 2])
+        else:
+            estimates[effort] = int(COMPLETE_TOKENS_GUESS[effort] * weight)
+    return estimates
+
+
 def usage_summary(user: User, session: Session) -> UsageSummary:
     """The user's plan, AI tokens used of those received, and storage use (bytes)."""
     assert user.id is not None
@@ -156,6 +202,7 @@ def usage_summary(user: User, session: Session) -> UsageSummary:
         ai_allowance=total_allowance(user, session),
         storage_used=storage_used(user.id, session),
         storage_limit=limits.storage_mb * MB,
+        ai_run_estimates=completion_estimates(session),
     )
 
 

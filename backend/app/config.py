@@ -49,8 +49,9 @@ AI_REQUEST_LIMIT = int(os.getenv("AI_REQUEST_LIMIT", "15"))
 AI_TOTAL_TOKENS_LIMIT = int(os.getenv("AI_TOTAL_TOKENS_LIMIT", "300000"))
 # Detailed score descriptions: how many web pages the completion agent may read
 # per run, and how much of each (characters) it gets.
-DETAILED_MAX_PAGES = int(os.getenv("DETAILED_MAX_PAGES", "4"))
-DETAILED_PAGE_CHARS = int(os.getenv("DETAILED_PAGE_CHARS", "12000"))
+# Every page read is resent on each later step of the run: keep them short.
+DETAILED_MAX_PAGES = int(os.getenv("DETAILED_MAX_PAGES", "3"))
+DETAILED_PAGE_CHARS = int(os.getenv("DETAILED_PAGE_CHARS", "6000"))
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "alexis.arnaudon@gmail.com")
 CORS_ORIGINS = [
     origin.strip()

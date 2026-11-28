@@ -106,6 +106,39 @@ describe('upload action', () => {
 		expect(JSON.parse(fetch.mock.calls[2][1]!.body as string)).toEqual({ score_id: 1 });
 	});
 
+	it('skips the agent when the user chose no AI', async () => {
+		const fetch = makeFetch()
+			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' })) // POST /pdf
+			.mockResolvedValueOnce(jsonResponse({ id: 1 })); // POST /scores
+		const result = await actions.upload(
+			event({
+				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile(), effort: 'none' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(result).toEqual({ success: true, scoreAdded: true, aiSkipped: true });
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it('completes at the chosen effort', async () => {
+		const fetch = makeFetch()
+			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' }))
+			.mockResolvedValueOnce(jsonResponse({ id: 1 }))
+			.mockResolvedValueOnce(jsonResponse({ id: 1 }));
+		await actions.upload(
+			event({
+				request: fakeRequest({ title: 't', composer: 'c', file: pdfFile(), effort: 'quick' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(JSON.parse(fetch.mock.calls[2][1]!.body as string)).toEqual({
+			score_id: 1,
+			effort: 'quick'
+		});
+	});
+
 	it('still saves the score with user data when the agent fails', async () => {
 		const fetch = makeFetch()
 			.mockResolvedValueOnce(jsonResponse({ file_id: 'final.pdf' })) // POST /pdf
@@ -414,18 +447,26 @@ describe('recomplete action', () => {
 		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({ score_id: 7 });
 	});
 
-	it('passes the detailed-description choice on', async () => {
-		const fetch = makeFetch().mockResolvedValueOnce(jsonResponse({ id: 7 }));
+	it('passes the effort on, and ignores an unknown one', async () => {
+		const fetch = makeFetch().mockResolvedValue(jsonResponse({ id: 7 }));
 		await actions.recomplete(
 			event({
-				request: fakeRequest({ id: '7', detailed: 'true' }),
+				request: fakeRequest({ id: '7', effort: 'max' }),
 				cookies: makeCookies({ access_token: 'tok' }),
 				fetch
 			})
 		);
-		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({
+		expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({ score_id: 7 });
+		await actions.recomplete(
+			event({
+				request: fakeRequest({ id: '7', effort: 'detailed' }),
+				cookies: makeCookies({ access_token: 'tok' }),
+				fetch
+			})
+		);
+		expect(JSON.parse(fetch.mock.calls[1][1]!.body as string)).toEqual({
 			score_id: 7,
-			detailed: true
+			effort: 'detailed'
 		});
 	});
 

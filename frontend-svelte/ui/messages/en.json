@@ -451,8 +451,6 @@
 	"error_not_found": "This page does not exist.",
 	"error_back_home": "Back to home",
 	"logout_confirm": "Log out of ScoreGuide?",
-	"detailed_label": "Detailed description (advanced)",
-	"detailed_hint": "The AI reads several web pages to write a longer description with history, playing tips, anecdotes and sources. Uses about 3 to 5 times more AI.",
 	"detailed_pref_label": "Detailed descriptions by default",
 	"detailed_pref_hint": "When the AI fills in a score, it reads several web pages for a longer, sourced description. Uses about 3 to 5 times more AI. You can still choose for each score.",
 	"genre_solo_keyboard": "Solo keyboard",
@@ -494,5 +492,18 @@
 	"option_none": "—",
 	"completion_already_running": "The AI is already working on this score: the result will appear here.",
 	"contact_code_title": "Source code",
-	"contact_code_desc": "ScoreGuide is free software (GPL-3.0). To report a bug, suggest an idea or contribute, head to GitHub:"
+	"contact_code_desc": "ScoreGuide is free software (GPL-3.0). To report a bug, suggest an idea or contribute, head to GitHub:",
+	"effort_label": "AI fill-in",
+	"effort_none": "No AI",
+	"effort_quick": "Quick",
+	"effort_standard": "Standard",
+	"effort_detailed": "Detailed",
+	"effort_none_desc": "The score is added as is; you can fill in its details with Edit.",
+	"effort_quick_desc": "One web search and a short description: the cheapest.",
+	"effort_standard_desc": "A few web searches and a full description.",
+	"effort_detailed_desc": "Also reads a few web pages for a long, sourced description: uses the most AI.",
+	"effort_cost": "≈ {percent}% of your AI tokens",
+	"effort_too_costly": "not enough AI tokens left",
+	"effort_none_left": "No AI tokens left for an AI fill-in: the score is added without one.",
+	"score_added_no_ai": "You can fill in its details from its card (Edit)."
 }
