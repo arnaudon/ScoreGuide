@@ -10,7 +10,7 @@ from typing import Annotated, Literal, get_args
 import httpx
 from dotenv import load_dotenv
 from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, WithJsonSchema
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.common_tools.duckduckgo import DDGS, DuckDuckGoResult, DuckDuckGoSearchTool
 from pydantic_ai.exceptions import ModelHTTPError, OutputTokenLimitExceeded, UsageLimitExceeded
 from pydantic_ai.mcp import MCPToolset
@@ -22,7 +22,7 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 
 from app import config, sources
 from app.score_links import link_scores
-from shared.description import reflow
+from shared.description import HEADINGS, reflow
 from shared.metadata import FORMS, GENRES, MIXED_KEY, normalize_form, normalize_genre, normalize_key
 from shared.responses import FullResponse, ImslpFullResponse, ImslpResponse, Response
 from shared.scores import Difficulty, Score, Scores
@@ -579,6 +579,8 @@ def _complete_settings(effort: Effort) -> ModelSettings:
 
 
 _HTML_BREAK = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_LOST_CR = re.compile(r"(?<=[\w.!?:;)\]])r(?=## |- \S)")
+_LOST_CR_HEADING = re.compile(r"(## (?:" + "|".join(re.escape(h) for h in HEADINGS) + r"))r(?=\S)")
 
 
 @complete_agent.output_validator
@@ -590,8 +592,22 @@ def _plain_line_breaks(output: ScoreCompletion) -> ScoreCompletion:
         text = _HTML_BREAK.sub("\n", getattr(output, name))
         if "\n" not in text and "\\n" in text:
             text = text.replace("\\n", "\n")
+        if "\n" not in text:
+            # Escaped carriage returns that lost their backslash on the way:
+            # "## HistoryrFranz…r## Playing itr- The…".
+            text = _LOST_CR.sub("\n", _LOST_CR_HEADING.sub("\\1\n", text))
         # The sections written on one line, spaces for line breaks.
         setattr(output, name, reflow(text))
+    for name in ("long_description", "long_description_fr"):
+        body = [
+            ln for ln in getattr(output, name).splitlines() if ln.strip() and not ln.startswith("#")
+        ]
+        if not body:
+            # Seen with Kimi: the answer cut after its first heading line.
+            raise ModelRetry(
+                f"{name} has only headings: write the whole text again, with the line breaks "
+                "written as \\n in the JSON string (never raw control characters)."
+            )
     return output
 
 
