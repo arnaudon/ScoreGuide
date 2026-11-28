@@ -62,6 +62,8 @@ class Score(ScoreBase, table=True):
     number_of_plays: int = 0
     # When the score was last opened in the reader (the home page's "continue").
     last_played_at: datetime | None = Field(default=None)
+    # Starred by its owner (the library's "Favourites" filter).
+    favorite: bool = Field(default=False)
     source: str = Field(default="IMSLP")
     imslp_id: int | None = Field(default=None, index=True)
     user_id: int | None = Field(foreign_key="user.id", index=True)
@@ -215,6 +217,12 @@ class ScoreCreate(ScoreBase):
     _form = field_validator("form")(_normalized(normalize_form))
     _key = field_validator("key")(_normalized(normalize_key))
     _style = field_validator("style")(_normalized(tidy_style))
+
+
+class FavoriteIn(BaseModel):
+    """Request body: star or unstar a score."""
+
+    favorite: bool
 
 
 class ScoreUpdate(BaseModel):

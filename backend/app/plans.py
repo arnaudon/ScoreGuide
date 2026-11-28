@@ -15,6 +15,7 @@ billing beyond the free plan will use.
 import argparse
 import json
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -146,6 +147,32 @@ def storage_used(user_id: int, session: Session) -> int:
     return uploads.storage_used(user_id, session)
 
 
+# How many recent runs the completion estimate looks at, and needs at least.
+ESTIMATE_RUNS = 20
+ESTIMATE_MIN_RUNS = 3
+
+
+def completion_estimate(session: Session) -> int | None:
+    """Weighted tokens a typical ``complete_score`` run costs with the current model.
+
+    The median of its last ``ESTIMATE_RUNS`` runs (any user), so the UI can say
+    what one AI completion takes; None until ``ESTIMATE_MIN_RUNS`` exist.
+    """
+    setting = session.get(Setting, "model_complete")
+    model = setting.value if setting else os.getenv("MODEL", "test")
+    costs = sorted(
+        session.exec(
+            select(AIUsage.cost)
+            .where(AIUsage.feature == "complete_score", AIUsage.model == model, AIUsage.cost > 0)
+            .order_by(col(AIUsage.created_at).desc())
+            .limit(ESTIMATE_RUNS)
+        ).all()
+    )
+    if len(costs) < ESTIMATE_MIN_RUNS:
+        return None
+    return int(costs[len(costs) // 2])
+
+
 def usage_summary(user: User, session: Session) -> UsageSummary:
     """The user's plan, AI tokens used of those received, and storage use (bytes)."""
     assert user.id is not None
@@ -156,6 +183,7 @@ def usage_summary(user: User, session: Session) -> UsageSummary:
         ai_allowance=total_allowance(user, session),
         storage_used=storage_used(user.id, session),
         storage_limit=limits.storage_mb * MB,
+        ai_run_estimate=completion_estimate(session),
     )
 
 

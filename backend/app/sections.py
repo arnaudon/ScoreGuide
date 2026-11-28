@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, col, delete, select
 
+from app import thumbnails
 from app.db import get_session
 from app.file_helper import file_helper
 from app.rate_limit import limiter
@@ -166,6 +167,7 @@ def generate_sections(score_id: int, pdf_path: str, engine: Engine) -> None:
     """The job: detect sections in the score's PDF and store them."""
     try:
         data = file_helper.download_pdf(pdf_path)["Body"].read()
+        thumbnails.store_safely(pdf_path, data)
         detected = extract_sections(data)
         with Session(engine) as session:
             score = session.get(Score, score_id)

@@ -40,3 +40,6 @@ class UsageSummary(BaseModel):
     ai_allowance: int
     storage_used: int
     storage_limit: int
+    # Weighted tokens a typical AI completion of a score costs with the current
+    # model (median of recent runs), None until a few runs exist.
+    ai_run_estimate: int | None = None
