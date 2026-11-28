@@ -5,13 +5,13 @@ import os
 import random
 import re
 from dataclasses import dataclass, field
-from typing import Annotated
+from typing import Annotated, Literal, get_args
 
 import httpx
 from dotenv import load_dotenv
 from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, WithJsonSchema
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
+from pydantic_ai.common_tools.duckduckgo import DDGS, DuckDuckGoResult, DuckDuckGoSearchTool
 from pydantic_ai.exceptions import ModelHTTPError, OutputTokenLimitExceeded, UsageLimitExceeded
 from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.messages import ModelMessage, ModelRequest, SystemPromptPart
@@ -344,7 +344,9 @@ async def run_agent(
 
 COMPLETE_SYSTEM_PROMPT = """You are a music expert helping musicians who are about to play a piece.
 Fill in accurate information about the piece. Search the web for anything you are not sure of;
-never guess dates, names or anecdotes. short_description, long_description and their French
+never guess dates, names or anecdotes. Search efficiently: every step resends all you have
+gathered, so run the searches you need together (several in one step), in at most two or three
+rounds, then answer. short_description, long_description and their French
 versions are required: always write them.
 Every field is a single line of plain text.
 
@@ -401,8 +403,25 @@ SECURITY RULES:
 """
 
 
+# How much the completion agent may do, i.e. spend. Every model call resends
+# all the run has gathered, so the cost follows the number of search rounds
+# (Kimi K2.6 on Op. 118: 4 calls ~52k tokens; 14 calls ~245k). Turning thinking
+# off alone made Kimi search more, not less, so the rounds are capped instead.
+Effort = Literal["quick", "standard", "detailed"]
+EFFORTS: tuple[Effort, ...] = get_args(Effort)
+# Model steps that may search (each step can run several searches at once);
+# after them the search tool is withdrawn and the agent must answer.
+SEARCH_ROUNDS: dict[str, int] = {"quick": 1, "standard": 3, "detailed": 4}
+SEARCH_RESULTS = 5
+
+QUICK_PROMPT = """
+QUICK MODE: you can search once (up to three searches together in that step), then write from
+what you found. Keep it short: History in one paragraph, 3 lines of playing advice, one anecdote
+at most.
+"""
+
 DETAILED_PROMPT = """
-DETAILED MODE: before writing, use read_page on the 2 to 4 most informative pages from your
+DETAILED MODE: before writing, use read_page on the 2 or 3 most informative pages from your
 search results (Wikipedia, the publisher's or a museum's page, IMSLP, a serious programme note).
 Base every fact on a page you read and cite those pages under Sources. Write in depth: History in
 two or three paragraphs, 4 to 6 lines of specific playing advice that names bars or passages when
@@ -414,9 +433,32 @@ the pages do, and two or three anecdotes.
 class CompleteDeps:
     """Per-run state of the completion agent."""
 
-    detailed: bool = False
+    effort: Effort = "standard"
     # Pages read so far (detailed mode reads at most DETAILED_MAX_PAGES).
     pages_read: set[str] = field(default_factory=set)
+    # Run steps in which the agent searched (at most SEARCH_ROUNDS[effort]).
+    search_steps: set[int] = field(default_factory=set)
+
+    @property
+    def detailed(self) -> bool:
+        return self.effort == "detailed"
+
+
+_ddg = DuckDuckGoSearchTool(client=DDGS(), max_results=SEARCH_RESULTS)
+
+
+async def duckduckgo_search(ctx: RunContext[CompleteDeps], query: str) -> list[DuckDuckGoResult]:
+    """Searches DuckDuckGo for the given query and returns the results."""
+    ctx.deps.search_steps.add(ctx.run_step)
+    return await _ddg(query)
+
+
+async def _searches_left(
+    ctx: RunContext[CompleteDeps], tool_def: ToolDefinition
+) -> ToolDefinition | None:
+    """Search is offered until the run used its rounds; then the agent must answer."""
+    used = len(ctx.deps.search_steps - {ctx.run_step})
+    return tool_def if used < SEARCH_ROUNDS[ctx.deps.effort] else None
 
 
 async def read_page(ctx: RunContext[CompleteDeps], url: str) -> str:
@@ -505,14 +547,23 @@ complete_agent = Agent(
     deps_type=CompleteDeps,
     instructions=COMPLETE_SYSTEM_PROMPT,
     retries=5,
-    tools=[duckduckgo_search_tool()],
 )
+complete_agent.tool(prepare=_searches_left)(duckduckgo_search)
 complete_agent.tool(prepare=_only_when_detailed)(read_page)
 
 
 @complete_agent.instructions
-def _detailed_brief(ctx: RunContext[CompleteDeps]) -> str:
-    return DETAILED_PROMPT if ctx.deps.detailed else ""
+def _effort_brief(ctx: RunContext[CompleteDeps]) -> str:
+    return {"quick": QUICK_PROMPT, "detailed": DETAILED_PROMPT}.get(ctx.deps.effort, "")
+
+
+def _complete_settings(effort: Effort) -> ModelSettings:
+    """The output cap, and no thinking in quick mode (``reasoning_effort: none``
+    on OpenAI-compatible APIs such as Infomaniak's; ignored by models that don't think)."""
+    settings = _model_settings()
+    if effort == "quick":
+        settings["openai_reasoning_effort"] = "none"  # type: ignore[typeddict-unknown-key]
+    return settings
 
 
 _HTML_BREAK = re.compile(r"<br\s*/?>", re.IGNORECASE)
@@ -535,7 +586,7 @@ async def run_complete_agent(
     score: Score,
     model: Model | str | None = None,
     usage: RunUsage | None = None,
-    detailed: bool = False,
+    effort: Effort = "standard",
     contents: list[str] | None = None,
 ):
     """
@@ -546,6 +597,7 @@ async def run_complete_agent(
 
     Args:
         score: The Score object with potentially missing information.
+        effort: How much searching (and spending) the run may do, see ``EFFORTS``.
         contents: The score's table of contents ("p. 3: Intermezzo"), as hints.
 
     Returns:
@@ -558,8 +610,8 @@ async def run_complete_agent(
     res = await complete_agent.run(
         _wrap_user_prompt(prompt),
         model=_model(model),
-        deps=CompleteDeps(detailed=detailed),
-        model_settings=_model_settings(),
+        deps=CompleteDeps(effort=effort),
+        model_settings=_complete_settings(effort),
         usage_limits=_usage_limits(usage),
         usage=usage,
     )

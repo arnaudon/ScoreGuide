@@ -24,7 +24,14 @@ from sqlmodel import Session, col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import annotations, config, db, export, imslp, llm, plans, sections, uploads, users
-from app.agent import CONTENTS_MAX_ENTRIES, Deps, run_agent, run_complete_agent, run_imslp_agent
+from app.agent import (
+    CONTENTS_MAX_ENTRIES,
+    Deps,
+    Effort,
+    run_agent,
+    run_complete_agent,
+    run_imslp_agent,
+)
 from app.db import get_async_session, get_session
 from app.file_helper import file_helper
 from app.rate_limit import limiter
@@ -105,9 +112,22 @@ class CompleteRequest(BaseModel):
     """Body for /complete_score: which of the caller's scores to complete."""
 
     score_id: int
-    # Read web pages for a longer, sourced description (more AI tokens).
-    # None: the user's preference.
+    # How much the agent may search (and spend): quick, standard, or detailed
+    # (also reads web pages). None: ``detailed`` if given, else the default.
+    effort: Effort | None = None
+    # Older clients: True means "detailed", False the plan's default.
     detailed: bool | None = None
+
+
+def completion_effort(body: CompleteRequest, user: User) -> Effort:
+    """The run's effort: asked for, else detailed by preference, else by plan
+    (a free account starts quick, so its tokens last for several scores)."""
+    if body.effort:
+        return body.effort
+    detailed = user.detailed_descriptions if body.detailed is None else body.detailed
+    if detailed:
+        return "detailed"
+    return "standard" if user.plan == "pro" or user.role == "admin" else "quick"
 
 
 class ModelsUpdate(BaseModel):
@@ -301,7 +321,7 @@ def _clip_completion(completed: Score) -> dict:
 
 
 COMPLETE_CUT_OFF = "The AI answer was too long and got cut off. Please try again."
-COMPLETE_TOO_LARGE = "This search used too many AI tokens. Try again without the detailed mode."
+COMPLETE_TOO_LARGE = "This search used too many AI tokens. Try again with a lighter AI level."
 
 _TAG_CHARS = re.compile(r"[<>\s]+")
 
@@ -381,16 +401,15 @@ async def _complete(
     """Run the completion agent on ``score`` (metered) and save what it found."""
     name, model = await _agent_model(session, "model_complete")
 
-    async with plans.metered(current_user, session, "complete_score", name) as usage:
+    effort = completion_effort(body, current_user)
+    feature = plans.complete_feature(effort)
+    async with plans.metered(current_user, session, feature, name) as usage:
         try:
-            detailed = (
-                current_user.detailed_descriptions if body.detailed is None else body.detailed
-            )
             completed = await run_complete_agent(
                 score,
                 model,
                 usage=usage,
-                detailed=detailed,
+                effort=effort,
                 contents=await _contents(session, score.id),  # type: ignore[arg-type]
             )
         except OutputTokenLimitExceeded as e:

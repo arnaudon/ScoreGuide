@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import ScoreDetailsDialog from '#lib/components/ScoreDetailsDialog.svelte';
-	import DetailedToggle from '#lib/components/DetailedToggle.svelte';
+	import AiEffortSelect from '#lib/components/AiEffortSelect.svelte';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -337,11 +337,7 @@
 							{uploading ? m.adding() : m.add()}
 						</Button>
 						<div class="md:basis-full">
-							<DetailedToggle
-								id="upload-detailed"
-								checked={data.user?.detailed_descriptions ?? false}
-								hint
-							/>
+							<AiEffortSelect id="upload-effort" user={data.user} allowNone />
 						</div>
 					</form>
 				</Tabs.Content>
@@ -469,6 +465,9 @@
 				<p role="status" class="text-success mt-4 text-sm font-medium">
 					{m.score_added_success()}
 				</p>
+				{#if form?.aiSkipped}
+					<p role="status" class="text-muted-foreground mt-1 text-sm">{m.score_added_no_ai()}</p>
+				{/if}
 				{#if form?.completionFailed}
 					<p role="status" class="text-muted-foreground mt-1 text-sm">
 						{m.score_completion_failed()}
