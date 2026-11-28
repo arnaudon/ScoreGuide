@@ -136,10 +136,7 @@ export const SORT_DESC: Record<SortKey, boolean> = {
 
 /** Lower case, accents dropped: "Étude" matches "etude". */
 export function fold(text: string): string {
-	return text
-		.normalize('NFD')
-		.replace(/\p{M}/gu, '')
-		.toLowerCase();
+	return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
 /** The facet value a score is filed under ("" when it has none). */
@@ -220,9 +217,9 @@ export function facetCounts(scores: Score[], facet: Facet, f: LibraryFilters): T
 
 /** "Frédéric Chopin" / "Chopin, Frédéric" -> "chopin frederic": sorted by family name. */
 export function composerSortKey(composer: string): string {
-	const name = composer.includes(',') ? composer : composerName(composer);
-	if (name.includes(',')) return fold(name);
-	const parts = name.trim().split(/\s+/);
+	const [family, given] = composer.split(',').map((p) => p.trim());
+	if (given) return fold(`${family} ${given}`);
+	const parts = composer.trim().split(/\s+/);
 	// "Johann Sebastian Bach" -> "bach johann sebastian"; particles stay with
 	// the first names ("Ludwig van Beethoven" -> "beethoven ludwig van").
 	const last = parts.pop() ?? '';
@@ -235,8 +232,7 @@ export function sortScores(scores: Score[], sort: LibrarySort): Score[] {
 	const sign = sort.desc ? -1 : 1;
 	const byTitle = (a: Score, b: Score) => collator.compare(a.title, b.title);
 	const compare: Record<SortKey, (a: Score, b: Score) => number> = {
-		composer: (a, b) =>
-			collator.compare(composerSortKey(a.composer), composerSortKey(b.composer)),
+		composer: (a, b) => collator.compare(composerSortKey(a.composer), composerSortKey(b.composer)),
 		title: byTitle,
 		year: (a, b) => (a.year || 0) - (b.year || 0),
 		plays: (a, b) => (a.number_of_plays || 0) - (b.number_of_plays || 0),

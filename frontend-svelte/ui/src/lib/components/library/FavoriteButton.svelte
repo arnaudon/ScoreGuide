@@ -9,7 +9,7 @@
 		favorite,
 		onToggle,
 		class: className = ''
-	} = $props<{ favorite: boolean; onToggle: (value: boolean) => void; class?: string }>();
+	}: { favorite: boolean; onToggle: (value: boolean) => void; class?: string } = $props();
 	const label = $derived(favorite ? m.favorite_remove() : m.favorite_add());
 </script>
 

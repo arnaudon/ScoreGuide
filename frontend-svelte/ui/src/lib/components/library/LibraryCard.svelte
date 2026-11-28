@@ -16,12 +16,12 @@
 		canEdit = true,
 		onDetails,
 		onFavorite
-	} = $props<{
+	}: {
 		score: Score;
 		canEdit?: boolean;
 		onDetails: (id: number) => void;
 		onFavorite: (id: number, value: boolean) => void;
-	}>();
+	} = $props();
 
 	const badges = $derived(
 		[
@@ -52,7 +52,9 @@
 		{#if badges.length}
 			<div class="flex flex-wrap gap-1">
 				{#each badges as badge (badge)}
-					<span class="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[11px] leading-none">
+					<span
+						class="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[11px] leading-none"
+					>
 						{badge}
 					</span>
 				{/each}

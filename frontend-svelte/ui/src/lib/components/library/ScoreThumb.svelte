@@ -6,11 +6,15 @@
 	 * A score's first page (made by the backend once its PDF is processed), or a
 	 * plain placeholder while there is none.
 	 */
-	let { scoreId, hasPdf = true, class: className = '' } = $props<{
+	let {
+		scoreId,
+		hasPdf = true,
+		class: className = ''
+	}: {
 		scoreId: number;
 		hasPdf?: boolean;
 		class?: string;
-	}>();
+	} = $props();
 	let failed = $state(false);
 </script>
 

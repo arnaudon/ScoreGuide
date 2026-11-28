@@ -23,7 +23,8 @@ const USER = {
 };
 
 // The library list: 12 scores, so the table has two pages of 10.
-const LIBRARY = Array.from({ length: 12 }, (_, i) => ({
+// More than one batch of the library's list (30), to check it grows on scroll.
+const LIBRARY = Array.from({ length: 40 }, (_, i) => ({
 	id: 100 + i,
 	title: `Etude No. ${String(i + 1).padStart(2, '0')}`,
 	composer: i % 2 ? 'Chopin' : 'Liszt',
@@ -36,6 +37,7 @@ const LIBRARY = Array.from({ length: 12 }, (_, i) => ({
 	pdf_path: '',
 	pdf_size: 0,
 	number_of_plays: i,
+	favorite: false,
 	user_id: 1
 }));
 
@@ -66,7 +68,7 @@ const LONG_TOC = {
 	}))
 };
 
-const server = createServer((req, res) => {
+const server = createServer(async (req, res) => {
 	const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
 	if (url.pathname === '/token' && req.method === 'POST') {
@@ -80,6 +82,18 @@ const server = createServer((req, res) => {
 	}
 	if (url.pathname === '/scores' && req.method === 'GET') {
 		return json(res, 200, LIBRARY);
+	}
+	const favoriteMatch = url.pathname.match(/^\/scores\/(\d+)\/favorite$/);
+	if (favoriteMatch && req.method === 'PUT') {
+		const score = LIBRARY.find((s) => s.id === Number(favoriteMatch[1]));
+		if (!score) return json(res, 404, { detail: 'Score not found' });
+		const body = await new Promise((resolve) => {
+			let data = '';
+			req.on('data', (c) => (data += c));
+			req.on('end', () => resolve(JSON.parse(data || '{}')));
+		});
+		score.favorite = body.favorite === true;
+		return json(res, 200, score);
 	}
 	const scoreMatch = url.pathname.match(/^\/scores\/(\d+)$/);
 	if (scoreMatch && req.method === 'GET') {

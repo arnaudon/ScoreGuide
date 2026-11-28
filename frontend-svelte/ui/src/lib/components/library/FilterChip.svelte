@@ -14,14 +14,14 @@
 		onChange,
 		valueLabel = (v: string) => v,
 		class: className = ''
-	} = $props<{
+	}: {
 		label: string;
 		options: Tally[];
 		selected: string[];
 		onChange: (values: string[]) => void;
 		valueLabel?: (value: string) => string;
 		class?: string;
-	}>();
+	} = $props();
 
 	function toggle(value: string, on: boolean) {
 		onChange(on ? [...selected, value] : selected.filter((v: string) => v !== value));
