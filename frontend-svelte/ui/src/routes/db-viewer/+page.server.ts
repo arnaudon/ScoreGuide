@@ -5,8 +5,15 @@ import { dev } from '$app/env';
 import { apiFetch } from '#lib/server/fetchApi.js';
 import { buildScoreUpdatePayload } from '#lib/server/scoreUpdate.js';
 import type { Score, User } from '#lib/types.js';
-import { formBool } from '#lib/server/formBool.js';
+import { EFFORTS, type Effort } from '#lib/usage.js';
 import * as m from '#lib/paraglide/messages.js';
+
+/** The form's AI effort: one of ours, `none`, or undefined (the backend's default). */
+function formEffort(data: FormData): Effort | 'none' | undefined {
+	const value = data.get('effort');
+	if (value === 'none') return 'none';
+	return (EFFORTS as readonly unknown[]).includes(value) ? (value as Effort) : undefined;
+}
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
 	const token = cookies.get('access_token');
@@ -92,12 +99,17 @@ export const actions: Actions = {
 			}
 			const saved = (await scoreRes.json().catch(() => null)) as { id?: unknown } | null;
 
-			// 3. Complete it with the agent: the backend fills in the stored
-			// score's details and saves them. It can be re-completed later.
+			// 3. Complete it with the agent at the chosen effort (none: the user
+			// fills in the details): the backend fills in the stored score's
+			// details and saves them. It can be re-completed later.
+			const effort = formEffort(data);
+			if (effort === 'none') {
+				return { success: true, scoreAdded: true, aiSkipped: true };
+			}
 			const completeRes = await api('/complete_score', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ score_id: saved?.id, detailed: formBool(data, 'detailed') })
+				body: JSON.stringify({ score_id: saved?.id, effort })
 			});
 			const completionFailed = !completeRes.ok;
 			// Keep the backend's reason (e.g. "out of credits") so the user knows why.
@@ -270,7 +282,7 @@ export const actions: Actions = {
 			const completeRes = await api('/complete_score', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ score_id: Number(id), detailed: formBool(data, 'detailed') })
+				body: JSON.stringify({ score_id: Number(id), effort: formEffort(data) })
 			});
 
 			if (completeRes.status === 409) {

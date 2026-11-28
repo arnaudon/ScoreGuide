@@ -40,3 +40,6 @@ class UsageSummary(BaseModel):
     ai_allowance: int
     storage_used: int
     storage_limit: int
+    # Weighted tokens one AI completion of a score costs at each effort
+    # (quick / standard / detailed) with the current model.
+    ai_run_estimates: dict[str, int] = {}

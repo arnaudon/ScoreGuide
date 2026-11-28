@@ -111,7 +111,7 @@ async def test_fetch_refuses_private_hosts(monkeypatch):
 def _ctx(*urls, deps=None):
     part = ToolReturnPart(tool_name="search", content=[{"href": u} for u in urls], tool_call_id="1")
     return SimpleNamespace(
-        messages=[ModelRequest(parts=[part])], deps=deps or agent.CompleteDeps(detailed=True)
+        messages=[ModelRequest(parts=[part])], deps=deps or agent.CompleteDeps(effort="detailed")
     )
 
 
@@ -140,8 +140,8 @@ async def test_read_page_reports_failures(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("detailed", [False, True])
-async def test_detailed_mode_adds_the_reader_and_the_brief(detailed):
+@pytest.mark.parametrize("effort", ["quick", "standard", "detailed"])
+async def test_effort_sets_tools_brief_and_thinking(effort):
     from pydantic_ai.messages import ModelResponse, ToolCallPart
     from pydantic_ai.models.function import AgentInfo, FunctionModel
 
@@ -150,11 +150,49 @@ async def test_detailed_mode_adds_the_reader_and_the_brief(detailed):
     def answer(_messages, info: AgentInfo):
         seen["tools"] = [t.name for t in info.function_tools]
         seen["instructions"] = info.instructions or ""
+        seen["settings"] = info.model_settings or {}
         args = {"title": "t", "composer": "c"} | dict.fromkeys(agent.DESCRIPTION_FIELDS, "x")
         return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, args)])
 
     await agent.run_complete_agent(
-        Score(title="t", composer="c"), model=FunctionModel(answer), detailed=detailed
+        Score(title="t", composer="c"), model=FunctionModel(answer), effort=effort
     )
-    assert ("read_page" in seen["tools"]) is detailed
-    assert ("DETAILED MODE" in seen["instructions"]) is detailed
+    assert ("read_page" in seen["tools"]) is (effort == "detailed")
+    assert ("DETAILED MODE" in seen["instructions"]) is (effort == "detailed")
+    assert ("QUICK MODE" in seen["instructions"]) is (effort == "quick")
+    assert "duckduckgo_search" in seen["tools"]
+    assert (seen["settings"].get("openai_reasoning_effort") == "none") is (effort == "quick")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("effort", "rounds"), list(agent.SEARCH_ROUNDS.items()))
+async def test_search_is_withdrawn_after_its_rounds(monkeypatch, effort, rounds):
+    """Each step may search (several at once); after the effort's rounds the
+    tool goes away and the agent has to answer."""
+    from pydantic_ai.messages import ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import AgentInfo, FunctionModel
+
+    queries = []
+
+    async def fake_search(query):
+        queries.append(query)
+        return [{"title": "t", "href": "https://example.org", "body": "b"}]
+
+    monkeypatch.setattr(agent, "_ddg", fake_search)
+    offered = []
+
+    def answer(_messages, info: AgentInfo):
+        tools = [t.name for t in info.function_tools]
+        offered.append("duckduckgo_search" in tools)
+        if "duckduckgo_search" in tools:
+            return ModelResponse(
+                parts=[ToolCallPart("duckduckgo_search", {"query": f"q{i}"}) for i in range(2)]
+            )
+        args = {"title": "t", "composer": "c"} | dict.fromkeys(agent.DESCRIPTION_FIELDS, "x")
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, args)])
+
+    await agent.run_complete_agent(
+        Score(title="t", composer="c"), model=FunctionModel(answer), effort=effort
+    )
+    assert offered == [True] * rounds + [False]
+    assert len(queries) == 2 * rounds

@@ -292,3 +292,24 @@ def test_grant_tokens_adds_to_the_account(admin: TestClient, session: Session, t
 
     assert admin.post("/users/9999/grant", json={"tokens": 5}).status_code == 404
     assert admin.post(f"/users/{test_user.id}/grant", json={"tokens": 0}).status_code == 422
+
+
+def test_completion_estimates_median_of_recent_runs_else_a_guess(session):
+    session.add(Setting(key="model_complete", value="m"))
+    session.add(Setting(key=plans.WEIGHTS_KEY, value='{"m": 2.0}'))
+    user = User(username="u", email="u@example.com", password="x")
+    session.add(user)
+    session.commit()
+    for cost in (10, 30, 20, 999):
+        model = "m" if cost != 999 else "other"
+        session.add(
+            AIUsage(user_id=user.id, feature="complete_score:quick", model=model, cost=cost)
+        )
+    session.add(AIUsage(user_id=user.id, feature="complete_score:standard", model="m", cost=5))
+    session.commit()
+    estimates = plans.completion_estimates(session)
+    assert estimates["quick"] == 20  # median of this model's runs
+    # Too few runs: the guess, weighted.
+    assert estimates["standard"] == plans.COMPLETE_TOKENS_GUESS["standard"] * 2
+    assert estimates["detailed"] == plans.COMPLETE_TOKENS_GUESS["detailed"] * 2
+    assert plans.usage_summary(user, session).ai_run_estimates == estimates

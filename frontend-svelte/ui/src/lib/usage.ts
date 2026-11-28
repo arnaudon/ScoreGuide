@@ -31,3 +31,47 @@ export function aiLeftLabel(user: Pick<User, 'usage'> | null | undefined): strin
 
 export const planLabel = (plan: string | null | undefined) =>
 	plan === 'pro' ? m.plan_pro() : m.plan_free();
+
+/** How much the AI may search (and spend) to fill in a score. */
+export const EFFORTS = ['quick', 'standard', 'detailed'] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+type AiUser = Pick<User, 'usage' | 'role' | 'detailed_descriptions'> | null | undefined;
+
+/** Weighted AI tokens the account has left (Infinity when not metered). */
+export function aiRemaining(user: AiUser): number {
+	if (!user?.usage || user.role === 'admin') return Infinity;
+	return Math.max(0, user.usage.ai_allowance - user.usage.ai_used);
+}
+
+/** Share of all the account's AI tokens one run at ``effort`` takes, or undefined. */
+export function effortPercent(user: AiUser, effort: Effort): number | undefined {
+	const estimate = user?.usage?.ai_run_estimates?.[effort];
+	const allowance = user?.usage?.ai_allowance ?? 0;
+	if (!estimate || allowance <= 0 || user?.role === 'admin') return undefined;
+	return (100 * estimate) / allowance;
+}
+
+/** Whether the tokens left cover a typical run at ``effort``. */
+export function canAfford(user: AiUser, effort: Effort): boolean {
+	const left = aiRemaining(user);
+	const estimate = user?.usage?.ai_run_estimates?.[effort];
+	return estimate ? left >= estimate : left > 0;
+}
+
+/**
+ * The effort to offer first: detailed by preference, else standard on a paid
+ * plan and quick on the free one, lowered to what the tokens left still
+ * cover; null when not even a quick run fits.
+ */
+export function defaultEffort(user: AiUser): Effort | null {
+	const preferred: Effort = user?.detailed_descriptions
+		? 'detailed'
+		: user?.role === 'admin' || user?.usage?.plan === 'pro'
+			? 'standard'
+			: 'quick';
+	for (let i = EFFORTS.indexOf(preferred); i >= 0; i--) {
+		if (canAfford(user, EFFORTS[i])) return EFFORTS[i];
+	}
+	return null;
+}
