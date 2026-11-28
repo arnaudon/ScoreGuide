@@ -16,6 +16,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic_ai.exceptions import OutputTokenLimitExceeded, UsageLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
@@ -73,6 +74,10 @@ def _init_sentry() -> None:
             # Privacy page: no IP, no request bodies (PDF uploads, prompts).
             send_default_pii=False,
             max_request_body_size="never",
+            # An agent traceback's locals hold the whole conversation: with them
+            # Sentry rejected every backend error as too large (and they would
+            # carry the user's prompts).
+            include_local_variables=False,
         )
 
 
@@ -309,6 +314,9 @@ def _clip_completion(completed: Score) -> dict:
         return ScoreUpdate.model_validate(kept).model_dump(exclude_none=True)
 
 
+COMPLETE_CUT_OFF = "The AI answer was too long and got cut off. Please try again."
+COMPLETE_TOO_LARGE = "This search used too many AI tokens. Try again without the detailed mode."
+
 _TAG_CHARS = re.compile(r"[<>\s]+")
 
 
@@ -399,6 +407,12 @@ async def _complete(
                 detailed=detailed,
                 contents=await _contents(session, score.id),  # type: ignore[arg-type]
             )
+        except OutputTokenLimitExceeded as e:
+            logger.warning("complete_score: answer cut off at the output-token cap")
+            raise HTTPException(status_code=502, detail=COMPLETE_CUT_OFF) from e
+        except UsageLimitExceeded as e:
+            logger.warning("complete_score hit a usage limit: %s", e)
+            raise HTTPException(status_code=413, detail=COMPLETE_TOO_LARGE) from e
         except Exception as e:
             logger.exception("complete_score failed")
             raise HTTPException(status_code=500, detail="Agent execution failed") from e
