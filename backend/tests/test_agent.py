@@ -417,3 +417,40 @@ async def test_run_complete_agent_keeps_title_of_another_work():
     )
     result = await agent.run_complete_agent(score, model=model)
     assert (result.title, result.composer) == ("D 960", "Schubert")
+
+
+def _completion(long_description: str, long_description_fr: str = "## Histoire\nTexte."):
+    return agent.ScoreCompletion(
+        title="t",
+        composer="c",
+        short_description="s",
+        short_description_fr="s",
+        long_description=long_description,
+        long_description_fr=long_description_fr,
+    )
+
+
+def test_escaped_line_breaks_that_lost_their_backslash_are_restored():
+    """Kimi (through Infomaniak) wrote 'r' where the line breaks were."""
+    out = agent._plain_line_breaks(
+        _completion("## HistoryrWritten in 1828.r## Playing itr- Voice it.r- Little pedal.")
+    )
+    assert out.long_description.splitlines() == [
+        "## History",
+        "Written in 1828.",
+        "## Playing it",
+        "- Voice it.",
+        "- Little pedal.",
+    ]
+    # Ordinary words ending in r are left alone.
+    assert _completion("A minor ## Histoire").long_description == "A minor ## Histoire"
+
+
+def test_a_description_with_only_headings_is_asked_again():
+    """Seen with Kimi: the answer cut after its first heading."""
+    from pydantic_ai import ModelRetry
+
+    with pytest.raises(ModelRetry, match="long_description has only headings"):
+        agent._plain_line_breaks(_completion("## History"))
+    with pytest.raises(ModelRetry, match="long_description_fr"):
+        agent._plain_line_breaks(_completion("## History\nText.", "## Histoire"))
