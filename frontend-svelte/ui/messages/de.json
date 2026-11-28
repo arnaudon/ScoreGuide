@@ -101,7 +101,7 @@
 	"save_changes": "Änderungen speichern",
 	"login": "Anmelden",
 	"logging_in": "Anmeldung…",
-	"login_description": "Deine intelligente Notenbibliothek. Lade Noten hoch, verwalte und entdecke sie – mit Unterstützung durch KI.",
+	"login_description": "Deine Notenbibliothek: Noten hochladen, ordnen, lesen und annotieren. Optional schlägt dir eine KI vor, was du spielen kannst, und stellt jedes Stück vor.",
 	"sign_up": "Registrieren",
 	"signing_up": "Registrierung…",
 	"password": "Passwort",
@@ -529,5 +529,15 @@
 	"library_no_match": "Keine Noten passen zu diesen Filtern.",
 	"library_load_more": "Mehr anzeigen",
 	"favorite_add": "Zu Favoriten hinzufügen",
-	"favorite_remove": "Aus Favoriten entfernen"
+	"favorite_remove": "Aus Favoriten entfernen",
+	"login_ai_optional": "Funktioniert vollständig ohne KI: Die KI ist ein Extra, das du ausschalten kannst.",
+	"ai_badge": "KI",
+	"ai_badge_title": "Verbraucht KI-Token",
+	"ai_switch": "KI-Assistent",
+	"ai_none_left": "Keine KI-Token mehr: Alles andere funktioniert ohne KI.",
+	"ai_get_more": "Mehr Token anfragen",
+	"ai_demo_off": "Der KI-Assistent ist in der Demo nicht verfügbar: Durchsuche stattdessen die Bibliothek.",
+	"home_search_hint": "Durchsuche deine Bibliothek nach Titel, Komponist, Opus, Tonart…",
+	"home_search_more": "{count} weitere in der Bibliothek",
+	"home_search_none": "Keine Noten gefunden."
 }

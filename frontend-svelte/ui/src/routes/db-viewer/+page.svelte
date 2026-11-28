@@ -9,6 +9,7 @@
 	import * as Popover from '#lib/components/ui/popover/index.js';
 	import ScoreDetailsDialog from '#lib/components/ScoreDetailsDialog.svelte';
 	import AiEffortSelect from '#lib/components/AiEffortSelect.svelte';
+	import AiBadge from '#lib/components/ai/AiBadge.svelte';
 	import LibraryCard from '#lib/components/library/LibraryCard.svelte';
 	import FilterChip from '#lib/components/library/FilterChip.svelte';
 	import FavoriteButton from '#lib/components/library/FavoriteButton.svelte';
@@ -845,6 +846,7 @@
 									class="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium"
 								>
 									{m.imslp_ask_assistant()}
+									<AiBadge class="ml-1" />
 								</summary>
 								<div
 									class="mt-3 flex flex-col {imslpAgentHistoryStore.history.length > 0

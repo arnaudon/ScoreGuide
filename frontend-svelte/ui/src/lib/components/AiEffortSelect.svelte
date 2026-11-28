@@ -3,6 +3,8 @@
 	import * as m from '#lib/paraglide/messages.js';
 	import { EFFORTS, type Effort, canAfford, defaultEffort, effortPercent } from '#lib/usage.js';
 	import type { User } from '#lib/types.js';
+	import AiBadge from '#lib/components/ai/AiBadge.svelte';
+	import NoAiTokens from '#lib/components/ai/NoAiTokens.svelte';
 
 	/**
 	 * How much the AI may do (and spend) to fill in a score, with what one run
@@ -50,7 +52,10 @@
 
 <div class="flex flex-col gap-1">
 	<div class="flex flex-wrap items-center gap-2">
-		<label for={id} class="text-sm font-medium">{m.effort_label()}</label>
+		<label for={id} class="inline-flex items-center gap-1.5 text-sm font-medium">
+			{m.effort_label()}
+			<AiBadge />
+		</label>
 		<select
 			{id}
 			name="effort"
@@ -69,9 +74,9 @@
 			{/each}
 		</select>
 	</div>
-	<p class="text-muted-foreground text-xs">
-		{#if fallback === null && allowNone}{m.effort_none_left()}{:else}{DESCRIPTIONS[
-				value ?? 'none'
-			]()}{/if}
-	</p>
+	{#if fallback === null}
+		<NoAiTokens />
+	{:else}
+		<p class="text-muted-foreground text-xs">{DESCRIPTIONS[value ?? 'none']()}</p>
+	{/if}
 </div>

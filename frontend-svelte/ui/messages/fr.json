@@ -101,7 +101,7 @@
 	"save_changes": "Enregistrer les modifications",
 	"login": "Connexion",
 	"logging_in": "Connexion...",
-	"login_description": "Votre bibliothèque intelligente de partitions musicales. Téléchargez, gérez et découvrez des partitions avec l'aide de l'IA.",
+	"login_description": "Votre bibliothèque de partitions : ajoutez, rangez, lisez et annotez vos partitions. En option, l'IA vous suggère quoi jouer et présente chaque œuvre.",
 	"sign_up": "S'inscrire",
 	"signing_up": "Inscription...",
 	"password": "Mot de passe",
@@ -529,5 +529,15 @@
 	"library_no_match": "Aucune partition ne correspond à ces filtres.",
 	"library_load_more": "Afficher plus",
 	"favorite_add": "Ajouter aux favoris",
-	"favorite_remove": "Retirer des favoris"
+	"favorite_remove": "Retirer des favoris",
+	"login_ai_optional": "Fonctionne entièrement sans IA : l'IA est un plus que vous pouvez désactiver.",
+	"ai_badge": "IA",
+	"ai_badge_title": "Utilise des jetons IA",
+	"ai_switch": "Assistant IA",
+	"ai_none_left": "Plus de jetons IA : tout le reste fonctionne sans IA.",
+	"ai_get_more": "Demander plus de jetons",
+	"ai_demo_off": "L'assistant IA n'est pas disponible dans la démo : cherchez plutôt dans la bibliothèque.",
+	"home_search_hint": "Cherchez dans votre bibliothèque par titre, compositeur, opus, tonalité…",
+	"home_search_more": "{count} de plus dans la bibliothèque",
+	"home_search_none": "Aucune partition ne correspond."
 }

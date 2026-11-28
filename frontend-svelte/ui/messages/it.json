@@ -101,7 +101,7 @@
 	"save_changes": "Salva le modifiche",
 	"login": "Accedi",
 	"logging_in": "Accesso…",
-	"login_description": "La tua biblioteca di spartiti intelligente. Carica, organizza e scopri spartiti con l'aiuto dell'IA.",
+	"login_description": "La tua biblioteca di spartiti: carica, organizza, leggi e annota i tuoi spartiti. In più, se vuoi, l'IA ti suggerisce cosa suonare e presenta ogni brano.",
 	"sign_up": "Registrati",
 	"signing_up": "Registrazione…",
 	"password": "Password",
@@ -529,5 +529,15 @@
 	"library_no_match": "Nessuno spartito corrisponde a questi filtri.",
 	"library_load_more": "Mostra altri",
 	"favorite_add": "Aggiungi ai preferiti",
-	"favorite_remove": "Rimuovi dai preferiti"
+	"favorite_remove": "Rimuovi dai preferiti",
+	"login_ai_optional": "Funziona completamente senza IA: l'IA è un extra che puoi disattivare.",
+	"ai_badge": "IA",
+	"ai_badge_title": "Usa token IA",
+	"ai_switch": "Assistente IA",
+	"ai_none_left": "Token IA esauriti: tutto il resto funziona senza IA.",
+	"ai_get_more": "Chiedi altri token",
+	"ai_demo_off": "L'assistente IA non è disponibile nella demo: cerca invece nella biblioteca.",
+	"home_search_hint": "Cerca nella tua biblioteca per titolo, compositore, opus, tonalità…",
+	"home_search_more": "altri {count} nella biblioteca",
+	"home_search_none": "Nessuno spartito corrisponde."
 }

@@ -12,6 +12,7 @@
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import { aiLeftLabel, defaultEffort } from '#lib/usage.js';
 	import AiEffortSelect from '#lib/components/AiEffortSelect.svelte';
+	import AiBadge from '#lib/components/ai/AiBadge.svelte';
 	import type { Score, User } from '#lib/types.js';
 	import * as m from '#lib/paraglide/messages.js';
 
@@ -173,6 +174,7 @@
 							title={aiLeft}
 						>
 							<SparklesIcon />{busy ? m.running_agent() : m.rerun_complete_agent()}
+							<AiBadge class="ml-1" />
 						</Button>
 						<Button
 							variant="outline"
