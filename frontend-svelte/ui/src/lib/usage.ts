@@ -52,6 +52,22 @@ export function effortPercent(user: AiUser, effort: Effort): number | undefined 
 	return (100 * estimate) / allowance;
 }
 
+/** Whether the account's plan includes ``effort`` (detailed is Pro only). */
+export function effortAllowed(user: AiUser, effort: Effort): boolean {
+	const allowed = user?.usage?.ai_efforts;
+	return !allowed?.length || user?.role === 'admin' || allowed.includes(effort);
+}
+
+/** How many quick runs one run at ``effort`` costs, rounded (≥ 2), or undefined. */
+export function effortMultiple(user: AiUser, effort: Effort): number | undefined {
+	const estimates = user?.usage?.ai_run_estimates;
+	const quick = estimates?.quick;
+	const own = estimates?.[effort];
+	if (!quick || !own || effort === 'quick') return undefined;
+	const times = Math.round(own / quick);
+	return times >= 2 ? times : undefined;
+}
+
 /** Whether the tokens left cover a typical run at ``effort``. */
 export function canAfford(user: AiUser, effort: Effort): boolean {
 	const left = aiRemaining(user);
@@ -61,17 +77,19 @@ export function canAfford(user: AiUser, effort: Effort): boolean {
 
 /**
  * The effort to offer first: detailed by preference, else standard on a paid
- * plan and quick on the free one, lowered to what the tokens left still
- * cover; null when not even a quick run fits.
+ * plan and quick on the free one, within what the plan includes, lowered to
+ * what the tokens left still cover; null when not even a quick run fits.
  */
 export function defaultEffort(user: AiUser): Effort | null {
-	const preferred: Effort = user?.detailed_descriptions
+	const wanted: Effort = user?.detailed_descriptions
 		? 'detailed'
 		: user?.role === 'admin' || user?.usage?.plan === 'pro'
 			? 'standard'
 			: 'quick';
+	// Detailed preferred on a plan without it: standard instead.
+	const preferred = effortAllowed(user, wanted) ? wanted : 'standard';
 	for (let i = EFFORTS.indexOf(preferred); i >= 0; i--) {
-		if (canAfford(user, EFFORTS[i])) return EFFORTS[i];
+		if (effortAllowed(user, EFFORTS[i]) && canAfford(user, EFFORTS[i])) return EFFORTS[i];
 	}
 	return null;
 }

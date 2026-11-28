@@ -78,6 +78,7 @@ def _init_sentry() -> None:
         sentry_sdk.init(
             dsn=config.SENTRY_DSN,
             environment=config.SENTRY_ENVIRONMENT,
+            release=config.SENTRY_RELEASE,
             traces_sample_rate=config.SENTRY_TRACES_SAMPLE_RATE,
             # Privacy page: no IP, no request bodies (PDF uploads, prompts).
             send_default_pii=False,
@@ -135,13 +136,23 @@ class CompleteRequest(BaseModel):
 
 def completion_effort(body: CompleteRequest, user: User) -> Effort:
     """The run's effort: asked for, else detailed by preference, else by plan
-    (a free account starts quick, so its tokens last for several scores)."""
+    (a free account starts quick, so its tokens last for several scores).
+
+    An effort the plan doesn't include answers 403 when asked for, and is
+    lowered when it only comes from the account's preference.
+    """
+    allowed = plans.allowed_efforts(user)
     if body.effort:
+        if body.effort not in allowed:
+            raise HTTPException(status_code=403, detail=EFFORT_NOT_IN_PLAN)
         return body.effort
     detailed = user.detailed_descriptions if body.detailed is None else body.detailed
-    if detailed:
+    if detailed and "detailed" in allowed:
         return "detailed"
     return "standard" if user.plan == "pro" or user.role == "admin" else "quick"
+
+
+EFFORT_NOT_IN_PLAN = "Detailed descriptions are part of the Pro plan."
 
 
 class ModelsUpdate(BaseModel):

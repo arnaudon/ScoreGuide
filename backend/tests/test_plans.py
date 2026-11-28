@@ -313,3 +313,10 @@ def test_completion_estimates_median_of_recent_runs_else_a_guess(session):
     assert estimates["standard"] == plans.COMPLETE_TOKENS_GUESS["standard"] * 2
     assert estimates["detailed"] == plans.COMPLETE_TOKENS_GUESS["detailed"] * 2
     assert plans.usage_summary(user, session).ai_run_estimates == estimates
+
+
+def test_allowed_efforts_by_plan():
+    assert plans.allowed_efforts(User(username="f", plan="free")) == ("quick", "standard")
+    assert plans.allowed_efforts(User(username="p", plan="pro"))[-1] == "detailed"
+    assert "detailed" in plans.allowed_efforts(User(username="a", plan="free", role="admin"))
+    assert plans.allowed_efforts(User(username="x", plan="odd")) == ("quick", "standard")

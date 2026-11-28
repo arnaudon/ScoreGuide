@@ -148,6 +148,18 @@ def storage_used(user_id: int, session: Session) -> int:
     return uploads.storage_used(user_id, session)
 
 
+# The AI efforts each plan includes (admins get them all): detailed reads web
+# pages and costs several standard runs, so it is a Pro feature.
+PLAN_EFFORTS: dict[str, tuple[str, ...]] = {"free": ("quick", "standard"), "pro": EFFORTS}
+
+
+def allowed_efforts(user: User) -> tuple[str, ...]:
+    """The completion efforts the user's plan includes."""
+    if user.role == "admin":
+        return EFFORTS
+    return PLAN_EFFORTS.get(user.plan, PLAN_EFFORTS["free"])
+
+
 COMPLETE_FEATURE = "complete_score"
 # Raw tokens of one completion per effort before enough runs exist to measure
 # (Kimi K2.6, Brahms Op. 118); the model's weight applies on top.
@@ -203,6 +215,7 @@ def usage_summary(user: User, session: Session) -> UsageSummary:
         storage_used=storage_used(user.id, session),
         storage_limit=limits.storage_mb * MB,
         ai_run_estimates=completion_estimates(session),
+        ai_efforts=list(allowed_efforts(user)),
     )
 
 

@@ -350,6 +350,36 @@ def demo_login(request: Request, session: Session = Depends(get_session)) -> Tok
     return Token(access_token=access_token, token_type="bearer")
 
 
+class DescriptionExample(BaseModel):
+    """A demo score's description, shown as an example of an AI description."""
+
+    title: str
+    composer: str
+    short_description: str
+    short_description_fr: str
+    long_description: str
+    long_description_fr: str
+    youtube_url: str
+
+
+@router.get("/demo-example")
+@limiter.limit("60/minute")
+def demo_example(request: Request, session: Session = Depends(get_session)) -> DescriptionExample:
+    """The demo library's longest description, public: lets a free account see
+    what a detailed description looks like without leaving its own account."""
+    user = get_user(config.DEMO_USERNAME, session) if config.DEMO_USERNAME else None
+    if user is None or user.role != DEMO_ROLE:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo not available")
+    score = session.exec(
+        select(Score)
+        .where(Score.user_id == user.id, Score.long_description != "")
+        .order_by(func.length(Score.long_description).desc())
+    ).first()
+    if score is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No example")
+    return DescriptionExample.model_validate(score, from_attributes=True)
+
+
 def get_current_user_from_token(token: str, session: Session):
     """Validate a token and return the corresponding user."""
     credentials_exception = HTTPException(

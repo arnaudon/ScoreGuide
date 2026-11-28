@@ -8,6 +8,7 @@
 	import { useSidebar } from '#lib/components/ui/sidebar/context.svelte.js';
 	import DarkModeToggle from './DarkModeToggle.svelte';
 	import LanguagePicker from './LanguagePicker.svelte';
+	import ReportBug from './ReportBug.svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import * as m from '#lib/paraglide/messages.js';
@@ -104,6 +105,10 @@
 		<div class="flex flex-col items-center gap-2 max-md:flex-row">
 			<DarkModeToggle />
 			<LanguagePicker compact />
+			<ReportBug
+				compact
+				class="text-muted-foreground hover:text-foreground hover:bg-accent inline-flex size-9 items-center justify-center rounded-md"
+			/>
 		</div>
 	</Sidebar.Footer>
 </Sidebar.Root>

@@ -5,6 +5,8 @@ import {
 	aiUsedPercent,
 	canAfford,
 	defaultEffort,
+	effortAllowed,
+	effortMultiple,
 	effortPercent,
 	formatBytes,
 	planLabel,
@@ -85,5 +87,28 @@ describe('AI effort', () => {
 		const unknown = { ...user(5), usage: { ...usage(5), ai_run_estimates: {} } };
 		expect(canAfford(unknown, 'detailed')).toBe(true);
 		expect(aiRemaining(null)).toBe(Infinity);
+	});
+
+	it('keeps to the efforts the plan includes', () => {
+		const free = (extra: Partial<User> = {}) =>
+			user(1000, {
+				usage: { ...usage(1000), ai_efforts: ['quick', 'standard'] },
+				...extra
+			});
+		expect(effortAllowed(free(), 'detailed')).toBe(false);
+		expect(effortAllowed(free(), 'standard')).toBe(true);
+		expect(effortAllowed(free({ role: 'admin' }), 'detailed')).toBe(true);
+		// An older backend sends no list: everything is allowed.
+		expect(effortAllowed(user(1000), 'detailed')).toBe(true);
+		expect(defaultEffort(free({ detailed_descriptions: true }))).toBe('standard');
+	});
+
+	it('says how many quick runs a run costs', () => {
+		expect(effortMultiple(user(1000), 'detailed')).toBe(10);
+		expect(effortMultiple(user(1000), 'standard')).toBe(4);
+		expect(effortMultiple(user(1000), 'quick')).toBeUndefined();
+		const close = { ...user(1000), usage: usage(1000, { quick: 10, standard: 12, detailed: 0 }) };
+		expect(effortMultiple(close, 'standard')).toBeUndefined();
+		expect(effortMultiple(close, 'detailed')).toBeUndefined();
 	});
 });

@@ -148,6 +148,8 @@ export interface UsageSummary {
 	storage_limit: number;
 	/** Weighted tokens one AI completion costs at each effort (quick / standard / detailed). */
 	ai_run_estimates?: Record<string, number>;
+	/** Efforts the plan includes (detailed is Pro only); empty or missing = all. */
+	ai_efforts?: string[];
 }
 
 /** Admin `/users` includes the score count and the user's limit overrides. */

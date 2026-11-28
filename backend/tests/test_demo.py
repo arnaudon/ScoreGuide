@@ -205,3 +205,25 @@ def test_demo_user_plays_piano(session: Session, demo_user: User):
     session.add(demo_user)
     session.commit()
     assert demo.get_or_create_demo_user(session).instrument == "cello"
+
+
+def test_demo_example_is_the_longest_description(
+    real_auth: TestClient, session: Session, demo_user: User
+):
+    """Public: a free account sees what a detailed description looks like."""
+    assert real_auth.get("/demo-example").status_code == 404  # no description yet
+    for title, text in (("Short", "## History\nShort."), ("Long", "## History\n" + "x" * 500)):
+        session.add(
+            Score(title=title, composer="Bach", user_id=demo_user.id, long_description=text)
+        )
+    session.commit()
+    real_auth.headers.pop("Authorization", None)
+    body = real_auth.get("/demo-example").json()
+    assert body["title"] == "Long"
+    assert body["long_description"].startswith("## History")
+    assert "id" not in body and "pdf_path" not in body
+
+
+def test_demo_example_without_demo(real_auth: TestClient, monkeypatch):
+    monkeypatch.setattr(config, "DEMO_USERNAME", "")
+    assert real_auth.get("/demo-example").status_code == 404
