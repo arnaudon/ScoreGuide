@@ -352,7 +352,10 @@ title and composer: the work's usual title, in English as on Wikipedia or IMSLP,
 and catalogue number when it has them ("Piano Sonata No. 21 in B-flat major, D. 960"), and the
 composer's full name ("Franz Schubert"). Correct a misspelt or abbreviated title, but it must
 be the same work: if your searches are about a different piece, or you cannot tell which piece
-it is, set same_work to false.
+it is, set same_work to false. A score that holds several works (its table of contents lists
+several sonatas, preludes, songs…) is a volume or collection: give it a collection title
+("Piano Sonatas, Book 1", "24 Preludes, Op. 28"), never the title of its first piece, and
+describe the collection as a whole.
 genre: one of the listed values, by the forces the work is written for.
 form: one of the listed values; a set of pieces sharing one form (24 Preludes) takes that
 form, a set of different forms is "Collection".
